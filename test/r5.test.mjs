@@ -4,9 +4,9 @@ import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
 
 const config = {
-  step: 1,
+  step: 2,
   judgeIssuer: 'https://aleph-judge-production.up.railway.app/defense/judge',
-  sampleMarker: 'SAMPLE_NOTE_1',
+  sampleMarker: 'STEP2_PROTECTED',
   publicAppUrl: 'https://student-defense.vercel.app',
 };
 const env = {
@@ -17,10 +17,10 @@ const env = {
   VERCEL_URL: 'student-defense-123.vercel.app',
 };
 
-test('build identity uses Vercel Git and deployment metadata', () => {
+test('배포 식별 정보는 Vercel Git과 2단계 설정을 사용한다', () => {
   assert.deepEqual(deploymentIdentity(env, config), {
     schema: 'aleph.defense.deployment.v1',
-    step: 1,
+    step: 2,
     repoUrl: 'https://github.com/student-a/aleph-defense',
     commit: 'a'.repeat(40),
     publicAppUrl: 'https://student-defense-123.vercel.app',
@@ -29,9 +29,10 @@ test('build identity uses Vercel Git and deployment metadata', () => {
   });
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
+  assert.throws(() => deploymentIdentity(env, { ...config, step: 1 }));
 });
 
-test('first attack check reads public data.json without credentials', async () => {
+test('비로그인 data.json에서 메모 본문이 노출되지 않는지 확인한다', async () => {
   const originalFetch = globalThis.fetch;
   let requestUrl;
   let options;
@@ -39,7 +40,7 @@ test('first attack check reads public data.json without credentials', async () =
     globalThis.fetch = async (url, init) => {
       requestUrl = String(url);
       options = init;
-      return new Response(JSON.stringify({ sampleMarker: 'SAMPLE_NOTE_1', notes: [{ title: '가상' }] }), {
+      return new Response(JSON.stringify({ sampleMarker: 'STEP2_PROTECTED', notes: [] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -47,10 +48,13 @@ test('first attack check reads public data.json without credentials', async () =
     const [result] = await runAttackChecks(config);
     assert.equal(requestUrl, 'https://student-defense.vercel.app/data.json');
     assert.equal(options.redirect, 'error');
-    assert.match(result.observed, /확인 표시가 보임/u);
-    globalThis.fetch = async () => new Response('<html>not the data</html>', { status: 200 });
+    assert.match(result.observed, /메모 목록이 비어 있음/u);
+
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      sampleMarker: 'STEP2_PROTECTED', notes: [{ title: '가상 제목', content: '가상 본문' }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
     const [failed] = await runAttackChecks(config);
-    assert.match(failed.observed, /보이지 않음/u);
+    assert.match(failed.observed, /빈 메모 목록을 확인하지 못함/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
