@@ -12,7 +12,7 @@ create table if not exists public.learning_notes (
 
 alter table public.learning_notes enable row level security;
 
-revoke all privileges on table public.learning_notes from anon, authenticated;
+revoke all privileges on table public.learning_notes from PUBLIC, anon, authenticated;
 
 insert into public.learning_notes (owner_id, title, content)
 values
