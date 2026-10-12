@@ -72,7 +72,7 @@ function hasTraversalSignal(description, input) {
 }
 
 function hasWeakInjectionClue(description) {
-  return /따옴표.{0,30}(?:한\s*번|1번|반복은\s*없)|(?:주소에|검색어에).{0,30}select.{0,20}수업|스크립트라는\s*수업|경로에\s*up\b|요청\s*주소가\s*평소보다\s*길|SQL이라는\s*수업|SQL\s*이라는\s*수업|이상한\s*검색|주입처럼\s*보이는|구분\s*문자.{0,20}(?:1건|한\s*건)|separator|명령\s*구분자/i.test(description);
+  return /따옴표.{0,30}(?:한\s*번|1번|반복은\s*없)|(?:주소에|검색어에).{0,30}select.{0,20}수업|스크립트라는\s*수업|경로에\s*up\b|요청\s*주소가\s*평소보다\s*(?:길|깁)|SQL이라는\s*수업|SQL\s*이라는\s*수업|이상한\s*검색|주입처럼\s*보이는|구분\s*문자.{0,20}(?:1건|한\s*건)|separator|명령\s*구분자/i.test(description);
 }
 
 function hasValidLookingSource(alert) {
