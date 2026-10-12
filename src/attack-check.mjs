@@ -1,5 +1,7 @@
 // Each stage updates this self-check to inspect the current protection boundary.
 // Never return tokens, private keys, real names, or note bodies.
+const TEST_ID = '00000000-0000-4000-8000-000000000001';
+
 export async function runAttackChecks(config) {
   if (!Number.isInteger(config.step) || config.step < 2 || config.step > 12) {
     throw new Error('이 단계의 공격 점검은 2~12단계 설정이 필요합니다.');
@@ -21,21 +23,50 @@ export async function runAttackChecks(config) {
   });
   const staticDataMissing = staticResponse.status === 404 || staticResponse.status === 410;
 
-  // Deliberately omit Authorization: this verifies that anonymous callers get no notes.
-  const apiResponse = await fetch(new URL('/api/notes', app), {
-    redirect: 'error', signal: AbortSignal.timeout(10000), cache: 'no-store',
-    headers: { Accept: 'application/json' },
-  });
-  let anonymousDeniedWithoutNotes = false;
-  if (apiResponse.status === 401) {
-    try {
-      const payload = await apiResponse.json();
-      anonymousDeniedWithoutNotes = payload?.error === 'UNAUTHORIZED'
-        && !Object.hasOwn(payload, 'notes');
-    } catch {
-      // Invalid/non-JSON error responses are not treated as a passing check.
+  const anonymousProbes = [
+    { path: '/api/notes', method: 'GET' },
+    { path: '/api/notes', method: 'POST', body: { title: 'anonymous-test', body: 'must be denied' } },
+    { path: '/api/notes/' + TEST_ID, method: 'GET' },
+    { path: '/api/notes/' + TEST_ID, method: 'PUT', body: { title: 'anonymous-test', body: 'must be denied' } },
+    { path: '/api/notes/' + TEST_ID, method: 'DELETE' },
+  ];
+  const probeResults = [];
+  for (const probe of anonymousProbes) {
+    const headers = { Accept: 'application/json' };
+    const init = {
+      method: probe.method,
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
+      cache: 'no-store',
+      headers,
+    };
+    if (probe.body) {
+      headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(probe.body);
     }
+    const response = await fetch(new URL(probe.path, app), init);
+    let deniedWithoutData = false;
+    if (response.status === 401) {
+      try {
+        const payload = await response.json();
+        deniedWithoutData = payload?.error === 'UNAUTHORIZED'
+          && !Object.hasOwn(payload, 'notes')
+          && !Object.hasOwn(payload, 'id')
+          && !Object.hasOwn(payload, 'body');
+      } catch {
+        // A malformed response is not a passing denial.
+      }
+    }
+    probeResults.push({
+      route: probe.method + ' ' + probe.path,
+      passed: deniedWithoutData,
+      status: response.status,
+    });
   }
+
+  const allAnonymousDenied = probeResults.every(result => result.passed);
+  const failedRoutes = probeResults.filter(result => !result.passed)
+    .map(result => result.route + ' (HTTP ' + result.status + ')');
 
   return [
     {
@@ -46,11 +77,11 @@ export async function runAttackChecks(config) {
         : `/data.json is still reachable (HTTP ${staticResponse.status})`,
     },
     {
-      attackId: 'anonymous_notes_api_read',
-      expected: 'an unauthenticated request is rejected without a notes array',
-      observed: anonymousDeniedWithoutNotes
-        ? '/api/notes returned HTTP 401 UNAUTHORIZED with no notes'
-        : `/api/notes did not return the expected empty denial (HTTP ${apiResponse.status})`,
+      attackId: 'anonymous_notes_crud',
+      expected: 'unauthenticated GET/POST /api/notes and GET/PUT/DELETE /api/notes/:id all return 401 without memo data',
+      observed: allAnonymousDenied
+        ? 'All five unauthenticated list/create/item requests returned HTTP 401 without memo data'
+        : 'Unauthenticated requests not correctly denied: ' + failedRoutes.join('; '),
     },
   ];
 }
