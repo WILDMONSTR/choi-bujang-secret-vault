@@ -4,9 +4,11 @@
 
 ## 3단계: Supabase Auth 로그인 UI
 
-- `public/index.html`은 Supabase 공식 JavaScript SDK `@supabase/supabase-js` 2.117.2를 사용해 `signInWithPassword`, `signOut`, `onAuthStateChange` 흐름을 연결합니다. 로그인 후에는 계정 이메일과 로그아웃 버튼이 표시되고, 로그아웃하면 로그인 폼으로 돌아옵니다. 인증 오류의 이유는 화면에 표시합니다.
-- 프로젝트 URL은 화면 코드에 설정되어 있습니다. `SUPABASE_PUBLISHABLE_KEY`의 교체용 값을 실제 Supabase `sb_publishable_...` 공개 키로 바꿔야 로그인할 수 있습니다. 키는 Supabase의 Project Settings → API Keys에서 확인하세요. `sb_secret_...` 서버 비밀 키는 브라우저에 넣지 마세요.
-- **중요:** 이 단계는 로그인·로그아웃 UI를 붙인 단계입니다. `/api/notes`에는 여전히 로그인·호출자 인증 검사가 없으므로, 로그인하지 않아도 해당 API를 직접 호출할 수 있습니다. 현재 UI를 API 접근 제어 완료로 간주하지 마세요.
+- `public/index.html`은 Supabase 공식 JavaScript SDK `@supabase/supabase-js` 2.117.2를 사용해 `signInWithPassword`, `signOut`, `onAuthStateChange`를 연결합니다. 로그인 후에는 계정 이메일과 로그아웃 버튼이 표시되고, 로그아웃하면 로그인 폼으로 돌아옵니다. 메모 요청에는 SDK 세션의 `access_token`을 `Authorization: Bearer ...` 헤더로 보냅니다.
+- 브라우저에는 공개 `SUPABASE_URL`과 `sb_publishable_...` 키만 들어 있습니다. `sb_secret_...` 서버 비밀 키는 Vercel 환경변수 `SUPABASE_SECRET_KEY`에만 보관합니다.
+- `aleph.config.json`의 `identityProvider`에는 Supabase Auth의 issuer (`.../auth/v1`), JWKS URL (`.../auth/v1/.well-known/jwks.json`)과 audience (`authenticated`)가 기록돼 있습니다. 비밀 키는 이 설정에 넣지 않습니다.
+- `api/notes.js`는 기존 `src/verify-login.mjs`를 사용해 Authorization 토큰을 검증하고, 검증된 Supabase student 세션만 메모 조회에 허용합니다. 토큰 누락·검증 실패는 HTTP 401 `{ "error": "UNAUTHORIZED" }`를 반환하며 메모 배열을 포함하지 않습니다. 요청 본문이나 쿼리의 `userId`·`role`은 신뢰하지 않습니다.
+- 로그인 UI와 API 검증은 별도입니다. 인증된 API로 바꿨더라도 로그인 실패 시 메모가 표시되면 안 되며, `/api/notes`의 거부 응답에는 자료가 없어야 합니다. 요청 횟수 제한은 아직 구현하지 않았습니다.
 
 ## Vercel 환경변수 설정
 
@@ -22,7 +24,7 @@
 - `api/notes.js`는 서버에서 `SUPABASE_URL`과 `SUPABASE_SECRET_KEY`를 읽어 `learning_notes` 테이블의 `title`과 `content`만 조회합니다.
 - 함수는 정해진 네 제목에 해당하는 가상 메모만 응답하며, 키와 원본 오류는 응답하거나 로그로 남기지 않습니다.
 - Supabase secret key는 RLS를 우회할 수 있는 높은 권한의 키이므로 서버 밖으로 유출되면 안 됩니다.
-- **현재 알려진 약점:** `/api/notes`는 공개 URL이고 호출자 인증·로그인 확인·요청 제한을 구현하지 않았습니다. 누구나 URL을 직접 열어 네 건의 가상 메모를 읽을 수 있습니다. 이 단계에서는 가상 데이터만 사용하며, 실제 자료를 다루려면 인증·인가·요청 제한을 추가해야 합니다.
+- **현재 알려진 약점:** `/api/notes` URL 자체는 공개되어 있지만, 현재는 서버에서 토큰을 검증하므로 비로그인 호출에는 HTTP 401과 메모 없는 오류만 반환해야 합니다. 요청 횟수 제한은 아직 구현하지 않았습니다. 실제 자료를 다루기 전에는 사용자별 인가 정책과 요청 제한도 설계해야 합니다.
 
 ## 정적 파일과 배포
 
