@@ -1,14 +1,21 @@
 # BYTE BACK 방어전 자료실 · 3단계
 
-이 저장소는 3단계 학습용 구성입니다. 화면은 Vercel 서버 함수 `/api/notes`를 통해 Supabase의 `public.learning_notes` 테이블에서 가상 메모 네 건을 읽으며, 화면에 Supabase Auth 이메일·비밀번호 로그인과 로그아웃 UI를 제공합니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
+이 저장소는 3단계 학습용 구성입니다. Supabase Auth 이메일·비밀번호 로그인과 로그아웃을 제공하며, 로그인한 사용자가 Vercel API를 통해 자신의 가상 메모 목록을 보고 추가·수정·삭제할 수 있습니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
 
-## 3단계: Supabase Auth 로그인 UI
+## 3단계: 로그인과 메모 CRUD
 
-- `public/index.html`은 Supabase 공식 JavaScript SDK `@supabase/supabase-js` 2.117.2를 사용해 `signInWithPassword`, `signOut`, `onAuthStateChange`를 연결합니다. 로그인 후에는 계정 이메일과 로그아웃 버튼이 표시되고, 로그아웃하면 로그인 폼으로 돌아옵니다. 메모 요청에는 SDK 세션의 `access_token`을 `Authorization: Bearer ...` 헤더로 보냅니다.
-- 브라우저에는 공개 `SUPABASE_URL`과 `sb_publishable_...` 키만 들어 있습니다. `sb_secret_...` 서버 비밀 키는 Vercel 환경변수 `SUPABASE_SECRET_KEY`에만 보관합니다.
-- `aleph.config.json`의 `identityProvider`에는 Supabase Auth의 issuer (`.../auth/v1`), JWKS URL (`.../auth/v1/.well-known/jwks.json`)과 audience (`authenticated`)가 기록돼 있습니다. 비밀 키는 이 설정에 넣지 않습니다.
-- `api/notes.js`는 기존 `src/verify-login.mjs`를 사용해 Authorization 토큰을 검증하고, 검증된 Supabase student 세션만 메모 조회에 허용합니다. 토큰 누락·검증 실패는 HTTP 401 `{ "error": "UNAUTHORIZED" }`를 반환하며 메모 배열을 포함하지 않습니다. 요청 본문이나 쿼리의 `userId`·`role`은 신뢰하지 않습니다.
-- 로그인 UI와 API 검증은 별도입니다. 인증된 API로 바꿨더라도 로그인 실패 시 메모가 표시되면 안 되며, `/api/notes`의 거부 응답에는 자료가 없어야 합니다. 요청 횟수 제한은 아직 구현하지 않았습니다.
+- `public/index.html`은 Supabase 공식 JavaScript SDK `@supabase/supabase-js` 2.117.2의 `signInWithPassword`, `signOut`, `onAuthStateChange`를 사용합니다. 로그인 토큰은 API 요청의 `Authorization: Bearer ...` 헤더로 전송합니다.
+- `src/verify-login.mjs`는 수정하지 않았습니다. `api/notes.js`와 `api/notes/[id].js`가 이 검증기를 이용하며, 확인된 Supabase 로그인 사용자의 ID만 권한 판단과 `owner_id` 저장에 사용합니다. 요청 본문이나 쿼리에 있는 `userId`·`role`은 신뢰하지 않습니다.
+- `GET /api/notes`는 로그인 사용자에게 속한 메모 배열 `[{id,title,body}]`를 반환합니다. `POST /api/notes`는 `{id?,title,body}`를 받고, ID가 없으면 서버에서 UUID를 만들며 `{id}`를 HTTP 201로 반환합니다. 생성 시 검증된 사용자 ID를 `owner_id`로 저장합니다.
+- `GET /api/notes/:id`는 한 건을 `{id,title,body}`로 반환하고, 없거나 삭제된 ID는 404를 반환합니다. `PUT /api/notes/:id`는 `{title,body}`를 수정하고, `DELETE /api/notes/:id`는 삭제 후 204를 반환합니다.
+- `aleph.config.json`의 `allowedRoutes`에는 실제 GET·POST·PUT·DELETE 경로를 기록했습니다. `identityProvider`에는 Supabase Auth issuer, JWKS URL과 `authenticated` audience만 기록하며 비밀 키는 넣지 않습니다.
+
+## 알려진 약점 — 소유자 검사는 4단계에서 추가
+
+- 비로그인 요청과 토큰 검증 실패는 HTTP 401 `{"error":"UNAUTHORIZED"}`로 거부되며, 메모는 반환하지 않습니다.
+- **3단계에서 일부러 남긴 약점:** 목록 조회는 `owner_id`로 로그인 사용자의 메모만 필터링하지만, 단건 GET·PUT·DELETE에는 아직 `owner_id` 조건이 없습니다. 다른 로그인 사용자가 메모 UUID를 알고 있으면 해당 메모를 읽거나 수정하거나 삭제할 수 있습니다. 이것은 4단계에서 고칠 예정이며, 현재는 가상 데이터만 사용하세요.
+- `learning_notes.title`은 데이터베이스에서 전역 고유값이므로 다른 계정에 같은 제목이 이미 있으면 API가 HTTP 409 `TITLE_ALREADY_EXISTS`를 반환할 수 있습니다.
+- 요청 횟수 제한은 아직 구현하지 않았습니다. Supabase secret key는 RLS를 우회할 수 있는 높은 권한의 키이므로 Vercel의 `SUPABASE_SECRET_KEY` 환경변수에만 보관하세요.
 
 ## Vercel 환경변수 설정
 
@@ -19,18 +26,11 @@
 
 환경변수의 **이름과 용도만** 코드에 적습니다. 실제 값은 Vercel의 환경변수 입력란에만 입력하세요. 키를 채팅, GitHub, 브라우저 코드, URL, 응답 본문 또는 로그에 넣지 마세요. 이 키에 `NEXT_PUBLIC_`이나 `VITE_` 같은 브라우저 노출용 접두사를 붙이지 마세요. 실제 키를 나에게 보내지 않아도 됩니다.
 
-## API와 알려진 약점
-
-- `api/notes.js`는 서버에서 `SUPABASE_URL`과 `SUPABASE_SECRET_KEY`를 읽어 `learning_notes` 테이블의 `title`과 `content`만 조회합니다.
-- 함수는 정해진 네 제목에 해당하는 가상 메모만 응답하며, 키와 원본 오류는 응답하거나 로그로 남기지 않습니다.
-- Supabase secret key는 RLS를 우회할 수 있는 높은 권한의 키이므로 서버 밖으로 유출되면 안 됩니다.
-- **현재 알려진 약점:** `/api/notes` URL 자체는 공개되어 있지만, 현재는 서버에서 토큰을 검증하므로 비로그인 호출에는 HTTP 401과 메모 없는 오류만 반환해야 합니다. 요청 횟수 제한은 아직 구현하지 않았습니다. 실제 자료를 다루기 전에는 사용자별 인가 정책과 요청 제한도 설계해야 합니다.
-
 ## 정적 파일과 배포
 
 - `public/data.json`은 제거했습니다. 빌드 스크립트도 예전 파일이 남아 있으면 지우며 다시 만들지 않습니다. 배포 주소의 `/data.json`은 찾을 수 없음(일반적으로 HTTP 404)이 정상입니다.
-- 화면은 `/api/notes`를 호출해 네 카드를 그립니다. 브라우저에는 공개 프로젝트 URL과 publishable key만 사용하며, 서버 전용 secret key는 포함하지 않습니다.
-- Vercel 빌드는 `aleph.config.json`의 2~12단계를 지원합니다. 비로컬 배포에서는 기존처럼 `public/aleph.json`에 배포 식별 정보를 생성합니다. `--local` 빌드는 해당 배포 식별 파일을 생성하지 않습니다.
+- 브라우저에는 공개 프로젝트 URL과 publishable key만 사용하며, 서버 전용 secret key는 포함하지 않습니다.
+- Vercel 빌드는 `aleph.config.json`의 2~12단계를 지원합니다. 비로컬 배포에서는 `public/aleph.json`에 배포 식별 정보를 생성합니다. `--local` 빌드는 해당 배포 식별 파일을 생성하지 않습니다.
 - `npm run build -- --local`은 로컬 빌드 확인용이고, 실제 Vercel 배포 완료를 증명하지 않습니다.
 - 점검 명령은 `npm run test:r5`와 `npm run test:package`입니다. 실행하지 않은 테스트나 실제 API 요청을 성공했다고 간주하지 마세요.
 
@@ -47,7 +47,7 @@
 
 1. 2단계 당시 배포 주소 [자료실](https://choi-bujang-secret-vault-eosin-zeta.vercel.app/)을 열고 브라우저 개발자 도구(F12)의 **Network** 탭으로 이동합니다.
 2. 캐시를 끄고 페이지를 새로고침합니다. 문서·JavaScript·CSS 등 **정적 리소스**의 응답(Response)을 확인하고, 위 네 문장을 각각 정확히 검색합니다. 문서 응답은 `view-source:https://choi-bujang-secret-vault-hol8fmyub-rryk1212-4030.vercel.app/`로 별도로 확인할 수도 있습니다.
-3. `/api/notes` 응답은 정적 파일이 아니므로 정적 파일 검색 결과와 섞지 마세요. 이 API 응답에는 의도적으로 네 메모 본문이 포함될 수 있으며, 아래의 공개 API 약점 기록에 따로 적습니다.
+3. `/api/notes`와 `/api/notes/:id` 응답은 정적 파일이 아니므로 정적 파일 검색과 구분하세요. 이 API들은 토큰 검증 후 메모 데이터를 반환할 수 있고, 3단계에서는 단건 GET·PUT·DELETE의 소유자 검사가 아직 없습니다.
 4. `/data.json`을 열어 404 또는 410인지 확인합니다. `/aleph.json`은 배포 식별 정보를 확인하는 용도입니다. `/data.json`의 404는 그 경로가 없다는 증거일 뿐, 모든 정적 리소스를 검색했다는 증거는 아닙니다.
 5. 각 문장별로 결과를 기록합니다. 정적 리소스에서 발견되면 URL, 리소스 이름, 일치한 문장을 기록하고, 노출이 해결됐다고 결론 내리지 마세요.
 
