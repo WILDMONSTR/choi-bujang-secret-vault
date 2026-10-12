@@ -13,6 +13,16 @@
     h1 { margin: 16px 0; font-size: clamp(30px, 7vw, 48px); line-height: 1.2; }
     p { font-size: 17px; line-height: 1.7; color: #bfd0e5; }
     .notice { margin: 26px 0; padding: 18px; border: 1px solid #d6a24c; border-radius: 14px; color: #fff0ce; background: #61451b44; }
+    .auth-panel { margin: 24px 0; padding: 22px; border: 1px solid #51667c; border-radius: 14px; background: #172538; }
+    .auth-panel h2 { margin: 0 0 8px; font-size: 22px; }
+    .auth-form { display: grid; gap: 10px; max-width: 460px; }
+    .auth-form label { margin-top: 5px; color: #d9e7f6; font-weight: 600; }
+    .auth-form input { width: 100%; box-sizing: border-box; border: 1px solid #617993; border-radius: 8px; padding: 12px; color: #ecf4ff; background: #101a28; font: inherit; }
+    .auth-panel button { width: fit-content; border: 0; border-radius: 8px; padding: 11px 17px; color: #081522; background: #8ad8df; font: inherit; font-weight: 700; cursor: pointer; }
+    .auth-panel button:disabled { opacity: .55; cursor: not-allowed; }
+    #session-status, #auth-message { font-size: 15px; overflow-wrap: anywhere; }
+    #auth-message { min-height: 1.5em; margin-bottom: 0; }
+    [hidden] { display: none !important; }
     #status { margin: 22px 0; color: #bfd0e5; }
     #notes { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; padding: 0; }
     .note-card { min-width: 0; border: 1px solid #51667c; border-radius: 14px; padding: 18px 19px; background: #1a2a3d; }
@@ -22,9 +32,25 @@
 </head>
 <body>
   <main>
-    <div class="eyebrow">BYTE BACK · 2단계 자료 보호</div>
+    <div class="eyebrow">BYTE BACK · 3단계 로그인</div>
     <h1>보호 중인 자료실</h1>
     <p>화면은 서버 API를 통해 학습용 데이터베이스에서 가상 메모를 가져옵니다. 메모 본문은 공개 정적 파일에 포함하지 않습니다.</p>
+    <section class="auth-panel" aria-labelledby="auth-title">
+      <h2 id="auth-title">계정 로그인</h2>
+      <p>Supabase Auth 이메일·비밀번호 로그인을 사용합니다. 로그인하면 계정 이메일과 로그아웃 버튼이 표시됩니다.</p>
+      <form id="login-form" class="auth-form">
+        <label for="auth-email">이메일</label>
+        <input id="auth-email" name="email" type="email" autocomplete="username" required>
+        <label for="auth-password">비밀번호</label>
+        <input id="auth-password" name="password" type="password" autocomplete="current-password" required>
+        <button id="login-submit" type="submit">로그인</button>
+      </form>
+      <div id="signed-in" hidden>
+        <p id="session-status" role="status" aria-live="polite"></p>
+        <button id="logout-button" type="button">로그아웃</button>
+      </div>
+      <p id="auth-message" role="status" aria-live="polite"></p>
+    </section>
     <div class="notice">
       실습상의 알려진 약점: <code>/api/notes</code>는 공개 주소이며 아직 로그인이나 호출자 인증을 요구하지 않습니다.
       이 API에는 가상 자료만 사용하세요.
@@ -32,6 +58,124 @@
     <p id="status" role="status" aria-live="polite">가상 메모를 불러오는 중입니다.</p>
     <ul id="notes" aria-label="가상 메모 목록"></ul>
   </main>
+  <script type="module">
+    // These browser-side values are public. Never place a Supabase secret key here.
+    const SUPABASE_PROJECT_URL = 'https://zskattfklxijebwsgava.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'PASTE_SB_PUBLISHABLE_KEY_HERE';
+
+    const loginForm = document.querySelector('#login-form');
+    const emailInput = document.querySelector('#auth-email');
+    const passwordInput = document.querySelector('#auth-password');
+    const loginButton = document.querySelector('#login-submit');
+    const loggedInPanel = document.querySelector('#signed-in');
+    const sessionStatus = document.querySelector('#session-status');
+    const logoutButton = document.querySelector('#logout-button');
+    const authMessage = document.querySelector('#auth-message');
+
+    let authClient = null;
+    let authBusy = false;
+
+    function setAuthMessage(message) {
+      authMessage.textContent = message;
+    }
+
+    function describeAuthError(error) {
+      const reason = typeof error?.message === 'string' && error.message.trim()
+        ? error.message.trim()
+        : '원인을 알 수 없는 오류';
+      const code = typeof error?.code === 'string' ? error.code : '';
+      return code && !reason.includes(code) ? reason + ' (코드: ' + code + ')' : reason;
+    }
+
+    function renderSession(session) {
+      const user = session?.user;
+      loginForm.hidden = Boolean(user);
+      loggedInPanel.hidden = !user;
+      if (user) {
+        sessionStatus.textContent = '로그인됨: ' + (user.email || '이메일 정보 없음');
+      }
+    }
+
+    function setBusy(busy) {
+      authBusy = busy;
+      loginButton.disabled = busy;
+      logoutButton.disabled = busy;
+    }
+
+    const publicConfigReady = SUPABASE_PROJECT_URL.startsWith('https://')
+      && SUPABASE_PUBLISHABLE_KEY.startsWith('sb_publishable_');
+
+    if (!publicConfigReady) {
+      loginButton.disabled = true;
+      setAuthMessage('로그인 설정이 필요합니다. public/index.html의 SUPABASE_PUBLISHABLE_KEY에 Supabase의 sb_publishable_ 공개 키를 입력하세요. 비밀 키는 넣지 마세요.');
+    } else {
+      try {
+        // Load the official Supabase JavaScript SDK for this static HTML page.
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.117.2');
+        authClient = createClient(SUPABASE_PROJECT_URL, SUPABASE_PUBLISHABLE_KEY);
+
+        authClient.auth.onAuthStateChange((event, session) => {
+          renderSession(session);
+          if (event === 'SIGNED_IN') setAuthMessage('로그인에 성공했습니다.');
+          if (event === 'SIGNED_OUT') setAuthMessage('로그아웃했습니다.');
+        });
+
+        loginForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (!authClient || authBusy) return;
+
+          const email = emailInput.value.trim();
+          const password = passwordInput.value;
+          setBusy(true);
+          setAuthMessage('로그인 확인 중…');
+          try {
+            const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+            if (error) {
+              setAuthMessage('로그인 실패: ' + describeAuthError(error));
+              return;
+            }
+            passwordInput.value = '';
+            renderSession(data.session);
+            setAuthMessage('로그인에 성공했습니다.');
+          } catch (error) {
+            setAuthMessage('로그인 요청 실패: ' + describeAuthError(error));
+          } finally {
+            setBusy(false);
+          }
+        });
+
+        logoutButton.addEventListener('click', async () => {
+          if (!authClient || authBusy) return;
+          setBusy(true);
+          setAuthMessage('로그아웃 중…');
+          try {
+            const { error } = await authClient.auth.signOut();
+            if (error) {
+              setAuthMessage('로그아웃 실패: ' + describeAuthError(error));
+              return;
+            }
+            passwordInput.value = '';
+            renderSession(null);
+            setAuthMessage('로그아웃했습니다.');
+          } catch (error) {
+            setAuthMessage('로그아웃 요청 실패: ' + describeAuthError(error));
+          } finally {
+            setBusy(false);
+          }
+        });
+
+        const { data, error } = await authClient.auth.getSession();
+        if (error) {
+          setAuthMessage('기존 로그인 상태 확인 실패: ' + describeAuthError(error));
+        } else {
+          renderSession(data.session);
+        }
+      } catch (error) {
+        loginButton.disabled = true;
+        setAuthMessage('Supabase Auth 초기화 실패: ' + describeAuthError(error));
+      }
+    }
+  </script>
   <script type="module">
     const status = document.querySelector('#status');
     const list = document.querySelector('#notes');
