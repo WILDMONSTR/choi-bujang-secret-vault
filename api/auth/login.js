@@ -1,4 +1,4 @@
-import { getServerAuthContext, verifyStudentToken } from '../../src/server-auth.mjs';
+import { createIsolatedAuthClient, getServerAuthContext, verifyStudentToken } from '../../src/server-auth.mjs';
 import { isTrustedBrowserOrigin, setSessionCookies } from '../../src/session-cookies.mjs';
 
 function sendError(response, status, code) {
@@ -42,7 +42,8 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { data, error } = await context.supabase.auth.signInWithPassword({
+    const authClient = createIsolatedAuthClient(context);
+    const { data, error } = await authClient.auth.signInWithPassword({
       email: input.email.trim(),
       password: input.password,
     });
