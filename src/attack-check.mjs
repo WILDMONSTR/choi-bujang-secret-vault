@@ -23,19 +23,19 @@ export async function runAttackChecks(config) {
   });
   const staticDataMissing = staticResponse.status === 404 || staticResponse.status === 410;
 
+  // Deliberately omit Authorization: this verifies that anonymous callers get no notes.
   const apiResponse = await fetch(new URL('/api/notes', app), {
     redirect: 'error', signal: AbortSignal.timeout(10000), cache: 'no-store',
     headers: { Accept: 'application/json' },
   });
-  let hasFourNotes = false;
-  if (apiResponse.ok) {
+  let anonymousDeniedWithoutNotes = false;
+  if (apiResponse.status === 401) {
     try {
       const payload = await apiResponse.json();
-      hasFourNotes = Array.isArray(payload?.notes) && payload.notes.length === 4
-        && payload.notes.every((note, index) => note?.title === EXPECTED_TITLES[index]
-          && typeof note.content === 'string');
+      anonymousDeniedWithoutNotes = payload?.error === 'UNAUTHORIZED'
+        && !Object.hasOwn(payload, 'notes');
     } catch {
-      // A malformed response is a failed check, not a successful API response.
+      // Invalid/non-JSON error responses are not treated as a passing check.
     }
   }
 
@@ -48,11 +48,11 @@ export async function runAttackChecks(config) {
         : `/data.json is still reachable (HTTP ${staticResponse.status})`,
     },
     {
-      attackId: 'public_notes_api',
-      expected: 'the public API returns only the four intended virtual notes; unauthenticated access is a known limitation',
-      observed: hasFourNotes
-        ? '/api/notes returned four virtual notes without caller authentication; the endpoint remains publicly callable'
-        : `/api/notes did not return the expected four-note response (HTTP ${apiResponse.status})`,
+      attackId: 'anonymous_notes_api_read',
+      expected: 'an unauthenticated request is rejected without a notes array',
+      observed: anonymousDeniedWithoutNotes
+        ? '/api/notes returned HTTP 401 UNAUTHORIZED with no notes'
+        : `/api/notes did not return the expected empty denial (HTTP ${apiResponse.status})`,
     },
   ];
 }
