@@ -3,6 +3,7 @@ const REPO = /^[A-Za-z0-9._-]{1,100}$/u;
 const SHA = /^[a-f0-9]{40}$/iu;
 const HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.vercel\.app$/iu;
 const SAMPLE_MARKER = /^[A-Z0-9_]{1,80}$/u;
+const ORIGINAL_API_URL = /^https:\/\/[a-z0-9-]+\.supabase\.co\/rest\/v1\/[a-z_][a-z0-9_]*$/iu;
 
 export function deploymentIdentity(env, config) {
   const owner = env.VERCEL_GIT_REPO_OWNER;
@@ -22,6 +23,11 @@ export function deploymentIdentity(env, config) {
     throw new Error('배포 식별 정보를 확인할 수 없습니다. Vercel 환경변수와 2~12단계 설정을 확인하세요.');
   }
 
+  if (step >= 5 && (typeof config.originalApiUrl !== 'string'
+      || !ORIGINAL_API_URL.test(config.originalApiUrl))) {
+    throw new Error('5단계 이상은 aleph.config.json의 originalApiUrl에 쿼리가 없는 HTTPS Supabase REST 주소를 설정해야 합니다.');
+  }
+
   return {
     schema: 'aleph.defense.deployment.v1',
     step,
@@ -30,5 +36,6 @@ export function deploymentIdentity(env, config) {
     publicAppUrl: `https://${host.toLowerCase()}`,
     judgeIssuer: config.judgeIssuer,
     sampleMarker,
+    originalApiUrl: config.originalApiUrl ?? null,
   };
 }

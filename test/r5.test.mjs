@@ -15,6 +15,7 @@ const config = {
     audience: 'authenticated',
   },
   sampleMarker: 'STEP4_OWNER_CHECKED',
+  originalApiUrl: null,
   publicAppUrl: 'https://choi-bujang-secret-vault-eosin-zeta.vercel.app',
 };
 const env = {
@@ -34,12 +35,19 @@ test('배포 식별 정보는 4단계와 이후 단계를 지원한다', () => {
     publicAppUrl: 'https://student-defense-123.vercel.app',
     judgeIssuer: config.judgeIssuer,
     sampleMarker: config.sampleMarker,
+    originalApiUrl: null,
   });
   const laterStage = deploymentIdentity(env, {
     ...config, step: 5, sampleMarker: 'STEP5_PROTECTED',
+    originalApiUrl: 'https://zskattfklxijebwsgava.supabase.co/rest/v1/learning_notes',
   });
   assert.equal(laterStage.step, 5);
   assert.equal(laterStage.sampleMarker, 'STEP5_PROTECTED');
+  assert.equal(laterStage.originalApiUrl, 'https://zskattfklxijebwsgava.supabase.co/rest/v1/learning_notes');
+  assert.throws(() => deploymentIdentity(env, {
+    ...config, step: 5, sampleMarker: 'STEP5_PROTECTED',
+    originalApiUrl: 'https://zskattfklxijebwsgava.supabase.co/rest/v1/learning_notes?select=*',
+  }));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
   assert.throws(() => deploymentIdentity(env, { ...config, step: 1 }));
