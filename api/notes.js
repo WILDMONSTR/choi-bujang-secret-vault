@@ -37,11 +37,15 @@ function getContext(supabaseUrl, secretKey) {
   return cachedContext;
 }
 
-function parseNote(body) {
+function parseRequestBody(body) {
   let value = body;
   if (typeof value === 'string') {
     try { value = JSON.parse(value); } catch { return null; }
   }
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+}
+
+function parseNote(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if (typeof value.title !== 'string' || !value.title.trim() || value.title.trim().length > 200
       || typeof value.body !== 'string' || !value.body.trim() || value.body.length > 20000) {
@@ -110,15 +114,15 @@ export default async function handler(request, response) {
       return response.status(200).json(data.map(publicNote));
     }
 
-    const note = parseNote(request.body);
+    const input = parseRequestBody(request.body);
+    const note = parseNote(input);
     if (!note) return sendError(response, 400, 'INVALID_NOTE');
     let id;
-    if (request.body && typeof request.body === 'object'
-        && Object.prototype.hasOwnProperty.call(request.body, 'id')) {
-      if (typeof request.body.id !== 'string' || !UUID.test(request.body.id)) {
+    if (Object.prototype.hasOwnProperty.call(input, 'id')) {
+      if (typeof input.id !== 'string' || !UUID.test(input.id)) {
         return sendError(response, 400, 'INVALID_ID');
       }
-      id = request.body.id;
+      id = input.id;
     } else {
       id = randomUUID();
     }
