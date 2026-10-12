@@ -61,11 +61,20 @@ export function clearSessionCookies(response) {
   ]);
 }
 
-export function isTrustedBrowserOrigin(request, config) {
+export function isTrustedBrowserOrigin(request) {
   const origin = request?.headers?.origin;
-  if (typeof origin !== 'string') return false;
+  const host = request?.headers?.host;
+  if (typeof origin !== 'string' || typeof host !== 'string' || !host.trim()) return false;
+
   try {
-    return new URL(config?.publicAppUrl).origin === origin;
+    const parsedOrigin = new URL(origin);
+    // Vercel preview URLs and production aliases can differ from the static
+    // publicAppUrl in aleph.config.json. Compare against this exact request's
+    // host instead, while still requiring a secure same-origin browser request.
+    return parsedOrigin.protocol === 'https:'
+      && !parsedOrigin.username
+      && !parsedOrigin.password
+      && parsedOrigin.host.toLowerCase() === host.trim().toLowerCase();
   } catch {
     return false;
   }
