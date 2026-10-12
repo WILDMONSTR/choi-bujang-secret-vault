@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import notesHandler from '../api/notes.js';
+import noteItemHandler from '../api/notes/[id].js';
 import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
 
@@ -44,15 +45,15 @@ test('배포 식별 정보는 3단계와 이후 단계를 지원한다', () => {
   assert.throws(() => deploymentIdentity(env, { ...config, step: 1 }));
 });
 
-test('비로그인 점검은 정적 메모 부재와 API의 자료 없는 거부를 확인한다', async () => {
+test('비로그인 점검은 정적 메모 부재와 모든 CRUD 경로의 자료 없는 거부를 확인한다', async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
   try {
     globalThis.fetch = async (url, init) => {
-      const path = new URL(String(url)).pathname;
-      requests.push({ path, options: init });
-      if (path === '/data.json') return new Response('Not found', { status: 404 });
-      if (path === '/api/notes') {
+      const parsed = new URL(String(url));
+      requests.push({ path: parsed.pathname, method: init.method, options: init });
+      if (parsed.pathname === '/data.json') return new Response('Not found', { status: 404 });
+      if (parsed.pathname === '/api/notes' || parsed.pathname.startsWith('/api/notes/')) {
         return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
           status: 401, headers: { 'content-type': 'application/json' },
         });
@@ -61,11 +62,19 @@ test('비로그인 점검은 정적 메모 부재와 API의 자료 없는 거부
     };
 
     const results = await runAttackChecks(config);
-    assert.deepEqual(requests.map(item => item.path), ['/data.json', '/api/notes']);
-    assert.equal(requests[1].options.redirect, 'error');
+    assert.deepEqual(requests.map(item => [item.path, item.method]), [
+      ['/data.json', 'GET'],
+      ['/api/notes', 'GET'],
+      ['/api/notes', 'POST'],
+      ['/api/notes/00000000-0000-4000-8000-000000000001', 'GET'],
+      ['/api/notes/00000000-0000-4000-8000-000000000001', 'PUT'],
+      ['/api/notes/00000000-0000-4000-8000-000000000001', 'DELETE'],
+    ]);
     assert.equal(requests[1].options.headers.Authorization, undefined);
+    assert.equal(requests[2].options.headers.Authorization, undefined);
+    assert.equal(requests[2].options.headers['Content-Type'], 'application/json');
     assert.match(results.find(item => item.attackId === 'anonymous_static_data_read').observed, /not found/u);
-    assert.match(results.find(item => item.attackId === 'anonymous_notes_api_read').observed, /401 UNAUTHORIZED/u);
+    assert.match(results.find(item => item.attackId === 'anonymous_notes_crud').observed, /All five/u);
 
     globalThis.fetch = async url => {
       if (new URL(String(url)).pathname === '/data.json') {
@@ -87,34 +96,48 @@ test('비로그인 점검은 정적 메모 부재와 API의 자료 없는 거부
   }
 });
 
-test('토큰이 없으면 클라이언트 ID·role과 무관하게 거부하고 서버 키는 브라우저에 없다', async () => {
+test('목록·생성·단건 조회·수정·삭제는 토큰이 없으면 client ID·role과 무관하게 거부한다', async () => {
   const previousUrl = process.env.SUPABASE_URL;
   const previousSecret = process.env.SUPABASE_SECRET_KEY;
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SECRET_KEY;
 
-  try {
-    const headers = new Map();
-    const result = { statusCode: undefined, body: undefined };
-    const response = {
-      setHeader(name, value) { headers.set(name.toLowerCase(), value); },
-      status(code) { result.statusCode = code; return this; },
-      json(body) { result.body = body; return this; },
-    };
+  const cases = [
+    { handler: notesHandler, request: { method: 'GET', headers: {}, body: { userId: 'fake', role: 'admin' } } },
+    { handler: notesHandler, request: { method: 'POST', headers: {}, body: { title: 'fake', body: 'fake', userId: 'fake', role: 'admin' } } },
+    ...['GET', 'PUT', 'DELETE'].map(method => ({
+      handler: noteItemHandler,
+      request: {
+        method,
+        headers: {},
+        query: { id: '00000000-0000-4000-8000-000000000001' },
+        body: { title: 'fake', body: 'fake', userId: 'fake', role: 'admin' },
+      },
+    })),
+  ];
 
-    await notesHandler({
-      method: 'GET',
-      headers: {},
-      body: { userId: '00000000-0000-4000-8000-000000000001', role: 'admin' },
-    }, response);
-    assert.equal(result.statusCode, 401);
-    assert.deepEqual(result.body, { error: 'UNAUTHORIZED' });
-    assert.equal(Object.hasOwn(result.body, 'notes'), false);
-    assert.equal(headers.get('cache-control'), 'no-store, max-age=0');
-    assert.doesNotMatch(JSON.stringify(result.body), /sb_secret_|SUPABASE_SECRET_KEY/u);
+  try {
+    for (const item of cases) {
+      const headers = new Map();
+      const result = { statusCode: undefined, body: undefined, ended: false };
+      const response = {
+        setHeader(name, value) { headers.set(name.toLowerCase(), value); },
+        status(code) { result.statusCode = code; return this; },
+        json(body) { result.body = body; return this; },
+        end() { result.ended = true; return this; },
+      };
+      await item.handler(item.request, response);
+      assert.equal(result.statusCode, 401, item.request.method);
+      assert.deepEqual(result.body, { error: 'UNAUTHORIZED' });
+      assert.equal(Object.hasOwn(result.body, 'notes'), false);
+      assert.equal(Object.hasOwn(result.body, 'id'), false);
+      assert.equal(headers.get('cache-control'), 'no-store, max-age=0');
+      assert.doesNotMatch(JSON.stringify(result.body), /sb_secret_|SUPABASE_SECRET_KEY/u);
+    }
 
     const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-    assert.doesNotMatch(html, /SUPABASE_SECRET_KEY|SUPABASE_URL|sb_secret_/u);
+    assert.doesNotMatch(html, /SUPABASE_SECRET_KEY|sb_secret_/u);
+    assert.match(html, /Authorization: 'Bearer ' \+ token/u);
   } finally {
     if (previousUrl === undefined) delete process.env.SUPABASE_URL;
     else process.env.SUPABASE_URL = previousUrl;
