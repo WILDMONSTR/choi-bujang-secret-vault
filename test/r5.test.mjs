@@ -7,14 +7,14 @@ import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
 
 const config = {
-  step: 3,
+  step: 4,
   judgeIssuer: 'https://aleph-judge-production.up.railway.app/defense/judge',
   identityProvider: {
     issuer: 'https://zskattfklxijebwsgava.supabase.co/auth/v1',
     jwksUrl: 'https://zskattfklxijebwsgava.supabase.co/auth/v1/.well-known/jwks.json',
     audience: 'authenticated',
   },
-  sampleMarker: 'STEP3_PROTECTED',
+  sampleMarker: 'STEP4_OWNER_CHECKED',
   publicAppUrl: 'https://choi-bujang-secret-vault-eosin-zeta.vercel.app',
 };
 const env = {
@@ -25,10 +25,10 @@ const env = {
   VERCEL_URL: 'student-defense-123.vercel.app',
 };
 
-test('배포 식별 정보는 3단계와 이후 단계를 지원한다', () => {
+test('배포 식별 정보는 4단계와 이후 단계를 지원한다', () => {
   assert.deepEqual(deploymentIdentity(env, config), {
     schema: 'aleph.defense.deployment.v1',
-    step: 3,
+    step: 4,
     repoUrl: 'https://github.com/student-a/aleph-defense',
     commit: 'a'.repeat(40),
     publicAppUrl: 'https://student-defense-123.vercel.app',
@@ -36,13 +36,47 @@ test('배포 식별 정보는 3단계와 이후 단계를 지원한다', () => {
     sampleMarker: config.sampleMarker,
   });
   const laterStage = deploymentIdentity(env, {
-    ...config, step: 4, sampleMarker: 'STEP4_PROTECTED',
+    ...config, step: 5, sampleMarker: 'STEP5_PROTECTED',
   });
-  assert.equal(laterStage.step, 4);
-  assert.equal(laterStage.sampleMarker, 'STEP4_PROTECTED');
+  assert.equal(laterStage.step, 5);
+  assert.equal(laterStage.sampleMarker, 'STEP5_PROTECTED');
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
   assert.throws(() => deploymentIdentity(env, { ...config, step: 1 }));
+});
+
+test('단건 메모 GET·PUT·DELETE는 검증된 사용자 소유 행만 접근한다', async () => {
+  const source = await readFile(new URL('../api/notes/[id].js', import.meta.url), 'utf8');
+  const getStart = source.indexOf("if (request.method === 'GET') {");
+  const putStart = source.indexOf("if (request.method === 'PUT') {", getStart);
+  const firstOwnershipComment = source.indexOf(
+    '// Access only a row owned by the verified user.',
+    putStart,
+  );
+  const deleteOwnershipComment = source.indexOf(
+    '// Access only a row owned by the verified user.',
+    firstOwnershipComment + 1,
+  );
+
+  assert.ok(getStart >= 0 && putStart > getStart);
+  assert.ok(firstOwnershipComment > putStart && deleteOwnershipComment > firstOwnershipComment);
+
+  const getBlock = source.slice(getStart, putStart);
+  const putBlock = source.slice(putStart, deleteOwnershipComment);
+  const deleteBlock = source.slice(deleteOwnershipComment);
+
+  for (const [method, block] of [
+    ['GET', getBlock],
+    ['PUT', putBlock],
+    ['DELETE', deleteBlock],
+  ]) {
+    assert.match(
+      block,
+      /\.eq\('id', id\)\s*\.eq\('owner_id', identity\.userId\)/u,
+      `${method} must filter by both memo ID and verified owner ID`,
+    );
+  }
+  assert.match(source, /if \(!data\) return sendError\(response, 404, 'NOT_FOUND'\);/u);
 });
 
 test('비로그인 점검은 정적 메모 부재와 모든 CRUD 경로의 자료 없는 거부를 확인한다', async () => {
