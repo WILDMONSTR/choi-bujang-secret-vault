@@ -180,9 +180,9 @@ test('목록·생성·단건 조회·수정·삭제는 토큰이 없으면 clien
     const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
     assert.doesNotMatch(html, /SUPABASE_SECRET_KEY|sb_secret_|sb_publishable_|SUPABASE_PUBLISHABLE_KEY|SUPABASE_PROJECT_URL/u);
     assert.doesNotMatch(html, /@supabase\/supabase-js|signInWithPassword|access_token|Authorization:\s*['"]Bearer/u);
-    assert.match(html, /fetch\(['"]\/api\/auth\/login['"]/u);
-    assert.match(html, /fetch\(['"]\/api\/auth\/session['"]/u);
-    assert.match(html, /fetch\(['"]\/api\/auth\/logout['"]/u);
+    assert.match(html, /authRequest\(['"]\/api\/auth\/login['"]/u);
+    assert.match(html, /authRequest\(['"]\/api\/auth\/session['"]/u);
+    assert.match(html, /authRequest\(['"]\/api\/auth\/logout['"]/u);
 
     const loginRoute = await readFile(new URL('../api/auth/login.js', import.meta.url), 'utf8');
     const sessionRoute = await readFile(new URL('../api/auth/session.js', import.meta.url), 'utf8');
