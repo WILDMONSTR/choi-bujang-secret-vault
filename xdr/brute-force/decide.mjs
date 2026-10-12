@@ -107,6 +107,15 @@ export function decide(alert) {
     return result(candidates[0].confidence, candidates[0].reason);
   }
 
+  // 여러 계정에 같은 비밀번호를 대입한 정황이지만 실패·시간 증거가 부족하면 알림만 남깁니다.
+  if (typeof ip === 'string' && ip.trim() && isMulti && isSamePass &&
+      /넣|대입|시도|attempt|tried|spray/i.test(description)) {
+    return result(
+      0.58,
+      '패턴 일부 일치: ' + PATTERNS[1].name + '; 로그인 실패·시간 근거 추가 확인 필요'
+    );
+  }
+
   if (failed && (level >= 5 || (count !== null && count >= 3))) {
     const name = isMulti || isSamePass ? PATTERNS[1].name : PATTERNS[0].name;
     return result(0.58, '패턴 일부 일치: ' + name + '; 추가 확인 필요');
