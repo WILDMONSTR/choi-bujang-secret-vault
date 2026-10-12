@@ -87,7 +87,7 @@ test('비로그인 점검은 정적 메모 부재와 API의 자료 없는 거부
   }
 });
 
-test('API 설정 누락 시 일반 오류만 응답하고 브라우저 파일에는 서버 키가 없다', async () => {
+test('토큰이 없으면 클라이언트 ID·role과 무관하게 거부하고 서버 키는 브라우저에 없다', async () => {
   const previousUrl = process.env.SUPABASE_URL;
   const previousSecret = process.env.SUPABASE_SECRET_KEY;
   delete process.env.SUPABASE_URL;
