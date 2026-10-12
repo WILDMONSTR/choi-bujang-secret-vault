@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import config from '../aleph.config.json' with { type: 'json' };
+import { createLoginVerifier } from '../src/verify-login.mjs';
 
 const NOTE_TITLES = Object.freeze([
   '과제',
@@ -7,8 +9,48 @@ const NOTE_TITLES = Object.freeze([
   '훈련 행정 자료',
 ]);
 
+let cachedContext = null;
+
 function sendError(response, status, code) {
   return response.status(status).json({ error: code });
+}
+
+function validSupabaseUrl(value) {
+  if (typeof value !== 'string' || !value.trim() || value !== value.trim()) return null;
+  try {
+    const parsedUrl = new URL(value);
+    if (parsedUrl.protocol !== 'https:' || !parsedUrl.hostname
+        || parsedUrl.username || parsedUrl.password
+        || parsedUrl.pathname !== '/' || parsedUrl.search || parsedUrl.hash) {
+      return null;
+    }
+    return parsedUrl.origin;
+  } catch {
+    return null;
+  }
+}
+
+function getContext(supabaseUrl, secretKey) {
+  if (cachedContext?.supabaseUrl === supabaseUrl
+      && cachedContext?.secretKey === secretKey) {
+    return cachedContext;
+  }
+
+  const supabase = createClient(supabaseUrl, secretKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+  const verifyLogin = createLoginVerifier({
+    config,
+    supabaseSecretKey: secretKey,
+    supabaseClient: supabase,
+  });
+
+  cachedContext = { supabaseUrl, secretKey, supabase, verifyLogin };
+  return cachedContext;
 }
 
 export default async function handler(request, response) {
@@ -21,36 +63,45 @@ export default async function handler(request, response) {
     return sendError(response, 405, 'METHOD_NOT_ALLOWED');
   }
 
+  // Trust only a server-verified Authorization bearer token. Never read userId
+  // or role from the request body, query string, or other browser-controlled data.
+  const authorization = request.headers?.authorization;
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
+    return sendError(response, 401, 'UNAUTHORIZED');
+  }
+
   const configuredUrl = process.env.SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
-  if (typeof configuredUrl !== 'string' || !configuredUrl.trim()
-      || typeof secretKey !== 'string' || !secretKey.trim()) {
-    return sendError(response, 503, 'NOT_CONFIGURED');
-  }
-
-  let supabaseUrl;
+  const supabaseUrl = validSupabaseUrl(configuredUrl);
+  const configuredIssuer = config?.identityProvider?.issuer;
+  let issuerOrigin;
   try {
-    const parsedUrl = new URL(configuredUrl);
-    if (parsedUrl.protocol !== 'https:' || !parsedUrl.hostname
-        || parsedUrl.username || parsedUrl.password
-        || parsedUrl.pathname !== '/' || parsedUrl.search || parsedUrl.hash) {
-      return sendError(response, 503, 'NOT_CONFIGURED');
-    }
-    supabaseUrl = parsedUrl.origin;
+    issuerOrigin = new URL(configuredIssuer).origin;
   } catch {
+    return sendError(response, 503, 'AUTH_NOT_CONFIGURED');
+  }
+
+  if (!supabaseUrl || !secretKey || !secretKey.trim()
+      || secretKey !== secretKey.trim() || supabaseUrl !== issuerOrigin) {
     return sendError(response, 503, 'NOT_CONFIGURED');
   }
 
+  let context;
   try {
-    const supabase = createClient(supabaseUrl, secretKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    });
+    context = getContext(supabaseUrl, secretKey);
+  } catch {
+    return sendError(response, 503, 'AUTH_NOT_CONFIGURED');
+  }
 
-    const { data, error } = await supabase
+  try {
+    const identity = await context.verifyLogin(authorization);
+    // This endpoint is for regular Supabase Auth accounts, not judge identities.
+    // identity.userId comes only from the verified token; request-supplied IDs and roles are ignored.
+    if (!identity || identity.kind !== 'student') {
+      return sendError(response, 401, 'UNAUTHORIZED');
+    }
+
+    const { data, error } = await context.supabase
       .from('learning_notes')
       .select('title, content');
 
@@ -75,11 +126,10 @@ export default async function handler(request, response) {
       return sendError(response, 502, 'NOTES_UNAVAILABLE');
     }
 
-    // Only the four intended virtual notes are returned. Never return env values,
-    // request headers, raw Supabase errors, or server configuration.
+    // Return only intended virtual notes. Never include tokens, secrets, or raw errors.
     return response.status(200).json({ notes });
   } catch {
-    // Do not log the exception: upstream errors may contain sensitive details.
+    // Do not log verifier/Supabase exceptions; they may contain sensitive details.
     return sendError(response, 502, 'NOTES_UNAVAILABLE');
   }
 }
