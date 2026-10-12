@@ -21,15 +21,16 @@
 
 1. Vercel 대시보드에서 이 프로젝트를 열고 **Settings → Environment Variables**로 이동합니다.
 2. `SUPABASE_URL`에 Supabase 프로젝트 URL을 설정합니다.
-3. `SUPABASE_SECRET_KEY`에 Supabase의 secret API key를 설정합니다. Supabase 대시보드의 **Project Settings → API Keys**에서 확인할 수 있습니다.
-4. 사용할 배포 환경(Production, Preview 등)을 선택해 저장하고, 새 배포를 실행합니다.
+3. `SUPABASE_PUBLISHABLE_KEY`에 Supabase의 publishable key(`sb_publishable_...`)를 설정합니다. 브라우저 HTML 코드에는 넣지 않습니다. 이 값은 서버 로그인 API가 Auth 요청을 보낼 때만 읽습니다.
+4. `SUPABASE_SECRET_KEY`에 Supabase의 secret API key를 설정합니다. Supabase 대시보드의 **Project Settings → API Keys**에서 확인할 수 있습니다.
+5. 사용할 배포 환경(Production, Preview 등)을 선택해 저장하고, 새 배포를 실행합니다.
 
-환경변수의 **이름과 용도만** 코드에 적습니다. 실제 값은 Vercel의 환경변수 입력란에만 입력하세요. 키를 채팅, GitHub, 브라우저 코드, URL, 응답 본문 또는 로그에 넣지 마세요. 이 키에 `NEXT_PUBLIC_`이나 `VITE_` 같은 브라우저 노출용 접두사를 붙이지 마세요. 실제 키를 나에게 보내지 않아도 됩니다.
+환경변수의 **이름과 용도만** 코드에 적습니다. 실제 값은 Vercel의 환경변수 입력란에만 입력하세요. 키를 채팅, GitHub, 브라우저 코드, URL, 응답 본문 또는 로그에 넣지 마세요. `SUPABASE_PUBLISHABLE_KEY`는 서버 환경변수로만 설정하고 `NEXT_PUBLIC_`이나 `VITE_` 같은 브라우저 노출용 접두사를 붙이지 마세요. 실제 키를 나에게 보내지 않아도 됩니다.
 
 ## 정적 파일과 배포
 
 - `public/data.json`은 제거했습니다. 빌드 스크립트도 예전 파일이 남아 있으면 지우며 다시 만들지 않습니다. 배포 주소의 `/data.json`은 찾을 수 없음(일반적으로 HTTP 404)이 정상입니다.
-- 브라우저에는 공개 프로젝트 URL과 publishable key만 사용하며, 서버 전용 secret key는 포함하지 않습니다.
+- 브라우저 소스에는 Supabase 프로젝트 키를 두지 않습니다. 로그인·세션 확인은 `/api/auth/login`, `/api/auth/session`, `/api/auth/logout` 서버 경로를 사용하며, 쿠키는 `HttpOnly; Secure; SameSite=Lax`로 설정합니다. publishable key와 secret key는 모두 서버 환경변수로만 읽습니다.
 - Vercel 빌드는 `aleph.config.json`의 2~12단계를 지원합니다. 비로컬 배포에서는 `public/aleph.json`에 배포 식별 정보를 생성합니다. `--local` 빌드는 해당 배포 식별 파일을 생성하지 않습니다.
 - `npm run build -- --local`은 로컬 빌드 확인용이고, 실제 Vercel 배포 완료를 증명하지 않습니다.
 - 점검 명령은 `npm run test:r5`와 `npm run test:package`입니다. 실행하지 않은 테스트나 실제 API 요청을 성공했다고 간주하지 마세요.

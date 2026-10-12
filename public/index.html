@@ -79,10 +79,6 @@
     </section>
   </main>
   <script type="module">
-    // Browser-only public credentials. Never add a server-only secret key here.
-    const SUPABASE_PROJECT_URL = 'https://zskattfklxijebwsgava.supabase.co';
-    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ki5TnGC67_Bf8UqDa2u7Hw_EqddET_8';
-
     const loginForm = document.querySelector('#login-form');
     const emailInput = document.querySelector('#auth-email');
     const passwordInput = document.querySelector('#auth-password');
@@ -102,7 +98,6 @@
     const notesStatus = document.querySelector('#status');
     const notesList = document.querySelector('#notes');
 
-    let authClient = null;
     let authBusy = false;
     let noteBusy = false;
     let activeSession = null;
@@ -150,12 +145,8 @@
     }
 
     async function apiRequest(path, method, payload) {
-      const token = activeSession?.access_token;
-      if (typeof token !== 'string' || !token) {
-        throw new Error('로그인 상태를 확인할 수 없습니다. 다시 로그인해 주세요.');
-      }
-      const headers = { Accept: 'application/json', Authorization: 'Bearer ' + token };
-      const options = { method, cache: 'no-store', headers };
+      const headers = { Accept: 'application/json' };
+      const options = { method, cache: 'no-store', credentials: 'same-origin', headers };
       if (payload !== undefined) {
         headers['Content-Type'] = 'application/json';
         options.body = JSON.stringify(payload);
@@ -183,8 +174,7 @@
     async function loadNotesForSession(session) {
       const requestVersion = ++notesRequestVersion;
       notesList.replaceChildren();
-      const token = session?.access_token;
-      if (typeof token !== 'string' || !token) {
+      if (!session?.user) {
         notesStatus.hidden = false;
         notesStatus.textContent = '로그인하면 나의 가상 메모를 볼 수 있습니다.';
         return;
@@ -230,7 +220,7 @@
           deleteButton.className = 'secondary';
           deleteButton.textContent = '삭제';
           deleteButton.addEventListener('click', async () => {
-            if (noteBusy || !activeSession?.access_token) return;
+            if (noteBusy || !activeSession?.user) return;
             if (!window.confirm('이 메모를 삭제할까요?')) return;
             noteBusy = true;
             deleteButton.disabled = true;
@@ -276,7 +266,7 @@
 
     noteForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (noteBusy || !activeSession?.access_token) {
+      if (noteBusy || !activeSession?.user) {
         setNoteMessage('로그인 후 메모를 관리할 수 있습니다.');
         return;
       }
@@ -302,79 +292,77 @@
 
     cancelEditButton.addEventListener('click', () => resetNoteEditor());
 
-    const publicConfigReady = SUPABASE_PROJECT_URL.startsWith('https://')
-      && SUPABASE_PUBLISHABLE_KEY.startsWith('sb_publishable_');
-
-    if (!publicConfigReady) {
-      loginButton.disabled = true;
-      setAuthMessage('로그인 설정이 필요합니다. 공개 Supabase 키를 확인하세요. 비밀 키는 브라우저 코드에 넣지 마세요.');
-    } else {
-      try {
-        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.117.2');
-        authClient = createClient(SUPABASE_PROJECT_URL, SUPABASE_PUBLISHABLE_KEY);
-        authClient.auth.onAuthStateChange((event, session) => {
-          renderSession(session);
-          if (event === 'SIGNED_IN') setAuthMessage('로그인에 성공했습니다.');
-          if (event === 'SIGNED_OUT') setAuthMessage('로그아웃했습니다.');
-          void loadNotesForSession(session);
-        });
-
-        loginForm.addEventListener('submit', async (event) => {
-          event.preventDefault();
-          if (!authClient || authBusy) return;
-          setAuthBusy(true);
-          setAuthMessage('로그인 확인 중…');
-          try {
-            const { data, error } = await authClient.auth.signInWithPassword({
-              email: emailInput.value.trim(),
-              password: passwordInput.value,
-            });
-            if (error) {
-              setAuthMessage('로그인 실패: ' + describeError(error));
-              return;
-            }
-            passwordInput.value = '';
-            renderSession(data.session);
-            setAuthMessage('로그인에 성공했습니다.');
-            void loadNotesForSession(data.session);
-          } catch (error) {
-            setAuthMessage('로그인 요청 실패: ' + describeError(error));
-          } finally {
-            setAuthBusy(false);
-          }
-        });
-
-        logoutButton.addEventListener('click', async () => {
-          if (!authClient || authBusy) return;
-          setAuthBusy(true);
-          setAuthMessage('로그아웃 중…');
-          try {
-            const { error } = await authClient.auth.signOut();
-            if (error) {
-              setAuthMessage('로그아웃 실패: ' + describeError(error));
-              return;
-            }
-            passwordInput.value = '';
-            renderSession(null);
-            setAuthMessage('로그아웃했습니다.');
-          } catch (error) {
-            setAuthMessage('로그아웃 요청 실패: ' + describeError(error));
-          } finally {
-            setAuthBusy(false);
-          }
-        });
-
-        const { data, error } = await authClient.auth.getSession();
-        if (error) {
-          setAuthMessage('기존 로그인 상태 확인 실패: ' + describeError(error));
-        } else {
-          renderSession(data.session);
-          void loadNotesForSession(data.session);
-        }
-      } catch (error) {
-        loginButton.disabled = true;
-        setAuthMessage('Supabase Auth 초기화 실패: ' + describeError(error));
+    async function authRequest(path, method, payload) {
+      const options = {
+        method,
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      };
+      if (payload !== undefined) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(payload);
       }
+      const response = await fetch(path, options);
+      let data = null;
+      try { data = await response.json(); } catch { data = null; }
+      if (!response.ok) {
+        const errors = {
+          INVALID_CREDENTIALS: '이메일 또는 비밀번호를 확인해 주세요.',
+          AUTH_NOT_CONFIGURED: '서버 로그인 설정을 확인할 수 없습니다.',
+          AUTH_UNAVAILABLE: '로그인 서비스에 연결하지 못했습니다.',
+          ORIGIN_NOT_ALLOWED: '허용되지 않은 요청입니다. 자료실 주소에서 다시 시도해 주세요.',
+        };
+        const code = typeof data?.error === 'string' ? data.error : '';
+        throw new Error(errors[code] || ('요청 실패 (HTTP ' + response.status + ')'));
+      }
+      return data;
+    }
+
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (authBusy) return;
+      setAuthBusy(true);
+      setAuthMessage('로그인 확인 중…');
+      try {
+        const result = await authRequest('/api/auth/login', 'POST', {
+          email: emailInput.value.trim(),
+          password: passwordInput.value,
+        });
+        passwordInput.value = '';
+        renderSession(result);
+        setAuthMessage('로그인에 성공했습니다.');
+        void loadNotesForSession(result);
+      } catch (error) {
+        setAuthMessage('로그인 실패: ' + describeError(error));
+      } finally {
+        setAuthBusy(false);
+      }
+    });
+
+    logoutButton.addEventListener('click', async () => {
+      if (authBusy) return;
+      setAuthBusy(true);
+      setAuthMessage('로그아웃 중…');
+      try {
+        await authRequest('/api/auth/logout', 'POST');
+        passwordInput.value = '';
+        renderSession(null);
+        setAuthMessage('로그아웃했습니다.');
+      } catch (error) {
+        setAuthMessage('로그아웃 실패: ' + describeError(error));
+      } finally {
+        setAuthBusy(false);
+      }
+    });
+
+    try {
+      const result = await authRequest('/api/auth/session', 'GET');
+      renderSession(result);
+      void loadNotesForSession(result);
+    } catch (error) {
+      renderSession(null);
+      setAuthMessage('기존 로그인 상태 확인 실패: ' + describeError(error));
     }
   </script>
 </body>
