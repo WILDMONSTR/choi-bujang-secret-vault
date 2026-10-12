@@ -1,0 +1,29 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "web-injection",
+  "reference": {
+    "id": "T1190",
+    "name": "Exploit Public-Facing Application",
+    "url": "https://attack.mitre.org/techniques/T1190/"
+  },
+  "patterns": [
+    {
+      "id": "repeated_sql_syntax_in_parameter",
+      "name": "요청 인자 내 SQL 구문 반복",
+      "condition": "요청 인자에 SQL 연산·구문 결합 같은 구체적인 주입 표식이 있고, 같은 출발지에서 5회 이상 반복되며 경보 수준이 10 이상이다. select 같은 단어 하나만으로 판정하지 않는다.",
+      "evidence": "MITRE ATT&CK T1190은 외부 공개 애플리케이션의 취약점 악용을 다룬다. 요청 인자의 반복적인 SQL 구문 표식은 이 실습에서 탐지할 구체적인 웹 주입 신호다."
+    },
+    {
+      "id": "repeated_script_tag_in_parameter",
+      "name": "요청 인자 내 스크립트 태그 주입 표식 반복",
+      "condition": "요청 인자에 스크립트 태그 또는 스크립트 삽입 표식이 구체적으로 나타나고, 같은 출발지에서 5회 이상 반복되며 경보 수준이 10 이상이다. 스크립트라는 일반 단어는 제외한다.",
+      "evidence": "MITRE ATT&CK T1190은 외부 공개 애플리케이션의 악용을 다룬다. 요청 인자에 반복되는 스크립트 태그 삽입 표식은 이 실습에서 탐지할 구체적인 웹 주입 신호다."
+    },
+    {
+      "id": "repeated_path_traversal_parameter",
+      "name": "요청 인자 내 경로 거슬러 올라가기 표식 반복",
+      "condition": "요청 인자에 ../ 형태 또는 경로를 여러 단계 거슬러 올라가는 구체적인 표식이 있고, 같은 출발지에서 5회 이상 반복되며 경보 수준이 10 이상이다. up 같은 단어 하나는 제외한다.",
+      "evidence": "MITRE ATT&CK T1190은 외부 공개 애플리케이션의 취약점 악용을 다룬다. 요청 인자의 반복적인 ../ 경로 이탈 표식은 이 실습에서 탐지할 구체적인 웹 주입 신호다."
+    }
+  ]
+}
