@@ -56,7 +56,7 @@ function countOf(alert, description) {
 
 function hasSqlSignal(description, input) {
   const declaredSignal =
-    /SQL\s*(?:구문|표식)|데이터베이스\s*조회.{0,24}(?:이어\s*붙이|연결|표기)|SQL\s+syntax/i.test(description);
+    /SQL\s*(?:구문|표식)|데이터베이스\s*조회.{0,24}(?:이어\s*붙이|연결|표기)|SQL\s+syntax|명령\s*구분자\s*표기/i.test(description);
   // 구체적인 SQL 구조만 탐지합니다. select, sql, 따옴표 하나만으로는 공격으로 판정하지 않습니다.
   const sqlStructure =
     /\bunion\s+(?:all\s+)?select\b|\bselect\b[\s\S]{0,100}\bfrom\b|\b(?:or|and)\s+['"]?\d+['"]?\s*=\s*['"]?\d+|\b(?:or|and)\s+['"]?[a-z0-9_]+['"]?\s*=\s*['"]?[a-z0-9_]+['"]?|;\s*(?:select|insert|update|delete|drop)\b|\b(?:drop|truncate)\s+table\b|--(?:\s|$)/i.test(decoded(input));
@@ -72,7 +72,7 @@ function hasTraversalSignal(description, input) {
 }
 
 function hasWeakInjectionClue(description) {
-  return /따옴표.{0,30}(?:한\s*번|1번|반복은\s*없)|명령\s*구분자|이상한\s*검색|주입처럼\s*보이는|구분\s*문자.{0,20}(?:1건|한\s*건)|separator/i.test(description);
+  return /따옴표.{0,30}(?:한\s*번|1번|반복은\s*없)|(?:주소에|검색어에).{0,30}select.{0,20}수업|스크립트라는\s*수업|경로에\s*up\b|요청\s*주소가\s*평소보다\s*길|SQL이라는\s*수업|SQL\s*이라는\s*수업|이상한\s*검색|주입처럼\s*보이는|구분\s*문자.{0,20}(?:1건|한\s*건)|separator|명령\s*구분자/i.test(description);
 }
 
 function hasValidLookingSource(alert) {
