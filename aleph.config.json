@@ -1,8 +1,8 @@
 {
-  "step": 2,
+  "step": 3,
   "repoUrl": "https://replace-with-your-github-repo.example",
   "publicAppUrl": "https://replace-with-your-vercel-app.example",
-  "sampleMarker": "STEP2_PROTECTED",
+  "sampleMarker": "STEP3_PROTECTED",
   "judgeIssuer": "https://aleph-judge-production.up.railway.app/defense/judge",
   "identityProvider": null,
   "allowedRoutes": [],
