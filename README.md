@@ -1,6 +1,12 @@
-# BYTE BACK 방어전 자료실 · 2단계
+# BYTE BACK 방어전 자료실 · 3단계
 
-이 저장소는 2단계 학습용 구성입니다. 화면은 Vercel 서버 함수 `/api/notes`를 통해 Supabase의 `public.learning_notes` 테이블에서 가상 메모 네 건을 읽습니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
+이 저장소는 3단계 학습용 구성입니다. 화면은 Vercel 서버 함수 `/api/notes`를 통해 Supabase의 `public.learning_notes` 테이블에서 가상 메모 네 건을 읽으며, 화면에 Supabase Auth 이메일·비밀번호 로그인과 로그아웃 UI를 제공합니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
+
+## 3단계: Supabase Auth 로그인 UI
+
+- `public/index.html`은 Supabase 공식 JavaScript SDK `@supabase/supabase-js` 2.117.2를 사용해 `signInWithPassword`, `signOut`, `onAuthStateChange` 흐름을 연결합니다. 로그인 후에는 계정 이메일과 로그아웃 버튼이 표시되고, 로그아웃하면 로그인 폼으로 돌아옵니다. 인증 오류의 이유는 화면에 표시합니다.
+- 프로젝트 URL은 화면 코드에 설정되어 있습니다. `SUPABASE_PUBLISHABLE_KEY`의 교체용 값을 실제 Supabase `sb_publishable_...` 공개 키로 바꿔야 로그인할 수 있습니다. 키는 Supabase의 Project Settings → API Keys에서 확인하세요. `sb_secret_...` 서버 비밀 키는 브라우저에 넣지 마세요.
+- **중요:** 이 단계는 로그인·로그아웃 UI를 붙인 단계입니다. `/api/notes`에는 여전히 로그인·호출자 인증 검사가 없으므로, 로그인하지 않아도 해당 API를 직접 호출할 수 있습니다. 현재 UI를 API 접근 제어 완료로 간주하지 마세요.
 
 ## Vercel 환경변수 설정
 
@@ -21,7 +27,7 @@
 ## 정적 파일과 배포
 
 - `public/data.json`은 제거했습니다. 빌드 스크립트도 예전 파일이 남아 있으면 지우며 다시 만들지 않습니다. 배포 주소의 `/data.json`은 찾을 수 없음(일반적으로 HTTP 404)이 정상입니다.
-- 화면은 `/api/notes`를 호출해 네 카드를 그립니다. 브라우저 코드에는 Supabase URL/secret key 환경변수가 포함되지 않습니다.
+- 화면은 `/api/notes`를 호출해 네 카드를 그립니다. 브라우저에는 공개 프로젝트 URL과 publishable key만 사용하며, 서버 전용 secret key는 포함하지 않습니다.
 - Vercel 빌드는 `aleph.config.json`의 2~12단계를 지원합니다. 비로컬 배포에서는 기존처럼 `public/aleph.json`에 배포 식별 정보를 생성합니다. `--local` 빌드는 해당 배포 식별 파일을 생성하지 않습니다.
 - `npm run build -- --local`은 로컬 빌드 확인용이고, 실제 Vercel 배포 완료를 증명하지 않습니다.
 - 점검 명령은 `npm run test:r5`와 `npm run test:package`입니다. 실행하지 않은 테스트나 실제 API 요청을 성공했다고 간주하지 마세요.
@@ -37,7 +43,7 @@
 
 ### 1. 현재 배포의 정적 파일 검색
 
-1. 현재 배포 주소 [자료실](https://choi-bujang-secret-vault-hol8fmyub-rryk1212-4030.vercel.app/)을 열고 브라우저 개발자 도구(F12)의 **Network** 탭으로 이동합니다.
+1. 2단계 당시 배포 주소 [자료실](https://choi-bujang-secret-vault-eosin-zeta.vercel.app/)을 열고 브라우저 개발자 도구(F12)의 **Network** 탭으로 이동합니다.
 2. 캐시를 끄고 페이지를 새로고침합니다. 문서·JavaScript·CSS 등 **정적 리소스**의 응답(Response)을 확인하고, 위 네 문장을 각각 정확히 검색합니다. 문서 응답은 `view-source:https://choi-bujang-secret-vault-hol8fmyub-rryk1212-4030.vercel.app/`로 별도로 확인할 수도 있습니다.
 3. `/api/notes` 응답은 정적 파일이 아니므로 정적 파일 검색 결과와 섞지 마세요. 이 API 응답에는 의도적으로 네 메모 본문이 포함될 수 있으며, 아래의 공개 API 약점 기록에 따로 적습니다.
 4. `/data.json`을 열어 404 또는 410인지 확인합니다. `/aleph.json`은 배포 식별 정보를 확인하는 용도입니다. `/data.json`의 404는 그 경로가 없다는 증거일 뿐, 모든 정적 리소스를 검색했다는 증거는 아닙니다.
@@ -58,7 +64,7 @@ git grep -n -F -e "실습용 가상 과제 기록" -e "실습용 가상 포트�
 
 GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사용해도 됩니다. 단, 검색 인덱스나 검색 범위에 따라 결과가 달라질 수 있으므로 중요한 판정은 최신 브랜치의 파일 내용을 직접 확인하거나 위 명령으로 재검증합니다.
 
-### 3. 확인 기록 — 2026-10-12
+### 2단계 잔존 점검 기록 — 2026-10-12
 
 **GitHub 최신 실행 파일 검색**
 
