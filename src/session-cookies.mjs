@@ -61,21 +61,48 @@ export function clearSessionCookies(response) {
   ]);
 }
 
-export function isTrustedBrowserOrigin(request) {
-  const origin = request?.headers?.origin;
-  const host = request?.headers?.host;
-  if (typeof origin !== 'string' || typeof host !== 'string' || !host.trim()) return false;
-
+function hostFromOriginOrHost(value) {
+  if (typeof value !== 'string' || !value.trim() || value !== value.trim()) return null;
   try {
-    const parsedOrigin = new URL(origin);
-    // Vercel preview URLs and production aliases can differ from the static
-    // publicAppUrl in aleph.config.json. Compare against this exact request's
-    // host instead, while still requiring a secure same-origin browser request.
-    return parsedOrigin.protocol === 'https:'
-      && !parsedOrigin.username
-      && !parsedOrigin.password
-      && parsedOrigin.host.toLowerCase() === host.trim().toLowerCase();
+    const input = value.includes('://') ? value : 'https://' + value;
+    const parsed = new URL(input);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password
+        || parsed.pathname !== '/' || parsed.search || parsed.hash) return null;
+    return parsed.host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+export function isTrustedBrowserOrigin(request, config) {
+  const origin = request?.headers?.origin;
+  if (typeof origin !== 'string' || !origin.trim()) return false;
+
+  let parsedOrigin;
+  try {
+    parsedOrigin = new URL(origin);
   } catch {
     return false;
   }
+
+  // Only accept HTTPS origins matching a known production/preview address.
+  // Vercel can route aliases and deployment URLs through different host values,
+  // so check the app config, actual host headers, and Vercel's assigned URLs.
+  if (parsedOrigin.protocol !== 'https:' || parsedOrigin.username || parsedOrigin.password
+      || parsedOrigin.pathname !== '/' || parsedOrigin.search || parsedOrigin.hash) return false;
+
+  const acceptedHosts = new Set();
+  const addHost = value => {
+    const host = hostFromOriginOrHost(value);
+    if (host) acceptedHosts.add(host);
+  };
+
+  addHost(config?.publicAppUrl);
+  addHost(request?.headers?.host);
+  addHost(request?.headers?.['x-forwarded-host']);
+  addHost(process.env.VERCEL_URL);
+  addHost(process.env.VERCEL_PROJECT_PRODUCTION_URL);
+  addHost(process.env.VERCEL_BRANCH_URL);
+
+  return acceptedHosts.has(parsedOrigin.host.toLowerCase());
 }
