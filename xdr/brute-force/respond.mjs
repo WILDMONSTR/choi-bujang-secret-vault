@@ -28,36 +28,59 @@ function countOf(alert, desc) {
   const m = desc.match(/실패\s*(?:가|는)?\s*(\d+)\s*건|(\d+)\s*(?:login\s+)?failures?/i);
   return m ? Number(m[1] ?? m[2]) : null;
 }
-function minutesOf(desc) {
-  const m = desc.match(/(\d+)\s*분\s*(?:안(?:에)?|동안|이내|내에?)/);
-  return m ? Number(m[1]) : null;
+function accountCount(alert, desc) {
+  const raw = alert?.data?.accounts;
+  if (Array.isArray(raw)) return raw.filter(Boolean).length;
+  if (typeof raw === 'string') {
+    const entries = raw.split(/[,;|\s]+/).filter(Boolean);
+    if (entries.length > 1) return entries.length;
+  }
+  const m = desc.match(/계정\s*(\d+)\s*개|(?:multiple|different)\s+(\d+)\s+accounts?/i);
+  if (m) return Number(m[1] ?? m[2]);
+  const reversed = desc.match(/(?:서로\s*다른\s*)?계정\s*(\d+)(?:개)?/);
+  return reversed ? Number(reversed[1]) : 0;
+}
+function multiAccounts(alert, desc) {
+  return accountCount(alert, desc) > 1 ||
+    /여러\s*계정|서로\s*다른\s*계정|계정\s*이름을\s*바꿔|다른\s*계정(?:들)?|두\s*계정|multiple\s+accounts|different\s+accounts/i.test(desc);
+}
+function samePassword(desc) {
+  return /같은\s*비밀번호|동일한?\s*비밀번호|same\s+password|common\s+password/i.test(desc);
+}
+function failedLogin(desc) {
+  return /실패|login failed|login failure|authentication failed|failed login/i.test(desc);
+}
+function repeated(desc) {
+  return /연속|이어졌|이어집|반복|쌓였|쌓입|consecutive|repeated|sequential|같은\s*간격/i.test(desc);
+}
+function attempted(desc) {
+  return /넣|대입|시도|attempt|tried|spray|실패|failure/i.test(desc);
+}
+function successfulAfterFailure(desc) {
+  if (/성공(?:은|이)\s*없|no success|without successful login/i.test(desc)) return false;
+  return /실패[^.!?\n]{0,80}(?:(?:그\s*)?뒤(?:에)?|이후|후에)\s*(?:다시\s*)?(?:로그인\s*)?성공|성공했습니다|로그인이\s*성공|로그인에\s*성공|successful login|login succeeded/i.test(desc);
 }
 function isClearCandidate(alert, out) {
   const desc = descOf(alert);
   const ip = typeof alert?.data?.srcip === 'string' ? alert.data.srcip.trim() : '';
   const count = countOf(alert, desc);
-  const minutes = minutesOf(desc);
+  const level = Number(alert?.rule?.level) || 0;
   const reason = oneLine(out?.reason);
 
   if (!oneLine(alert?.id) || isIP(ip) === 0) return false;
-  if (out?.action !== 'block' || out.confidence < 0.85) return false;
-  if ((Number(alert?.rule?.level) || 0) < 10) return false;
-  if (!/실패|login failed|login failure|authentication failed|failed login/i.test(desc)) return false;
-  if (/실패[^.!?\n]{0,80}(?:뒤|이후|후에)\s*(?:다시\s*)?(?:로그인\s*)?성공|성공했습니다|로그인이\s*성공|로그인에\s*성공/i.test(desc)) return false;
+  if (out?.action !== 'block' || typeof out.confidence !== 'number' || out.confidence < 0.85) return false;
+  if (level < 10 || successfulAfterFailure(desc)) return false;
 
-  if (reason.includes(RAPID_NAME)) {
-    return count !== null && count >= 30 && minutes !== null && minutes >= 1 && minutes <= 3;
-  }
-  if (reason.includes(SPRAY_NAME)) {
-    const accounts = alert?.data?.accounts;
-    const several = (Array.isArray(accounts) && accounts.length > 1) ||
-      (typeof accounts === 'string' && accounts.split(/[,;|\s]+/).filter(Boolean).length > 1) ||
-      /여러\s*계정|서로\s*다른\s*계정|계정\s*\d+\s*개|다른\s*계정(?:들)?/i.test(desc);
-    return several &&
-      /같은\s*비밀번호|동일한?\s*비밀번호|same\s+password|common\s+password/i.test(desc) &&
-      /연속|이어졌|이어집|반복|consecutive|repeated/i.test(desc) &&
-      minutes !== null && minutes >= 1 && minutes <= 5;
-  }
+  const isMulti = multiAccounts(alert, desc);
+  const isSamePass = samePassword(desc);
+  const isRepeated = repeated(desc);
+  const isAttempted = attempted(desc);
+  const clearFailureBurst = failedLogin(desc) && count !== null && count >= 30;
+  const clearSpray = isMulti && isRepeated && isAttempted &&
+    (isSamePass || (failedLogin(desc) && count !== null && count >= 15));
+
+  if (reason.includes(RAPID_NAME) && clearFailureBurst) return true;
+  if (reason.includes(SPRAY_NAME) && clearSpray) return true;
   return false;
 }
 
@@ -129,12 +152,13 @@ async function main() {
         out = {
           action: 'alert',
           confidence: Math.min(out.confidence, 0.79),
-          reason: '차단 보류: 시간·실패 근거 부족; ' + oneLine(out.reason)
+          reason: '차단 보류: 강한 공격 근거 부족; ' + oneLine(out.reason)
         };
       }
     }
 
     counts[out.action] += 1;
+    // respond.mjs가 기록을 담당합니다. decide.mjs는 판정만 반환하며, alert는 모두 로그에 남깁니다.
     if (out.action !== 'record') {
       log.push(JSON.stringify({
         at: now.toISOString(),
