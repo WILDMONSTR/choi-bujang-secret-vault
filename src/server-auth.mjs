@@ -20,6 +20,7 @@ function validSupabaseUrl(value) {
 export function getServerAuthContext() {
   const supabaseUrl = validSupabaseUrl(process.env.SUPABASE_URL);
   const secretKey = process.env.SUPABASE_SECRET_KEY;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
   let issuerOrigin;
   try {
     issuerOrigin = new URL(config?.identityProvider?.issuer).origin;
@@ -28,11 +29,14 @@ export function getServerAuthContext() {
   }
 
   if (!supabaseUrl || !secretKey || !secretKey.trim() || secretKey !== secretKey.trim()
-      || supabaseUrl !== issuerOrigin) {
+      || !publishableKey || !publishableKey.trim() || publishableKey !== publishableKey.trim()
+      || !publishableKey.startsWith('sb_publishable_') || supabaseUrl !== issuerOrigin) {
     throw new Error('AUTH_NOT_CONFIGURED');
   }
 
-  if (cachedContext?.supabaseUrl === supabaseUrl && cachedContext?.secretKey === secretKey) {
+  if (cachedContext?.supabaseUrl === supabaseUrl
+      && cachedContext?.secretKey === secretKey
+      && cachedContext?.publishableKey === publishableKey) {
     return cachedContext;
   }
 
@@ -42,12 +46,14 @@ export function getServerAuthContext() {
   const verifyLogin = createLoginVerifier({
     config, supabaseSecretKey: secretKey, supabaseClient: supabase,
   });
-  cachedContext = { supabaseUrl, secretKey, supabase, verifyLogin };
+  cachedContext = { supabaseUrl, secretKey, publishableKey, supabase, verifyLogin };
   return cachedContext;
 }
 
+// Each authentication request gets its own client so one visitor's in-memory
+// session state cannot be reused by another request in a warm server runtime.
 export function createIsolatedAuthClient(context) {
-  return createClient(context.supabaseUrl, context.secretKey, {
+  return createClient(context.supabaseUrl, context.publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
