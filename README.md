@@ -1,19 +1,19 @@
-# BYTE BACK 방어전 자료실 · 3단계
+# BYTE BACK 방어전 자료실 · 4단계
 
-이 저장소는 3단계 학습용 구성입니다. Supabase Auth 이메일·비밀번호 로그인과 로그아웃을 제공하며, 로그인한 사용자가 Vercel API를 통해 자신의 가상 메모 목록을 보고 추가·수정·삭제할 수 있습니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
+이 저장소는 4단계 학습용 구성입니다. Supabase Auth 이메일·비밀번호 로그인과 로그아웃을 제공하며, 로그인한 사용자는 본인 소유의 가상 메모만 조회·추가·수정·삭제할 수 있습니다. 목록 API와 단건 GET·PUT·DELETE API는 서버에서 검증한 사용자 ID를 기준으로 소유자를 확인합니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
 
-## 3단계: 로그인과 메모 CRUD
+## 4단계: 로그인한 사용자 자신의 메모만 접근
 
 - `public/index.html`은 Supabase 공식 JavaScript SDK `@supabase/supabase-js` 2.117.2의 `signInWithPassword`, `signOut`, `onAuthStateChange`를 사용합니다. 로그인 토큰은 API 요청의 `Authorization: Bearer ...` 헤더로 전송합니다.
 - `src/verify-login.mjs`는 수정하지 않았습니다. `api/notes.js`와 `api/notes/[id].js`가 이 검증기를 이용하며, 확인된 Supabase 로그인 사용자의 ID만 권한 판단과 `owner_id` 저장에 사용합니다. 요청 본문이나 쿼리에 있는 `userId`·`role`은 신뢰하지 않습니다.
 - `GET /api/notes`는 로그인 사용자에게 속한 메모 배열 `[{id,title,body}]`를 반환합니다. `POST /api/notes`는 `{id?,title,body}`를 받고, ID가 없으면 서버에서 UUID를 만들며 `{id}`를 HTTP 201로 반환합니다. 생성 시 검증된 사용자 ID를 `owner_id`로 저장합니다.
-- `GET /api/notes/:id`는 한 건을 `{id,title,body}`로 반환하고, 없거나 삭제된 ID는 404를 반환합니다. `PUT /api/notes/:id`는 `{title,body}`를 수정하고, `DELETE /api/notes/:id`는 삭제 후 204를 반환합니다.
+- `GET /api/notes/:id`는 본인 소유의 한 건만 `{id,title,body}`로 반환합니다. 존재하지 않거나 다른 사용자가 소유한 ID는 404 `NOT_FOUND`를 반환해 자료의 존재 여부를 노출하지 않습니다. `PUT /api/notes/:id`와 `DELETE /api/notes/:id`에도 메모 ID와 검증된 `identity.userId`의 `owner_id` 조건이 모두 적용됩니다.
 - `aleph.config.json`의 `allowedRoutes`에는 실제 GET·POST·PUT·DELETE 경로를 기록했습니다. `identityProvider`에는 Supabase Auth issuer, JWKS URL과 `authenticated` audience만 기록하며 비밀 키는 넣지 않습니다.
 
-## 알려진 약점 — 소유자 검사는 4단계에서 추가
+## 소유권 검사와 남은 주의사항
 
 - 비로그인 요청과 토큰 검증 실패는 HTTP 401 `{"error":"UNAUTHORIZED"}`로 거부되며, 메모는 반환하지 않습니다.
-- **3단계에서 일부러 남긴 약점:** 목록 조회는 `owner_id`로 로그인 사용자의 메모만 필터링하지만, 단건 GET·PUT·DELETE에는 아직 `owner_id` 조건이 없습니다. 다른 로그인 사용자가 메모 UUID를 알고 있으면 해당 메모를 읽거나 수정하거나 삭제할 수 있습니다. 이것은 4단계에서 고칠 예정이며, 현재는 가상 데이터만 사용하세요.
+- 목록 조회와 단건 GET·PUT·DELETE는 서버가 검증한 사용자 ID로 `owner_id`를 필터링합니다. 다른 사용자가 메모 UUID를 알아도 단건 조회·수정·삭제는 `404 NOT_FOUND`로 거부됩니다. RLS 정책도 방어 심층화 용도로 유지하지만, secret key를 사용하는 서버 API의 소유권 필터를 대체하지는 않습니다.
 - `learning_notes.title`은 데이터베이스에서 전역 고유값이므로 다른 계정에 같은 제목이 이미 있으면 API가 HTTP 409 `TITLE_ALREADY_EXISTS`를 반환할 수 있습니다.
 - 요청 횟수 제한은 아직 구현하지 않았습니다. Supabase secret key는 RLS를 우회할 수 있는 높은 권한의 키이므로 Vercel의 `SUPABASE_SECRET_KEY` 환경변수에만 보관하세요.
 
@@ -47,7 +47,7 @@
 
 1. 2단계 당시 배포 주소 [자료실](https://choi-bujang-secret-vault-eosin-zeta.vercel.app/)을 열고 브라우저 개발자 도구(F12)의 **Network** 탭으로 이동합니다.
 2. 캐시를 끄고 페이지를 새로고침합니다. 문서·JavaScript·CSS 등 **정적 리소스**의 응답(Response)을 확인하고, 위 네 문장을 각각 정확히 검색합니다. 문서 응답은 `view-source:https://choi-bujang-secret-vault-hol8fmyub-rryk1212-4030.vercel.app/`로 별도로 확인할 수도 있습니다.
-3. `/api/notes`와 `/api/notes/:id` 응답은 정적 파일이 아니므로 정적 파일 검색과 구분하세요. 이 API들은 토큰 검증 후 메모 데이터를 반환할 수 있고, 3단계에서는 단건 GET·PUT·DELETE의 소유자 검사가 아직 없습니다.
+3. `/api/notes`와 `/api/notes/:id` 응답은 정적 파일이 아니므로 정적 파일 검색과 구분하세요. 이 API들은 토큰 검증 후 메모 데이터를 반환할 수 있습니다. 3단계에서는 단건 소유자 검사가 빠져 있었으며, 4단계에서는 서버에서 검증한 사용자 ID의 `owner_id` 조건을 추가했습니다. 실제 배포에 수정이 반영됐는지는 배포 후 별도로 확인하세요.
 4. `/data.json`을 열어 404 또는 410인지 확인합니다. `/aleph.json`은 배포 식별 정보를 확인하는 용도입니다. `/data.json`의 404는 그 경로가 없다는 증거일 뿐, 모든 정적 리소스를 검색했다는 증거는 아닙니다.
 5. 각 문장별로 결과를 기록합니다. 정적 리소스에서 발견되면 URL, 리소스 이름, 일치한 문장을 기록하고, 노출이 해결됐다고 결론 내리지 마세요.
 
@@ -83,7 +83,7 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 **2단계 당시 공개 API 약점 — 과거 기록**
 
 - 이 기록 작성 당시의 `GET /api/notes`는 로그인이나 호출자 인증 없이 네 건의 가상 메모를 반환했습니다. 이후 3단계에서 이 경로에 토큰 검증을 추가했습니다.
-- 현재도 소유자 검사 누락은 남아 있습니다. `/api/notes/:id`의 GET·PUT·DELETE는 로그인 토큰을 확인하지만 `owner_id`를 비교하지 않으므로, 다른 로그인 계정이 메모 UUID를 알면 읽기·수정·삭제가 가능합니다. 이 약점은 4단계에서 해결해야 합니다.
+- 이 내용은 3단계 당시의 상태를 설명하는 과거 기록입니다. 4단계 코드에서는 `/api/notes/:id`의 GET·PUT·DELETE에 `owner_id = identity.userId` 조건을 추가했습니다. 과거 배포 URL이나 예전 커밋이 남아 있다면 그 환경의 약점은 별도로 검토해야 합니다.
 
 **과거 노출 상태 — 해결로 간주하지 않음**
 
