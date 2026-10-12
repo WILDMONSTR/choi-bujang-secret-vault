@@ -187,9 +187,14 @@ test('목록·생성·단건 조회·수정·삭제는 토큰이 없으면 clien
     const loginRoute = await readFile(new URL('../api/auth/login.js', import.meta.url), 'utf8');
     const sessionRoute = await readFile(new URL('../api/auth/session.js', import.meta.url), 'utf8');
     const logoutRoute = await readFile(new URL('../api/auth/logout.js', import.meta.url), 'utf8');
+    const serverAuth = await readFile(new URL('../src/server-auth.mjs', import.meta.url), 'utf8');
     assert.match(loginRoute, /HttpOnly|setSessionCookies/u);
+    assert.match(loginRoute, /createIsolatedAuthClient\(context\)/u);
     assert.match(sessionRoute, /refreshSession|setSessionCookies/u);
+    assert.match(sessionRoute, /createIsolatedAuthClient\(context\)/u);
     assert.match(logoutRoute, /clearSessionCookies/u);
+    assert.match(serverAuth, /process\.env\.SUPABASE_PUBLISHABLE_KEY/u);
+    assert.match(serverAuth, /process\.env\.SUPABASE_SECRET_KEY/u);
   } finally {
     if (previousUrl === undefined) delete process.env.SUPABASE_URL;
     else process.env.SUPABASE_URL = previousUrl;
