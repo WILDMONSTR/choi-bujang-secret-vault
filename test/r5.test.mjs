@@ -6,10 +6,15 @@ import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
 
 const config = {
-  step: 2,
+  step: 3,
   judgeIssuer: 'https://aleph-judge-production.up.railway.app/defense/judge',
-  sampleMarker: 'STEP2_PROTECTED',
-  publicAppUrl: 'https://student-defense.vercel.app',
+  identityProvider: {
+    issuer: 'https://zskattfklxijebwsgava.supabase.co/auth/v1',
+    jwksUrl: 'https://zskattfklxijebwsgava.supabase.co/auth/v1/.well-known/jwks.json',
+    audience: 'authenticated',
+  },
+  sampleMarker: 'STEP3_PROTECTED',
+  publicAppUrl: 'https://choi-bujang-secret-vault-eosin-zeta.vercel.app',
 };
 const env = {
   VERCEL_GIT_PROVIDER: 'github',
@@ -19,10 +24,10 @@ const env = {
   VERCEL_URL: 'student-defense-123.vercel.app',
 };
 
-test('배포 식별 정보는 2단계와 이후 단계를 지원한다', () => {
+test('배포 식별 정보는 3단계와 이후 단계를 지원한다', () => {
   assert.deepEqual(deploymentIdentity(env, config), {
     schema: 'aleph.defense.deployment.v1',
-    step: 2,
+    step: 3,
     repoUrl: 'https://github.com/student-a/aleph-defense',
     commit: 'a'.repeat(40),
     publicAppUrl: 'https://student-defense-123.vercel.app',
@@ -30,32 +35,26 @@ test('배포 식별 정보는 2단계와 이후 단계를 지원한다', () => {
     sampleMarker: config.sampleMarker,
   });
   const laterStage = deploymentIdentity(env, {
-    ...config, step: 3, sampleMarker: 'STEP3_PROTECTED',
+    ...config, step: 4, sampleMarker: 'STEP4_PROTECTED',
   });
-  assert.equal(laterStage.step, 3);
-  assert.equal(laterStage.sampleMarker, 'STEP3_PROTECTED');
+  assert.equal(laterStage.step, 4);
+  assert.equal(laterStage.sampleMarker, 'STEP4_PROTECTED');
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
   assert.throws(() => deploymentIdentity(env, { ...config, step: 1 }));
 });
 
-test('정적 data.json은 없어야 하고 화면용 API는 가상 메모 네 건을 반환해야 한다', async () => {
+test('비로그인 점검은 정적 메모 부재와 API의 자료 없는 거부를 확인한다', async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
-  const apiNotes = [
-    { title: '과제', content: '가상 내용 A' },
-    { title: '포트폴리오', content: '가상 내용 B' },
-    { title: '아침 리추얼', content: '가상 내용 C' },
-    { title: '훈련 행정 자료', content: '가상 내용 D' },
-  ];
   try {
     globalThis.fetch = async (url, init) => {
       const path = new URL(String(url)).pathname;
       requests.push({ path, options: init });
       if (path === '/data.json') return new Response('Not found', { status: 404 });
       if (path === '/api/notes') {
-        return new Response(JSON.stringify({ notes: apiNotes }), {
-          status: 200, headers: { 'content-type': 'application/json' },
+        return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
+          status: 401, headers: { 'content-type': 'application/json' },
         });
       }
       return new Response('Not found', { status: 404 });
@@ -64,8 +63,9 @@ test('정적 data.json은 없어야 하고 화면용 API는 가상 메모 네 �
     const results = await runAttackChecks(config);
     assert.deepEqual(requests.map(item => item.path), ['/data.json', '/api/notes']);
     assert.equal(requests[1].options.redirect, 'error');
+    assert.equal(requests[1].options.headers.Authorization, undefined);
     assert.match(results.find(item => item.attackId === 'anonymous_static_data_read').observed, /not found/u);
-    assert.match(results.find(item => item.attackId === 'public_notes_api').observed, /four virtual notes/u);
+    assert.match(results.find(item => item.attackId === 'anonymous_notes_api_read').observed, /401 UNAUTHORIZED/u);
 
     globalThis.fetch = async url => {
       if (new URL(String(url)).pathname === '/data.json') {
@@ -73,8 +73,8 @@ test('정적 data.json은 없어야 하고 화면용 API는 가상 메모 네 �
           status: 200, headers: { 'content-type': 'application/json' },
         });
       }
-      return new Response(JSON.stringify({ notes: apiNotes }), {
-        status: 200, headers: { 'content-type': 'application/json' },
+      return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
+        status: 401, headers: { 'content-type': 'application/json' },
       });
     };
     const failedStaticCheck = await runAttackChecks(config);
@@ -102,9 +102,14 @@ test('API 설정 누락 시 일반 오류만 응답하고 브라우저 파일에
       json(body) { result.body = body; return this; },
     };
 
-    await notesHandler({ method: 'GET' }, response);
-    assert.equal(result.statusCode, 503);
-    assert.deepEqual(result.body, { error: 'NOT_CONFIGURED' });
+    await notesHandler({
+      method: 'GET',
+      headers: {},
+      body: { userId: '00000000-0000-4000-8000-000000000001', role: 'admin' },
+    }, response);
+    assert.equal(result.statusCode, 401);
+    assert.deepEqual(result.body, { error: 'UNAUTHORIZED' });
+    assert.equal(Object.hasOwn(result.body, 'notes'), false);
     assert.equal(headers.get('cache-control'), 'no-store, max-age=0');
     assert.doesNotMatch(JSON.stringify(result.body), /sb_secret_|SUPABASE_SECRET_KEY/u);
 
