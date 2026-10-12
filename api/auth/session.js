@@ -1,17 +1,17 @@
 import config from '../../aleph.config.json' with { type: 'json' };
-import { getServerAuthContext, verifyStudentToken } from '../../src/server-auth.mjs';
+import { createIsolatedAuthClient, getServerAuthContext, verifyStudentToken } from '../../src/server-auth.mjs';
 import { clearSessionCookies, readSessionCookies, setSessionCookies } from '../../src/session-cookies.mjs';
 
 function sendError(response, status, code) {
   return response.status(status).json({ error: code });
 }
 
-async function userForToken(context, token) {
+async function userForToken(context, authClient, token) {
   const identity = await verifyStudentToken(context, token);
   if (!identity) return null;
   let email = null;
   try {
-    const { data, error } = await context.supabase.auth.getUser(token);
+    const { data, error } = await authClient.auth.getUser(token);
     if (!error && data?.user?.id === identity.userId
         && typeof data.user.email === 'string') email = data.user.email;
   } catch {
@@ -44,8 +44,9 @@ export default async function handler(request, response) {
   }
 
   try {
+    const authClient = createIsolatedAuthClient(context);
     if (tokens.accessToken) {
-      const currentUser = await userForToken(context, tokens.accessToken);
+      const currentUser = await userForToken(context, authClient, tokens.accessToken);
       if (currentUser) return response.status(200).json(currentUser);
     }
 
@@ -54,7 +55,7 @@ export default async function handler(request, response) {
       return response.status(200).json({ user: null });
     }
 
-    const { data, error } = await context.supabase.auth.refreshSession({
+    const { data, error } = await authClient.auth.refreshSession({
       refresh_token: tokens.refreshToken,
     });
     if (error || !data?.session || !data?.user?.id) {
