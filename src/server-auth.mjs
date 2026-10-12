@@ -46,6 +46,12 @@ export function getServerAuthContext() {
   return cachedContext;
 }
 
+export function createIsolatedAuthClient(context) {
+  return createClient(context.supabaseUrl, context.secretKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
 export async function verifyStudentToken(context, token) {
   if (typeof token !== 'string' || !token || token.length > 8192) return null;
   const identity = await context.verifyLogin('Bearer ' + token);
