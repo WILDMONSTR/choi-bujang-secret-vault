@@ -1,14 +1,51 @@
-// ALEPH SDP 엔진이 확인한 요청만 받는 학생 판정기 시작점입니다.
-// 6단계부터 규칙을 하나씩 추가합니다. 이 기본 응답은 모든 요청을 거부합니다.
-// 요청 본문의 userId, role, 기기 키, 토큰을 별도로 믿거나 저장하지 마세요.
-export const RULE_IDS = Object.freeze(['starter.deny']);
+// 계약에 정의된 요청 값만 사용합니다. 브라우저가 보낸 신원이나 역할을 추측하지 않습니다.
+export const RULE_IDS = Object.freeze([
+  'device_registered',
+  'step_up_required'
+]);
 
-export async function decide(request) {
+const RISK_COUNT_THRESHOLD = 10;
+const RISK_WINDOW_SECONDS = 300;
+const MAX_AUTH_AGE_SECONDS = 900;
+
+function response(request, decision, reasonCode, ruleIds) {
   return {
     schema: 'aleph.decision.v1',
     requestId: request.requestId,
-    decision: 'deny',
-    reasonCode: 'starter_not_ready',
-    ruleIds: [RULE_IDS[0]],
+    decision,
+    reasonCode,
+    ruleIds
   };
+}
+
+function hasRecentRiskSignal(request) {
+  if (!Array.isArray(request.recentEvents)) return false;
+  return request.recentEvents.some((event) => {
+    const age = Number(event?.ageSeconds);
+    const count = Number(event?.count);
+    return event?.kind === 'risk_signal' &&
+      Number.isFinite(age) && age >= 0 && age <= RISK_WINDOW_SECONDS &&
+      Number.isFinite(count) && count >= RISK_COUNT_THRESHOLD;
+  });
+}
+
+function hasFreshStepUp(request) {
+  const stepUp = request.stepUp;
+  return stepUp?.verified === true &&
+    Number.isFinite(stepUp.authAgeSeconds) &&
+    stepUp.authAgeSeconds >= 0 &&
+    stepUp.authAgeSeconds <= MAX_AUTH_AGE_SECONDS;
+}
+
+export async function decide(request) {
+  if (request.deviceRegistered !== true) {
+    return response(request, 'deny', 'device_not_registered', ['device_registered']);
+  }
+  if (hasRecentRiskSignal(request)) {
+    if (hasFreshStepUp(request)) {
+      return response(request, 'allow', 'approved', ['device_registered', 'step_up_required']);
+    }
+    return response(request, 'step_up', 'step_up_required', ['device_registered', 'step_up_required']);
+  }
+  return response(request, 'allow', 'approved', ['device_registered']);
 }
