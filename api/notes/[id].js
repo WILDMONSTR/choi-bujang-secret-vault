@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import config from '../../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../../src/verify-login.mjs';
+import { isTrustedBrowserOrigin, readSessionCookies } from '../../src/session-cookies.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 let cachedContext = null;
@@ -62,9 +63,21 @@ export default async function handler(request, response) {
     return sendError(response, 405, 'METHOD_NOT_ALLOWED');
   }
 
-  const authorization = request.headers?.authorization;
+  const suppliedAuthorization = request.headers?.authorization;
+  let authorization = suppliedAuthorization;
+  let usingCookie = false;
+  if (typeof suppliedAuthorization !== 'string' || !suppliedAuthorization) {
+    const cookies = readSessionCookies(request);
+    if (cookies.accessToken) {
+      authorization = 'Bearer ' + cookies.accessToken;
+      usingCookie = true;
+    }
+  }
   if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
     return sendError(response, 401, 'UNAUTHORIZED');
+  }
+  if (usingCookie && request.method !== 'GET' && !isTrustedBrowserOrigin(request, config)) {
+    return sendError(response, 403, 'ORIGIN_NOT_ALLOWED');
   }
 
   const supabaseUrl = validSupabaseUrl(process.env.SUPABASE_URL);
