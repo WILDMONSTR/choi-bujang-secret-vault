@@ -1,14 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 
-const NOTE_TITLES = Object.freeze([
-  '과제',
-  '포트폴리오',
-  '아침 리추얼',
-  '훈련 행정 자료',
-]);
-
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 let cachedContext = null;
 
 function sendError(response, status, code) {
@@ -21,9 +16,7 @@ function validSupabaseUrl(value) {
     const parsedUrl = new URL(value);
     if (parsedUrl.protocol !== 'https:' || !parsedUrl.hostname
         || parsedUrl.username || parsedUrl.password
-        || parsedUrl.pathname !== '/' || parsedUrl.search || parsedUrl.hash) {
-      return null;
-    }
+        || parsedUrl.pathname !== '/' || parsedUrl.search || parsedUrl.hash) return null;
     return parsedUrl.origin;
   } catch {
     return null;
@@ -31,26 +24,39 @@ function validSupabaseUrl(value) {
 }
 
 function getContext(supabaseUrl, secretKey) {
-  if (cachedContext?.supabaseUrl === supabaseUrl
-      && cachedContext?.secretKey === secretKey) {
+  if (cachedContext?.supabaseUrl === supabaseUrl && cachedContext?.secretKey === secretKey) {
     return cachedContext;
   }
-
   const supabase = createClient(supabaseUrl, secretKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const verifyLogin = createLoginVerifier({
-    config,
-    supabaseSecretKey: secretKey,
-    supabaseClient: supabase,
+    config, supabaseSecretKey: secretKey, supabaseClient: supabase,
   });
-
   cachedContext = { supabaseUrl, secretKey, supabase, verifyLogin };
   return cachedContext;
+}
+
+function parseNote(body) {
+  let value = body;
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch { return null; }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (typeof value.title !== 'string' || !value.title.trim() || value.title.trim().length > 200
+      || typeof value.body !== 'string' || !value.body.trim() || value.body.length > 20000) {
+    return null;
+  }
+  return { title: value.title.trim(), body: value.body };
+}
+
+function publicNote(row) {
+  return { id: row.id, title: row.title, body: row.content };
+}
+
+function sendDatabaseError(response, error) {
+  if (error?.code === '23505') return sendError(response, 409, 'TITLE_ALREADY_EXISTS');
+  return sendError(response, 502, 'NOTES_UNAVAILABLE');
 }
 
 export default async function handler(request, response) {
@@ -58,84 +64,80 @@ export default async function handler(request, response) {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
 
-  if (request.method !== 'GET') {
-    response.setHeader('Allow', 'GET');
+  if (!['GET', 'POST'].includes(request.method)) {
+    response.setHeader('Allow', 'GET, POST');
     return sendError(response, 405, 'METHOD_NOT_ALLOWED');
   }
 
-  // Trust only a server-verified Authorization bearer token. Never read userId
-  // or role from the request body, query string, or other browser-controlled data.
   const authorization = request.headers?.authorization;
   if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
     return sendError(response, 401, 'UNAUTHORIZED');
   }
 
-  const configuredUrl = process.env.SUPABASE_URL;
+  const supabaseUrl = validSupabaseUrl(process.env.SUPABASE_URL);
   const secretKey = process.env.SUPABASE_SECRET_KEY;
-  const supabaseUrl = validSupabaseUrl(configuredUrl);
-  const configuredIssuer = config?.identityProvider?.issuer;
   let issuerOrigin;
-  try {
-    issuerOrigin = new URL(configuredIssuer).origin;
-  } catch {
+  try { issuerOrigin = new URL(config?.identityProvider?.issuer).origin; } catch {
     return sendError(response, 503, 'AUTH_NOT_CONFIGURED');
   }
-
   if (!supabaseUrl || !secretKey || !secretKey.trim()
       || secretKey !== secretKey.trim() || supabaseUrl !== issuerOrigin) {
     return sendError(response, 503, 'NOT_CONFIGURED');
   }
 
   let context;
-  try {
-    context = getContext(supabaseUrl, secretKey);
-  } catch {
+  try { context = getContext(supabaseUrl, secretKey); } catch {
     return sendError(response, 503, 'AUTH_NOT_CONFIGURED');
   }
 
   let identity;
-  try {
-    identity = await context.verifyLogin(authorization);
-  } catch {
-    // Verification exceptions fail closed and do not expose internal details.
+  try { identity = await context.verifyLogin(authorization); } catch {
     return sendError(response, 401, 'UNAUTHORIZED');
   }
-  // This endpoint is for regular Supabase Auth accounts, not judge identities.
-  // Never trust request-supplied user IDs or roles.
-  if (!identity || identity.kind !== 'student') {
+  if (!identity || identity.kind !== 'student' || !UUID.test(identity.userId ?? '')) {
     return sendError(response, 401, 'UNAUTHORIZED');
   }
 
   try {
+    if (request.method === 'GET') {
+      // List only this verified account's memos.
+      const { data, error } = await context.supabase
+        .from('learning_notes')
+        .select('id, title, content')
+        .eq('owner_id', identity.userId)
+        .order('created_at', { ascending: false });
+      if (error || !Array.isArray(data)) return sendError(response, 502, 'NOTES_UNAVAILABLE');
+      return response.status(200).json(data.map(publicNote));
+    }
+
+    const note = parseNote(request.body);
+    if (!note) return sendError(response, 400, 'INVALID_NOTE');
+    let id;
+    if (request.body && typeof request.body === 'object'
+        && Object.prototype.hasOwnProperty.call(request.body, 'id')) {
+      if (typeof request.body.id !== 'string' || !UUID.test(request.body.id)) {
+        return sendError(response, 400, 'INVALID_ID');
+      }
+      id = request.body.id;
+    } else {
+      id = randomUUID();
+    }
+
     const { data, error } = await context.supabase
       .from('learning_notes')
-      .select('title, content');
+      .insert({
+        id,
+        owner_id: identity.userId,
+        title: note.title,
+        content: note.body,
+      })
+      .select('id')
+      .single();
 
-    if (error || !Array.isArray(data)) {
-      return sendError(response, 502, 'NOTES_UNAVAILABLE');
-    }
-
-    const notesByTitle = new Map();
-    for (const row of data) {
-      if (!row || !NOTE_TITLES.includes(row.title)
-          || typeof row.content !== 'string') {
-        continue;
-      }
-      if (notesByTitle.has(row.title)) {
-        return sendError(response, 502, 'NOTES_UNAVAILABLE');
-      }
-      notesByTitle.set(row.title, { title: row.title, content: row.content });
-    }
-
-    const notes = NOTE_TITLES.map(title => notesByTitle.get(title));
-    if (notes.some(note => !note)) {
-      return sendError(response, 502, 'NOTES_UNAVAILABLE');
-    }
-
-    // Return only intended virtual notes. Never include tokens, secrets, or raw errors.
-    return response.status(200).json({ notes });
+    if (error) return sendDatabaseError(response, error);
+    if (!data?.id) return sendError(response, 502, 'NOTES_UNAVAILABLE');
+    return response.status(201).json({ id: data.id });
   } catch {
-    // Do not log Supabase exceptions; they may contain sensitive details.
     return sendError(response, 502, 'NOTES_UNAVAILABLE');
   }
 }
