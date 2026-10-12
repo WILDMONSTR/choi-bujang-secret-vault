@@ -1,7 +1,5 @@
 // Each stage updates this self-check to inspect the current protection boundary.
 // Never return tokens, private keys, real names, or note bodies.
-const EXPECTED_TITLES = ['과제', '포트폴리오', '아침 리추얼', '훈련 행정 자료'];
-
 export async function runAttackChecks(config) {
   if (!Number.isInteger(config.step) || config.step < 2 || config.step > 12) {
     throw new Error('이 단계의 공격 점검은 2~12단계 설정이 필요합니다.');
