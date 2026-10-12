@@ -1,10 +1,10 @@
-# BYTE BACK 방어전 자료실 · 4단계
+# BYTE BACK 방어전 자료실 · 5단계
 
-이 저장소는 4단계 학습용 구성입니다. Supabase Auth 이메일·비밀번호 로그인과 로그아웃을 제공하며, 로그인한 사용자는 본인 소유의 가상 메모만 조회·추가·수정·삭제할 수 있습니다. 목록 API와 단건 GET·PUT·DELETE API는 서버에서 검증한 사용자 ID를 기준으로 소유자를 확인합니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
+이 저장소는 5단계 학습용 구성입니다. Supabase Auth 이메일·비밀번호 로그인과 로그아웃을 제공하며, 로그인한 사용자는 본인 소유의 가상 메모만 조회·추가·수정·삭제할 수 있습니다. 목록 API와 단건 GET·PUT·DELETE API는 서버에서 검증한 사용자 ID를 기준으로 소유자를 확인합니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
 
-## 4단계: 로그인한 사용자 자신의 메모만 접근
+## 5단계: 서버 로그인과 사용자별 메모 소유권
 
-- `public/index.html`은 Supabase 공식 JavaScript SDK `@supabase/supabase-js` 2.117.2의 `signInWithPassword`, `signOut`, `onAuthStateChange`를 사용합니다. 로그인 토큰은 API 요청의 `Authorization: Bearer ...` 헤더로 전송합니다.
+- `public/index.html`에는 Supabase 키와 Supabase JavaScript SDK가 없습니다. 브라우저는 `/api/auth/login`, `/api/auth/session`, `/api/auth/logout` 및 `/api/notes` 서버 경로만 호출합니다. 로그인 세션은 `HttpOnly; Secure; SameSite=Lax` 쿠키로 전달되므로 JavaScript가 access token이나 refresh token을 읽지 않습니다.
 - `src/verify-login.mjs`는 수정하지 않았습니다. `api/notes.js`와 `api/notes/[id].js`가 이 검증기를 이용하며, 확인된 Supabase 로그인 사용자의 ID만 권한 판단과 `owner_id` 저장에 사용합니다. 요청 본문이나 쿼리에 있는 `userId`·`role`은 신뢰하지 않습니다.
 - `GET /api/notes`는 로그인 사용자에게 속한 메모 배열 `[{id,title,body}]`를 반환합니다. `POST /api/notes`는 `{id?,title,body}`를 받고, ID가 없으면 서버에서 UUID를 만들며 `{id}`를 HTTP 201로 반환합니다. 생성 시 검증된 사용자 ID를 `owner_id`로 저장합니다.
 - `GET /api/notes/:id`는 본인 소유의 한 건만 `{id,title,body}`로 반환합니다. 존재하지 않거나 다른 사용자가 소유한 ID는 404 `NOT_FOUND`를 반환해 자료의 존재 여부를 노출하지 않습니다. `PUT /api/notes/:id`와 `DELETE /api/notes/:id`에도 메모 ID와 검증된 `identity.userId`의 `owner_id` 조건이 모두 적용됩니다.
