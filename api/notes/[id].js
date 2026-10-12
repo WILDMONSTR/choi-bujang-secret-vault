@@ -96,11 +96,12 @@ export default async function handler(request, response) {
 
   try {
     if (request.method === 'GET') {
-      // Stage 3 intentionally has not added an owner_id condition to item reads.
+      // Return a row only when it belongs to the verified user; hide other users' rows as not found.
       const { data, error } = await context.supabase
         .from('learning_notes')
         .select('id, title, content')
         .eq('id', id)
+        .eq('owner_id', identity.userId)
         .maybeSingle();
       if (error) return sendError(response, 502, 'NOTES_UNAVAILABLE');
       if (!data) return sendError(response, 404, 'NOT_FOUND');
@@ -111,11 +112,12 @@ export default async function handler(request, response) {
       const note = parseNote(request.body);
       if (!note) return sendError(response, 400, 'INVALID_NOTE');
 
-      // Intentionally no owner_id filter at stage 3; stage 4 will add ownership checks.
+      // Access only a row owned by the verified user.
       const { data, error } = await context.supabase
         .from('learning_notes')
         .update({ title: note.title, content: note.body })
         .eq('id', id)
+        .eq('owner_id', identity.userId)
         .select('id, title, content')
         .maybeSingle();
 
@@ -125,11 +127,12 @@ export default async function handler(request, response) {
       return response.status(200).json(publicNote(data));
     }
 
-    // Intentionally no owner_id filter at stage 3; stage 4 will add ownership checks.
+    // Access only a row owned by the verified user.
     const { data, error } = await context.supabase
       .from('learning_notes')
       .delete()
       .eq('id', id)
+      .eq('owner_id', identity.userId)
       .select('id')
       .maybeSingle();
 
