@@ -93,14 +93,20 @@ export default async function handler(request, response) {
     return sendError(response, 503, 'AUTH_NOT_CONFIGURED');
   }
 
+  let identity;
   try {
-    const identity = await context.verifyLogin(authorization);
-    // This endpoint is for regular Supabase Auth accounts, not judge identities.
-    // identity.userId comes only from the verified token; request-supplied IDs and roles are ignored.
-    if (!identity || identity.kind !== 'student') {
-      return sendError(response, 401, 'UNAUTHORIZED');
-    }
+    identity = await context.verifyLogin(authorization);
+  } catch {
+    // Verification exceptions fail closed and do not expose internal details.
+    return sendError(response, 401, 'UNAUTHORIZED');
+  }
+  // This endpoint is for regular Supabase Auth accounts, not judge identities.
+  // Never trust request-supplied user IDs or roles.
+  if (!identity || identity.kind !== 'student') {
+    return sendError(response, 401, 'UNAUTHORIZED');
+  }
 
+  try {
     const { data, error } = await context.supabase
       .from('learning_notes')
       .select('title, content');
@@ -129,7 +135,7 @@ export default async function handler(request, response) {
     // Return only intended virtual notes. Never include tokens, secrets, or raw errors.
     return response.status(200).json({ notes });
   } catch {
-    // Do not log verifier/Supabase exceptions; they may contain sensitive details.
+    // Do not log Supabase exceptions; they may contain sensitive details.
     return sendError(response, 502, 'NOTES_UNAVAILABLE');
   }
 }
