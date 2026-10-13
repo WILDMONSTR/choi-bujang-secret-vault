@@ -28,6 +28,11 @@ export async function checkDecider({ decide, ruleIds }) {
     { name: '등록 기기의 정상 요청', request: normal, decision: 'allow' },
     { name: '미등록 기기의 가상 요청', request: { ...normal, requestId: randomUUID(),
       deviceRegistered: false }, decision: 'deny', reasonCode: 'device_not_registered' },
+    { name: '기기 등록 값이 없는 가상 요청', request: (() => {
+      const request = { ...normal, requestId: randomUUID() };
+      delete request.deviceRegistered;
+      return request;
+    })(), decision: 'deny', reasonCode: 'device_not_registered' },
   ];
   if (ruleIds.includes('step_up_required')) {
     checks.push(
@@ -44,7 +49,7 @@ export async function checkDecider({ decide, ruleIds }) {
     const valid = validResponse(item.request, response, ruleIds)
       && response.decision === item.decision
       && (!item.reasonCode || response.reasonCode === item.reasonCode);
-    results.push({ name: item.name, passed: valid });
+    results.push({ name: item.name, passed: valid, decision: response?.decision, reasonCode: response?.reasonCode });
   }
   return results;
 }
@@ -53,7 +58,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const { decide, RULE_IDS } = await import('../src/decider.mjs');
     const results = await checkDecider({ decide, ruleIds: RULE_IDS });
-    for (const item of results) process.stdout.write(`${item.passed ? '통과' : '확인 필요'} · ${item.name}\n`);
+    for (const item of results) process.stdout.write(`${item.passed ? '통과' : '확인 필요'} · ${item.name} · ${item.decision ?? '응답 없음'} · ${item.reasonCode ?? '이유 코드 없음'}\n`);
     process.stdout.write('이 명령은 가상 요청으로 연습하며 심판 통과 증거가 아닙니다.\n');
     if (results.some(item => !item.passed)) process.exitCode = 1;
   } catch (error) {
