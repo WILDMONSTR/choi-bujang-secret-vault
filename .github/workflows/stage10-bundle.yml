@@ -1,0 +1,58 @@
+name: Stage 10 submission bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/stage10-bundle.yml
+      - aleph.config.json
+      - README.md
+      - package.json
+      - package-lock.json
+      - src/attack-check.mjs
+      - src/stage10-recovery.mjs
+      - src/stage10-recovery-api.mjs
+      - scripts/bundle.mjs
+      - scripts/stage10-test.mjs
+      - api/stage10/**
+      - supabase/migrations/**
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out saved commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Prepare local ignored bundle notes
+        run: |
+          cat > bundle-notes.json <<'JSON'
+          {
+            "explanation": "10단계는 검증된 안전 정책과 시험 정책의 차이를 먼저 보여 주고 learning_notes 시험 범위만 복원하도록 했습니다. 시험 계정 B의 가상 메모 한 건은 ID·소유자·본문 SHA-256을 검증하고 민감한 본문이나 토큰은 응답과 감사 이력에 기록하지 않습니다. 실제 검증 사본과 B 메모 백업이 별도 적재되지 않았다면 복원 요청은 거부됩니다."
+          }
+          JSON
+      - name: Run submission bundle checks
+        run: npm run bundle
+      - name: Print submission JSON and summary
+        run: |
+          cat artifacts/submission.json
+          echo
+          echo "Bundle file size:"
+          wc -c artifacts/submission.json
+      - name: Upload generated bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage10-submission
+          path: artifacts/submission.json
+          if-no-files-found: error
+          retention-days: 7
