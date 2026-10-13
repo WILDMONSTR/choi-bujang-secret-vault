@@ -21,16 +21,16 @@ const EVENT_FIELDS = ['kind', 'ageSeconds', 'count'].sort().join(',');
 
 // The judge contract represents a resource identifier with :id; the API validates
 // the actual identifier and the logged-in owner. Do not assume it must be a UUID here.
-const NOTE_ID_PATH = /^\\/notes\\/[A-Za-z0-9_-]{1,128}$/u;
-const ANNOUNCEMENT_ID_PATH = /^\\/announcements\\/[A-Za-z0-9_-]{1,128}$/u;
+const NOTE_ID_PATH = /^\/notes\/[A-Za-z0-9_-]{1,128}$/u;
+const ANNOUNCEMENT_ID_PATH = /^\/announcements\/[A-Za-z0-9_-]{1,128}$/u;
 const ROUTES = [
   // Collection GET is deliberately absent: do not approve a broad memo list.
-  ['notes', 'POST', 'POST /notes', /^\\/notes$/u],
+  ['notes', 'POST', 'POST /notes', /^\/notes$/u],
   ...['GET', 'PUT', 'DELETE'].map((method) => [
     'notes', method, `${method} /notes/:id`, NOTE_ID_PATH
   ]),
   // Reading announcements is left to the final API's membership check.
-  ['announcements', 'GET', 'GET /announcements', /^\\/announcements$/u],
+  ['announcements', 'GET', 'GET /announcements', /^\/announcements$/u],
   ['announcements', 'GET', 'GET /announcements/:id', ANNOUNCEMENT_ID_PATH]
 ];
 
