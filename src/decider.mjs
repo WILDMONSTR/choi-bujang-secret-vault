@@ -24,7 +24,9 @@ const EVENT_FIELDS = ['kind', 'ageSeconds', 'count'].sort().join(',');
 const NOTE_ID_PATH = /^\/notes\/[A-Za-z0-9_-]{1,128}$/u;
 const ANNOUNCEMENT_ID_PATH = /^\/announcements\/[A-Za-z0-9_-]{1,128}$/u;
 const ROUTES = [
-  // Collection GET is deliberately absent: do not approve a broad memo list.
+  // The canonical collection read is safe only because the final API filters by
+  // the verified owner and checks active zone membership. Do not use /api aliases here.
+  ['notes', 'GET', 'GET /notes', /^\/notes$/u],
   ['notes', 'POST', 'POST /notes', /^\/notes$/u],
   ...['GET', 'PUT', 'DELETE'].map((method) => [
     'notes', method, `${method} /notes/:id`, NOTE_ID_PATH
