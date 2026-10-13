@@ -3,14 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/decider-test.mjs && node scripts/build-public.mjs",
+    "build": "node scripts/decider-test.mjs && node scripts/resource-id-test.mjs && node scripts/build-public.mjs",
     "test:r5": "node --test test/r5.test.mjs",
     "test:package": "node --test test/package-starter.test.mjs",
     "bundle": "node scripts/bundle.mjs",
     "decider:test": "node scripts/decider-test.mjs",
     "detect:test": "node scripts/detect-test.mjs",
     "fixture:7": "node scripts/fixture-7.mjs",
-    "xdr:run": "node scripts/xdr-run.mjs"
+    "xdr:run": "node scripts/xdr-run.mjs",
+    "resource-id:test": "node scripts/resource-id-test.mjs"
   },
   "engines": {
     "node": ">=22"
