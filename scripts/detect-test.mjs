@@ -10,18 +10,21 @@ const deviceB = 'bbbbbbbbbbbbbbbb';
 function reads(count, {
   intervalSeconds = 2, owner = subject, deviceId = deviceA,
   network = 'usual', region = 'local', start = START, recentEvents,
+  requestKind, decision,
 } = {}) {
   return Array.from({ length: count }, (_, index) => ({
     at: new Date(start + index * intervalSeconds * 1000).toISOString(),
     method: 'GET', deviceId, network, region, identity: { sub: owner },
     ...(recentEvents ? { recentEvents } : {}),
+    ...(requestKind ? { requestKind } : {}),
+    ...(decision ? { decision } : {}),
   }));
 }
 
 function decisionRequest({
   owner = subject, deviceId = deviceA, network = 'first_seen',
   region = 'foreign', recentEvents = [{ kind: 'bulk_read', ageSeconds: 60, count: 20 }],
-  method = 'GET', at = new Date(START).toISOString(), includeRegion = true,
+  method = 'GET', requestKind, decision, at = new Date(START).toISOString(), includeRegion = true,
 } = {}) {
   const signals = { source: 'judge_fixture', network, hour: 3 };
   if (includeRegion) signals.region = region;
@@ -33,7 +36,8 @@ function decisionRequest({
     subjectId: owner,
     deviceId,
     service: 'notes',
-    method,
+    ...(requestKind ? { requestKind } : { method }),
+    ...(decision ? { decision } : {}),
     path: '/notes/demo',
     route: 'GET /notes/:id',
     queryLength: 0,
