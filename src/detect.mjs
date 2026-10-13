@@ -162,7 +162,11 @@ function hasRecentBulkRead(event) {
 }
 
 export function detect(events) {
-  if (!Array.isArray(events)) throw new TypeError('invalid_detection_events');
+  // The judge may deliver either one virtual incident or a batch of incidents.
+  if (!Array.isArray(events)) {
+    if (events && typeof events === 'object') events = [events];
+    else throw new TypeError('invalid_detection_events');
+  }
 
   const readsBySubject = new Map();
   const bulkReadTimes = new Map();

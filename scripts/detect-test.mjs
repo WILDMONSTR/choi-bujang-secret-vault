@@ -114,6 +114,14 @@ export async function checkDetection(detect) {
     const actual = await detect(item.events);
     results.push({ name: item.name, passed: isDeepStrictEqual(actual, item.expected) });
   }
+
+  // A single incident object is also a valid input from the judge connector.
+  const singleActual = await detect(decisionRequest());
+  results.push({
+    name: '단일 공식 가상 사건 객체도 복합 의심으로 탐지',
+    passed: isDeepStrictEqual(singleActual, proposal(deviceA)),
+  });
+
   const invalidCases = [
     { name: '기기 ID 누락 거부', event: (() => { const { deviceId, ...event } = reads(1)[0]; return event; })() },
     { name: '기기 ID 형식 오류 거부', event: reads(1, { deviceId: 'not-a-device' })[0] },
