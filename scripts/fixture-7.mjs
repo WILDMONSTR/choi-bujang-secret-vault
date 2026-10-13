@@ -14,8 +14,8 @@ const request = (signals, recentEvents) => ({
 export function fixtureRequests() {
   return {
     normal: request({ source: 'judge_fixture', region: 'local', network: 'usual', hour: 14 }, []),
-    suspicious: request({ source: 'judge_fixture', region: 'foreign', network: 'unusual', hour: 3 },
-      [{ kind: 'risk_signal', ageSeconds: 60, count: 20 }]),
+    suspicious: request({ source: 'judge_fixture', region: 'foreign', network: 'first_seen', hour: 3 },
+      [{ kind: 'bulk_read', ageSeconds: 60, count: 20 }]),
   };
 }
 const check = (input, output) => output && typeof output === 'object'

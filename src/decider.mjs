@@ -2,6 +2,7 @@
 export const RULE_IDS = Object.freeze([
   'device_registered',
   'signal_provenance',
+  'unusual_access_context',
   'step_up_required'
 ]);
 
@@ -68,6 +69,19 @@ function hasRecentRiskSignal(request) {
   });
 }
 
+
+function hasUnusualAccessContext(request) {
+  const { signals, recentEvents } = request;
+  const unusualHour = signals.hour < 6 || signals.hour >= 22;
+  const firstSeenNetwork = signals.network === 'first_seen';
+  const suddenBulkRead = recentEvents.some((event) => event.kind === 'bulk_read'
+    && event.ageSeconds <= RISK_WINDOW_SECONDS
+    && event.count >= RISK_COUNT_THRESHOLD);
+
+  // Region alone is deliberately not a trigger; this rule requires all three signals.
+  return unusualHour && firstSeenNetwork && suddenBulkRead;
+}
+
 function hasFreshStepUp(request) {
   const stepUp = request.stepUp;
   return stepUp?.verified === true &&
@@ -82,6 +96,16 @@ export async function decide(request) {
   }
   if (!hasValidSignalContext(request)) {
     return response(request, 'step_up', 'step_up_required', ['signal_provenance']);
+  }
+  if (hasUnusualAccessContext(request)) {
+    if (hasFreshStepUp(request)) {
+      return response(request, 'allow', 'approved', [
+        'device_registered', 'signal_provenance', 'unusual_access_context', 'step_up_required'
+      ]);
+    }
+    return response(request, 'step_up', 'step_up_required', [
+      'device_registered', 'signal_provenance', 'unusual_access_context', 'step_up_required'
+    ]);
   }
   if (hasRecentRiskSignal(request)) {
     if (hasFreshStepUp(request)) {

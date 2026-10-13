@@ -55,10 +55,23 @@ export async function checkDecider({ decide, ruleIds }) {
     { name: '행동 정보 누락', request: missingBehavior,
       decision: 'step_up', reasonCode: 'step_up_required' },
   );
+  checks.push(
+    { name: '지역만 다른 정상 시각·기존 네트워크', request: { ...normal,
+      requestId: randomUUID(), signals: { ...normal.signals, region: 'foreign' } },
+      decision: 'allow', reasonCode: 'approved' },
+    { name: '대량 읽기만 있고 시각·네트워크는 평소와 같음', request: { ...normal,
+      requestId: randomUUID(), recentEvents: [{ kind: 'bulk_read', ageSeconds: 60, count: 20 }] },
+      decision: 'allow', reasonCode: 'approved' },
+    { name: '시각·네트워크 변화와 대량 읽기가 결합됨', request: suspicious,
+      decision: 'step_up', reasonCode: 'step_up_required', ruleId: 'unusual_access_context' },
+    { name: '기존 대량 위험 사건 규칙 유지', request: { ...normal,
+      requestId: randomUUID(), recentEvents: [{ kind: 'risk_signal', ageSeconds: 60, count: 20 }] },
+      decision: 'step_up', reasonCode: 'step_up_required' },
+  );
   if (ruleIds.includes('step_up_required')) {
     checks.push(
       { name: '복합 이상 접속', request: suspicious, decision: 'step_up',
-        reasonCode: 'step_up_required' },
+        reasonCode: 'step_up_required', ruleId: 'unusual_access_context' },
       { name: '다시 확인한 복합 이상 접속', request: { ...suspicious,
         requestId: randomUUID(), stepUp: { verified: true, authAgeSeconds: 60 } },
       decision: 'allow' },
@@ -69,7 +82,8 @@ export async function checkDecider({ decide, ruleIds }) {
     const response = await decide(item.request);
     const valid = validResponse(item.request, response, ruleIds)
       && response.decision === item.decision
-      && (!item.reasonCode || response.reasonCode === item.reasonCode);
+      && (!item.reasonCode || response.reasonCode === item.reasonCode)
+      && (!item.ruleId || response.ruleIds.includes(item.ruleId));
     results.push({ name: item.name, passed: valid, decision: response?.decision, reasonCode: response?.reasonCode });
   }
   return results;
