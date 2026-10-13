@@ -20,8 +20,8 @@ function validResponse(request, response, ruleIds) {
 // Local practice only. The class engine and the server judge validate live requests separately.
 export async function checkDecider({ decide, ruleIds }) {
   if (typeof decide !== 'function' || !Array.isArray(ruleIds)
-      || !ruleIds.includes('device_registered')) {
-    throw new Error('6단계 device_registered 규칙을 먼저 구현하고 RULE_IDS에 적어 주세요.');
+      || !ruleIds.includes('device_registered') || !ruleIds.includes('signal_provenance')) {
+    throw new Error('6단계 device_registered와 7단계 signal_provenance 규칙을 먼저 구현하고 RULE_IDS에 적어 주세요.');
   }
   const { normal, suspicious } = fixtureRequests();
   const checks = [
@@ -34,6 +34,27 @@ export async function checkDecider({ decide, ruleIds }) {
       return request;
     })(), decision: 'deny', reasonCode: 'device_not_registered' },
   ];
+  const missingRegion = { ...normal, requestId: randomUUID(),
+    signals: { ...normal.signals } };
+  delete missingRegion.signals.region;
+  const missingHour = { ...normal, requestId: randomUUID(),
+    signals: { ...normal.signals, hour: null } };
+  const missingBehavior = { ...normal, requestId: randomUUID() };
+  delete missingBehavior.recentEvents;
+  checks.push(
+    { name: '클라이언트 헤더 출처는 신뢰하지 않음', request: { ...normal,
+      requestId: randomUUID(), headers: { 'x-forwarded-for': '127.0.0.1' } },
+      decision: 'step_up', reasonCode: 'step_up_required' },
+    { name: '출처가 불명확한 신호', request: { ...normal, requestId: randomUUID(),
+      signals: { ...normal.signals, source: 'x-forwarded-for' } },
+      decision: 'step_up', reasonCode: 'step_up_required' },
+    { name: '지역 정보 누락', request: missingRegion,
+      decision: 'step_up', reasonCode: 'step_up_required' },
+    { name: '시각 정보 누락', request: missingHour,
+      decision: 'step_up', reasonCode: 'step_up_required' },
+    { name: '행동 정보 누락', request: missingBehavior,
+      decision: 'step_up', reasonCode: 'step_up_required' },
+  );
   if (ruleIds.includes('step_up_required')) {
     checks.push(
       { name: '복합 이상 접속', request: suspicious, decision: 'step_up',
