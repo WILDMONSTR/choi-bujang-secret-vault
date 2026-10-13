@@ -28,6 +28,7 @@ export async function checkDecider({ decide, ruleIds }) {
 
   const { normal, suspicious } = fixtureRequests();
   const announcementId = randomUUID();
+  const memoId = randomUUID();
   const unavailableSignals = {
     ...normal,
     requestId: randomUUID(),
@@ -47,6 +48,16 @@ export async function checkDecider({ decide, ruleIds }) {
   const checks = [
     { name: '정상 자기 메모 단건 읽기', request: normal, decision: 'allow', reasonCode: 'approved' },
     { name: '엔진이 신호 미제공을 명시한 정상 단건 읽기', request: unavailableSignals, decision: 'allow', reasonCode: 'approved' },
+    { name: '유형 접두사가 있는 메모 자원 ID 허용', request: { ...normal, requestId: randomUUID(),
+      path: `/notes/memo:${memoId}`, route: 'GET /notes/:id' }, decision: 'allow' },
+    { name: 'URL 인코딩된 메모 자원 ID 허용', request: { ...normal, requestId: randomUUID(),
+      path: `/notes/memo%3A${memoId}`, route: 'GET /notes/:id' }, decision: 'allow' },
+    { name: '유형 접두사가 있는 강사 공지 자원 ID 허용', request: { ...normal, requestId: randomUUID(),
+      service: 'announcements', path: `/announcements/instructor-announcement:${announcementId}`,
+      route: 'GET /announcements/:id' }, decision: 'allow' },
+    { name: 'URL 인코딩된 강사 공지 자원 ID 허용', request: { ...normal, requestId: randomUUID(),
+      service: 'announcements', path: `/announcements/instructor-announcement%3A${announcementId}`,
+      route: 'GET /announcements/:id' }, decision: 'allow' },
     { name: '본인 메모 목록 조회는 최종 API 소유자 필터로 제한', request: { ...normal, requestId: randomUUID(),
       path: '/notes', route: 'GET /notes' }, decision: 'allow', reasonCode: 'approved' },
     { name: '메모 전체 목록 API 별칭 거부', request: { ...normal, requestId: randomUUID(),
