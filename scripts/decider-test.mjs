@@ -47,8 +47,8 @@ export async function checkDecider({ decide, ruleIds }) {
   const checks = [
     { name: '정상 자기 메모 단건 읽기', request: normal, decision: 'allow', reasonCode: 'approved' },
     { name: '엔진이 신호 미제공을 명시한 정상 단건 읽기', request: unavailableSignals, decision: 'allow', reasonCode: 'approved' },
-    { name: '메모 전체 목록 GET /notes 거부', request: { ...normal, requestId: randomUUID(),
-      path: '/notes', route: 'GET /notes' }, decision: 'deny', ruleId: 'resource_scope' },
+    { name: '본인 메모 목록 조회는 최종 API 소유자 필터로 제한', request: { ...normal, requestId: randomUUID(),
+      path: '/notes', route: 'GET /notes' }, decision: 'allow', reasonCode: 'approved' },
     { name: '메모 전체 목록 API 별칭 거부', request: { ...normal, requestId: randomUUID(),
       path: '/api/notes', route: 'GET /api/notes' }, decision: 'deny', ruleId: 'resource_scope' },
     { name: '깊이가 추가된 허용 경로 위조 거부', request: { ...normal, requestId: randomUUID(),
