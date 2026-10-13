@@ -109,6 +109,7 @@ function readEvent(event) {
     update: 'PUT', remove: 'DELETE',
   };
   const normalizedMethod = methodAliases[rawMethod.toLowerCase().replaceAll('-', '_')]
+    ?? rawMethod.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)(?:\\s|$)/iu)?.[1]?.toUpperCase()
     ?? rawMethod.toUpperCase();
   if (!/^[A-Z]{3,10}$/u.test(normalizedMethod)) {
     throw new TypeError('invalid_detection_event');
