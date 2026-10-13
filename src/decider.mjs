@@ -1,16 +1,205 @@
-export const RULE_IDS=Object.freeze(['device_registered','signal_provenance','resource_scope','instructor_role_required','unusual_access_context','step_up_required']);
-const RISK_COUNT_THRESHOLD=10,RISK_WINDOW_SECONDS=300,MAX_AUTH_AGE_SECONDS=900;
-const REQUEST_FIELDS=['schema','requestId','classId','projectId','subjectId','deviceId','service','method','path','route','queryLength','querySha256','at','policyRevision','deviceRegistered','stepUp','recentEvents','signals'].sort().join(','),SIGNAL_FIELDS=['source','region','network','hour'].sort().join(','),EVENT_FIELDS=['kind','ageSeconds','count'].sort().join(',');
-const ROUTES=[
-['notes','GET','GET /api/notes',/^\/api\/notes$/u],['notes','POST','POST /api/notes',/^\/api\/notes$/u],
-...['GET','PUT','DELETE'].map(m=>['notes',m,m+' /api/notes/:id',/^\/api\/notes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu]),
-['announcements','GET','GET /api/announcements',/^\/api\/announcements$/u],['announcements','POST','POST /api/announcements',/^\/api\/announcements$/u],
-...['GET','PUT','DELETE'].map(m=>['announcements',m,m+' /api/announcements/:id',/^\/api\/announcements\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu])];
-function out(r,decision,reasonCode,ruleIds){return {schema:'aleph.decision.v1',requestId:r?.requestId,decision,reasonCode,ruleIds}}
-function label(v){return typeof v==='string'&&v.trim()===v&&v.length>0&&!['unknown','none','unavailable','null'].includes(v.toLowerCase())}
-function route(r){if(!r||!['notes','announcements'].includes(r.service)||typeof r.method!=='string'||r.method!==r.method.toUpperCase()||typeof r.path!=='string'||r.path.includes('?')||r.path.includes('#')||typeof r.route!=='string')return false;return ROUTES.some(([s,m,t,p])=>s===r.service&&m===r.method&&t===r.route&&p.test(r.path))}
-function signals(r){if(!r||typeof r!=='object'||Array.isArray(r)||Object.keys(r).sort().join(',')!==REQUEST_FIELDS)return false;const s=r.signals;if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).sort().join(',')!==SIGNAL_FIELDS||s.source!=='judge_fixture'||!label(s.region)||!label(s.network)||!Number.isInteger(s.hour)||s.hour<0||s.hour>23)return false;if(!Array.isArray(r.recentEvents)||r.recentEvents.length>12)return false;return r.recentEvents.every(e=>e&&typeof e==='object'&&!Array.isArray(e)&&Object.keys(e).sort().join(',')===EVENT_FIELDS&&typeof e.kind==='string'&&/^[a-z][a-z0-9_-]{0,63}$/u.test(e.kind)&&Number.isFinite(e.ageSeconds)&&e.ageSeconds>=0&&Number.isSafeInteger(e.count)&&e.count>=0)}
-function risk(r){return r.recentEvents.some(e=>e.kind==='risk_signal'&&e.ageSeconds>=0&&e.ageSeconds<=RISK_WINDOW_SECONDS&&e.count>=RISK_COUNT_THRESHOLD)}
-function unusual(r){return (r.signals.hour<6||r.signals.hour>=22)&&r.signals.network==='first_seen'&&r.recentEvents.some(e=>e.kind==='bulk_read'&&e.ageSeconds<=RISK_WINDOW_SECONDS&&e.count>=RISK_COUNT_THRESHOLD)}
-function fresh(r){return r.stepUp?.verified===true&&Number.isFinite(r.stepUp.authAgeSeconds)&&r.stepUp.authAgeSeconds>=0&&r.stepUp.authAgeSeconds<=MAX_AUTH_AGE_SECONDS}
-export async function decide(r){if(r?.deviceRegistered!==true)return out(r,'deny','device_not_registered',['device_registered']);if(!label(r.subjectId)||r.subjectId.length>256||typeof r.deviceId!=='string'||!/^[0-9a-f]{16}$/u.test(r.deviceId))return out(r,'deny','step_up_required',['resource_scope']);if(!route(r))return out(r,'deny','step_up_required',['resource_scope']);if(r.service==='announcements'&&['POST','PUT','DELETE'].includes(r.method))return out(r,'deny','step_up_required',['resource_scope','instructor_role_required']);if(!signals(r))return out(r,'step_up','step_up_required',['signal_provenance']);if(unusual(r))return fresh(r)?out(r,'allow','approved',['device_registered','resource_scope','signal_provenance','unusual_access_context','step_up_required']):out(r,'step_up','step_up_required',['device_registered','resource_scope','signal_provenance','unusual_access_context','step_up_required']);if(risk(r))return fresh(r)?out(r,'allow','approved',['device_registered','resource_scope','step_up_required']):out(r,'step_up','step_up_required',['device_registered','resource_scope','step_up_required']);return out(r,'allow','approved',['device_registered','resource_scope'])}
+// Use only the fixed judge contract. Ownership is checked by the final resource API.
+export const RULE_IDS = Object.freeze([
+  'device_registered',
+  'signal_provenance',
+  'resource_scope',
+  'instructor_role_required',
+  'unusual_access_context',
+  'step_up_required'
+]);
+
+const RISK_COUNT_THRESHOLD = 10;
+const RISK_WINDOW_SECONDS = 300;
+const MAX_AUTH_AGE_SECONDS = 900;
+const REQUEST_FIELDS = [
+  'schema', 'requestId', 'classId', 'projectId', 'subjectId', 'deviceId',
+  'service', 'method', 'path', 'route', 'queryLength', 'querySha256', 'at',
+  'policyRevision', 'deviceRegistered', 'stepUp', 'recentEvents', 'signals'
+].sort().join(',');
+const SIGNAL_FIELDS = ['source', 'region', 'network', 'hour'].sort().join(',');
+const EVENT_FIELDS = ['kind', 'ageSeconds', 'count'].sort().join(',');
+
+const UUID_PATH = /^\/[a-z0-9_-]+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const ROUTES = [
+  // Collection GET is deliberately absent: do not approve a cross-resource memo list.
+  ['notes', 'POST', 'POST /notes', /^\/notes$/u],
+  ...['GET', 'PUT', 'DELETE'].map((method) => [
+    'notes', method, `${method} /notes/:id`, UUID_PATH
+  ]),
+  // Announcement reads may be reviewed by the API using zone membership.
+  ['announcements', 'GET', 'GET /announcements', /^\/announcements$/u],
+  ...['GET', 'PUT', 'DELETE'].map((method) => [
+    'announcements', method, `${method} /announcements/:id`,
+    /^\/announcements\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+  ])
+];
+
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const RESTRICTED_RESOURCE_NAMES = /(?:announcements?|class[-_ ]?(?:notices?|announcements?)|teacher[-_ ]?materials?|instructor[-_ ]?materials?|faculty[-_ ]?materials?)/iu;
+
+function response(request, decision, reasonCode, ruleIds) {
+  return {
+    schema: 'aleph.decision.v1',
+    requestId: request?.requestId,
+    decision,
+    reasonCode,
+    ruleIds
+  };
+}
+
+function hasMeaningfulLabel(value) {
+  return typeof value === 'string' && value.trim() === value && value.length > 0
+    && !['unknown', 'none', 'unavailable', 'null'].includes(value.toLowerCase());
+}
+
+function hasValidRecentEvents(request) {
+  return Array.isArray(request.recentEvents) && request.recentEvents.length <= 12
+    && request.recentEvents.every((event) => event && typeof event === 'object'
+      && !Array.isArray(event)
+      && Object.keys(event).sort().join(',') === EVENT_FIELDS
+      && typeof event.kind === 'string'
+      && /^[a-z][a-z0-9_-]{0,63}$/u.test(event.kind)
+      && Number.isFinite(event.ageSeconds) && event.ageSeconds >= 0
+      && Number.isSafeInteger(event.count) && event.count >= 0);
+}
+
+// "none"/"unknown" is the contract's explicit unavailable state, not a normal-value
+// substitute. We do not use it to infer a location, network, or hour.
+function signalState(request) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)
+      || Object.keys(request).sort().join(',') !== REQUEST_FIELDS) return 'invalid';
+
+  const signals = request.signals;
+  if (!signals || typeof signals !== 'object' || Array.isArray(signals)
+      || Object.keys(signals).sort().join(',') !== SIGNAL_FIELDS
+      || !hasValidRecentEvents(request)) return 'invalid';
+
+  if (signals.source === 'none' && signals.region === 'unknown'
+      && signals.network === 'unknown'
+      && (signals.hour === null || (Number.isInteger(signals.hour) && signals.hour >= 0 && signals.hour <= 23))) {
+    return 'unavailable';
+  }
+
+  if (signals.source === 'judge_fixture'
+      && hasMeaningfulLabel(signals.region)
+      && hasMeaningfulLabel(signals.network)
+      && Number.isInteger(signals.hour) && signals.hour >= 0 && signals.hour <= 23) {
+    return 'fixture';
+  }
+
+  return 'invalid';
+}
+
+function routeMatches(request) {
+  if (!request || !['notes', 'announcements'].includes(request.service)
+      || typeof request.method !== 'string' || request.method !== request.method.toUpperCase()
+      || typeof request.path !== 'string' || request.path.includes('?') || request.path.includes('#')
+      || typeof request.route !== 'string') return false;
+
+  return ROUTES.some(([service, method, route, path]) =>
+    service === request.service && method === request.method
+      && route === request.route && path.test(request.path));
+}
+
+function isRestrictedWrite(request) {
+  if (!request || !WRITE_METHODS.has(request.method)) return false;
+  const service = typeof request.service === 'string' ? request.service.toLowerCase() : '';
+  const pathAndRoute = [request.path, request.route]
+    .filter((value) => typeof value === 'string').join(' ');
+  return service === 'announcements'
+    || ['class_announcements', 'class-announcements', 'teacher_materials',
+      'teacher-material', 'instructor_materials', 'instructor-materials',
+      'faculty_materials', 'faculty-materials'].includes(service)
+    || RESTRICTED_RESOURCE_NAMES.test(pathAndRoute);
+}
+
+function hasRecentRiskSignal(request) {
+  return request.recentEvents.some((event) =>
+    event.kind === 'risk_signal'
+      && event.ageSeconds >= 0 && event.ageSeconds <= RISK_WINDOW_SECONDS
+      && event.count >= RISK_COUNT_THRESHOLD);
+}
+
+function hasUnusualAccessContext(request) {
+  const { signals, recentEvents } = request;
+  return Number.isInteger(signals.hour)
+    && (signals.hour < 6 || signals.hour >= 22)
+    && signals.network === 'first_seen'
+    && recentEvents.some((event) => event.kind === 'bulk_read'
+      && event.ageSeconds <= RISK_WINDOW_SECONDS && event.count >= RISK_COUNT_THRESHOLD);
+}
+
+function hasFreshStepUp(request) {
+  return request.stepUp?.verified === true
+    && Number.isFinite(request.stepUp.authAgeSeconds)
+    && request.stepUp.authAgeSeconds >= 0
+    && request.stepUp.authAgeSeconds <= MAX_AUTH_AGE_SECONDS;
+}
+
+export async function decide(request) {
+  if (request?.deviceRegistered !== true) {
+    return response(request, 'deny', 'device_not_registered', ['device_registered']);
+  }
+
+  if (!hasMeaningfulLabel(request.subjectId) || request.subjectId.length > 256
+      || typeof request.deviceId !== 'string' || !/^[0-9a-f]{16}$/u.test(request.deviceId)) {
+    return response(request, 'deny', 'step_up_required', ['resource_scope']);
+  }
+
+  // Role is absent from the contract, so no caller can use this decider to write
+  // announcements or teacher/faculty materials. PATCH is rejected too.
+  if (isRestrictedWrite(request)) {
+    return response(request, 'deny', 'step_up_required',
+      ['resource_scope', 'instructor_role_required']);
+  }
+
+  if (!routeMatches(request)) {
+    return response(request, 'deny', 'step_up_required', ['resource_scope']);
+  }
+
+  const state = signalState(request);
+  if (state === 'invalid') {
+    return response(request, 'step_up', 'step_up_required', ['signal_provenance']);
+  }
+
+  // The engine contract explicitly signals unavailable context with none/unknown.
+  // A safe single-note read can proceed to the API's authoritative owner check; we
+  // do not manufacture normal location/network/time data from missing evidence.
+  if (state === 'unavailable') {
+    if (hasRecentRiskSignal(request)) {
+      if (hasFreshStepUp(request)) {
+        return response(request, 'allow', 'approved',
+          ['device_registered', 'resource_scope', 'step_up_required']);
+      }
+      return response(request, 'step_up', 'step_up_required',
+        ['device_registered', 'resource_scope', 'step_up_required']);
+    }
+    return response(request, 'allow', 'approved', ['device_registered', 'resource_scope']);
+  }
+
+  if (hasUnusualAccessContext(request)) {
+    if (hasFreshStepUp(request)) {
+      return response(request, 'allow', 'approved', [
+        'device_registered', 'resource_scope', 'signal_provenance',
+        'unusual_access_context', 'step_up_required'
+      ]);
+    }
+    return response(request, 'step_up', 'step_up_required', [
+      'device_registered', 'resource_scope', 'signal_provenance',
+      'unusual_access_context', 'step_up_required'
+    ]);
+  }
+
+  if (hasRecentRiskSignal(request)) {
+    if (hasFreshStepUp(request)) {
+      return response(request, 'allow', 'approved',
+        ['device_registered', 'resource_scope', 'step_up_required']);
+    }
+    return response(request, 'step_up', 'step_up_required',
+      ['device_registered', 'resource_scope', 'step_up_required']);
+  }
+
+  return response(request, 'allow', 'approved', [
+    'device_registered', 'resource_scope', 'signal_provenance'
+  ]);
+}
