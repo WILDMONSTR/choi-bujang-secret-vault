@@ -24,9 +24,8 @@ const EVENT_FIELDS = ['kind', 'ageSeconds', 'count'].sort().join(',');
 const NOTE_ID_PATH = /^\/notes\/(?:[A-Za-z0-9_-]{1,128}|memo(?::|%3a)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/iu;
 const ANNOUNCEMENT_ID_PATH = /^\/announcements\/(?:[A-Za-z0-9_-]{1,128}|instructor-announcement(?::|%3a)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/iu;
 const ROUTES = [
-  // The canonical collection read is safe only because the final API filters by
-  // the verified owner and checks active zone membership. Do not use /api aliases here.
-  ['notes', 'GET', 'GET /notes', /^\/notes$/u],
+  // Do not approve the collection endpoint. The application API can still
+  // serve a caller-scoped list only through its own authenticated, owner-filtered handler.
   ['notes', 'POST', 'POST /notes', /^\/notes$/u],
   ...['GET', 'PUT', 'DELETE'].map((method) => [
     'notes', method, `${method} /notes/:id`, NOTE_ID_PATH
