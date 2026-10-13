@@ -187,10 +187,15 @@
         if (requestVersion !== notesRequestVersion) return;
         if (!Array.isArray(notes) || notes.some(note => !note
             || typeof note.id !== 'string' || typeof note.title !== 'string'
-            || typeof note.body !== 'string')) {
+            || typeof note.body !== 'string'
+            || (note.resourceType !== undefined && note.resourceType !== 'memo')
+            || (note.resourceId !== undefined && note.resourceId !== 'memo:' + note.id))) {
           throw new Error('메모 목록 응답 형식이 올바르지 않습니다.');
         }
         for (const note of notes) {
+          const resourceId = typeof note.resourceId === 'string'
+            ? note.resourceId
+            : 'memo:' + note.id;
           const item = document.createElement('li');
           item.className = 'note-card';
           const title = document.createElement('strong');
@@ -199,7 +204,7 @@
           body.textContent = note.body;
           const id = document.createElement('span');
           id.className = 'note-id';
-          id.textContent = 'ID: ' + note.id;
+          id.textContent = '자원 ID: ' + resourceId;
 
           const actions = document.createElement('div');
           actions.className = 'note-actions';
@@ -212,7 +217,7 @@
             noteBodyInput.value = note.body;
             saveNoteButton.textContent = '수정 저장';
             cancelEditButton.hidden = false;
-            setNoteMessage('수정 중인 메모 ID: ' + note.id);
+            setNoteMessage('수정 중인 자원 ID: ' + resourceId);
             noteTitleInput.focus();
           });
           const deleteButton = document.createElement('button');
@@ -226,7 +231,7 @@
             deleteButton.disabled = true;
             setNoteMessage('메모 삭제 중…');
             try {
-              await apiRequest('/api/notes/' + encodeURIComponent(note.id), 'DELETE');
+              await apiRequest('/api/notes/' + encodeURIComponent(resourceId), 'DELETE');
               if (currentEditingId === note.id) resetNoteEditor();
               await loadNotesForSession(activeSession);
               setNoteMessage('메모를 삭제했습니다.');
@@ -271,7 +276,7 @@
         return;
       }
       const isEditing = Boolean(currentEditingId);
-      const path = isEditing ? '/api/notes/' + encodeURIComponent(currentEditingId) : '/api/notes';
+      const path = isEditing ? '/api/notes/' + encodeURIComponent('memo:' + currentEditingId) : '/api/notes';
       const payload = { title: noteTitleInput.value, body: noteBodyInput.value };
       setNoteBusy(true);
       setNoteMessage(isEditing ? '메모 수정 중…' : '메모 추가 중…');
