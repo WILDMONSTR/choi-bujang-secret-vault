@@ -64,8 +64,8 @@ export async function checkDecider({ decide, ruleIds }) {
     { name: '메모 자원 ID를 강사 공지 경로에 사용하면 거부', request: { ...normal, requestId: randomUUID(),
       service: 'announcements', path: `/announcements/memo:${memoId}`,
       route: 'GET /announcements/:id' }, decision: 'deny', ruleId: 'resource_scope' },
-    { name: '본인 메모 목록 조회는 최종 API 소유자 필터로 제한', request: { ...normal, requestId: randomUUID(),
-      path: '/notes', route: 'GET /notes' }, decision: 'allow', reasonCode: 'approved' },
+    { name: '메모 전체 목록 GET /notes 거부', request: { ...normal, requestId: randomUUID(),
+      path: '/notes', route: 'GET /notes' }, decision: 'deny', ruleId: 'resource_scope' },
     { name: '메모 전체 목록 API 별칭 거부', request: { ...normal, requestId: randomUUID(),
       path: '/api/notes', route: 'GET /api/notes' }, decision: 'deny', ruleId: 'resource_scope' },
     { name: '깊이가 추가된 허용 경로 위조 거부', request: { ...normal, requestId: randomUUID(),
@@ -90,9 +90,22 @@ export async function checkDecider({ decide, ruleIds }) {
         method, path, route, role: 'instructor' },
       decision: 'deny', ruleId: 'instructor_role_required'
     })),
-    { name: '강사 자료 쓰기 기본 거부', request: { ...normal, requestId: randomUUID(),
-      service: 'teacher_materials', method: 'PATCH', path: '/teacher-materials/demo',
-      route: 'PATCH /teacher-materials/:id' }, decision: 'deny', ruleId: 'instructor_role_required' },
+    ...['POST', 'PUT', 'PATCH', 'DELETE'].map((method) => ({
+      name: `강사 자료 ${method} 쓰기 기본 거부`,
+      request: { ...normal, requestId: randomUUID(),
+        service: 'teacher_materials', method,
+        path: method === 'POST' ? '/teacher-materials' : '/teacher-materials/demo',
+        route: method === 'POST' ? 'POST /teacher-materials' : `${method} /teacher-materials/:id` },
+      decision: 'deny', ruleId: 'instructor_role_required'
+    })),
+    ...['POST', 'PUT', 'PATCH', 'DELETE'].map((method) => ({
+      name: `반 공지 ${method} 쓰기 기본 거부`,
+      request: { ...normal, requestId: randomUUID(),
+        service: 'notes', method,
+        path: method === 'POST' ? '/class-announcements' : '/class-announcements/demo',
+        route: method === 'POST' ? 'POST /class-announcements' : `${method} /class-announcements/:id` },
+      decision: 'deny', ruleId: 'instructor_role_required'
+    })),
 
     { name: '클라이언트 헤더를 추가한 요청', request: { ...normal, requestId: randomUUID(),
       headers: { 'x-forwarded-for': '127.0.0.1' } }, decision: 'step_up', reasonCode: 'step_up_required' },
