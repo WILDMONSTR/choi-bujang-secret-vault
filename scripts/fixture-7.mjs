@@ -2,8 +2,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const noteId = '00000000-0000-4000-8000-000000000001';
-
 function makeRequest(signals, recentEvents, overrides = {}) {
   return {
     schema: 'aleph.decision.v1',
@@ -14,7 +12,7 @@ function makeRequest(signals, recentEvents, overrides = {}) {
     deviceId: 'aaaaaaaaaaaaaaaa',
     service: 'notes',
     method: 'GET',
-    path: `/notes/${noteId}`,
+    path: '/notes/demo',
     route: 'GET /notes/:id',
     queryLength: 0,
     querySha256: createHash('sha256').update('').digest('hex'),
@@ -56,7 +54,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (!validResponse(normal, ordinary) || !validResponse(suspicious, unusual)) {
       throw new Error('판정기 응답 형식이 맞지 않습니다.');
     }
-    process.stdout.write(`정상 단건 메모 읽기: ${ordinary.decision}\n복합 이상 접속: ${unusual.decision}\n`);
+    process.stdout.write(`정상 자기 메모 단건 읽기: ${ordinary.decision}\n복합 이상 접속: ${unusual.decision}\n`);
     if (ordinary.decision !== 'allow' || unusual.decision !== 'step_up') {
       throw new Error('정상 단건 읽기는 allow, 복합 이상은 step_up이어야 합니다.');
     }

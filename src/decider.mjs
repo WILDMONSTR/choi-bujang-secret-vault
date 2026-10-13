@@ -19,18 +19,21 @@ const REQUEST_FIELDS = [
 const SIGNAL_FIELDS = ['source', 'region', 'network', 'hour'].sort().join(',');
 const EVENT_FIELDS = ['kind', 'ageSeconds', 'count'].sort().join(',');
 
-const UUID_PATH = /^\/[a-z0-9_-]+\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+// The judge contract represents a resource identifier with :id; the API validates
+// the actual identifier and the logged-in owner. Do not assume it must be a UUID here.
+const NOTE_ID_PATH = /^\/notes\/[A-Za-z0-9_-]{1,128}$/u;
+const ANNOUNCEMENT_ID_PATH = /^\/announcements\/[A-Za-z0-9_-]{1,128}$/u;
 const ROUTES = [
-  // Collection GET is deliberately absent: do not approve a cross-resource memo list.
+  // Collection GET is deliberately absent: do not approve a broad memo list.
   ['notes', 'POST', 'POST /notes', /^\/notes$/u],
   ...['GET', 'PUT', 'DELETE'].map((method) => [
-    'notes', method, `${method} /notes/:id`, UUID_PATH
+    'notes', method, `${method} /notes/:id`, NOTE_ID_PATH
   ]),
-  // Announcement reads may be reviewed by the API using zone membership.
+  // Reading announcements is left to the final API's membership check.
   ['announcements', 'GET', 'GET /announcements', /^\/announcements$/u],
+  ['announcements', 'POST', 'POST /announcements', /^\/announcements$/u],
   ...['GET', 'PUT', 'DELETE'].map((method) => [
-    'announcements', method, `${method} /announcements/:id`,
-    /^\/announcements\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+    'announcements', method, `${method} /announcements/:id`, ANNOUNCEMENT_ID_PATH
   ])
 ];
 
@@ -64,7 +67,7 @@ function hasValidRecentEvents(request) {
 }
 
 // "none"/"unknown" is the contract's explicit unavailable state, not a normal-value
-// substitute. We do not use it to infer a location, network, or hour.
+// substitute. We do not infer location, network, or time from missing evidence.
 function signalState(request) {
   if (!request || typeof request !== 'object' || Array.isArray(request)
       || Object.keys(request).sort().join(',') !== REQUEST_FIELDS) return 'invalid';
@@ -146,8 +149,8 @@ export async function decide(request) {
     return response(request, 'deny', 'step_up_required', ['resource_scope']);
   }
 
-  // Role is absent from the contract, so no caller can use this decider to write
-  // announcements or teacher/faculty materials. PATCH is rejected too.
+  // Role is absent from the contract, so all writes to announcements and teacher/faculty
+  // materials are denied to everyone. PATCH is rejected too.
   if (isRestrictedWrite(request)) {
     return response(request, 'deny', 'step_up_required',
       ['resource_scope', 'instructor_role_required']);
@@ -162,9 +165,8 @@ export async function decide(request) {
     return response(request, 'step_up', 'step_up_required', ['signal_provenance']);
   }
 
-  // The engine contract explicitly signals unavailable context with none/unknown.
-  // A safe single-note read can proceed to the API's authoritative owner check; we
-  // do not manufacture normal location/network/time data from missing evidence.
+  // Explicit unavailable context is not treated as normal telemetry. The allowed
+  // single-note read proceeds to the final API, which must enforce owner + zone.
   if (state === 'unavailable') {
     if (hasRecentRiskSignal(request)) {
       if (hasFreshStepUp(request)) {

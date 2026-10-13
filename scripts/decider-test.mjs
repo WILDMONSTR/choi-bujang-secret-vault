@@ -27,7 +27,6 @@ export async function checkDecider({ decide, ruleIds }) {
   }
 
   const { normal, suspicious } = fixtureRequests();
-  const noteId = randomUUID();
   const announcementId = randomUUID();
   const unavailableSignals = {
     ...normal,
@@ -46,10 +45,10 @@ export async function checkDecider({ decide, ruleIds }) {
     { name: '엔진이 신호 미제공을 명시한 정상 단건 읽기', request: unavailableSignals, decision: 'allow', reasonCode: 'approved' },
     { name: '메모 전체 목록 GET /notes 거부', request: { ...normal, requestId: randomUUID(),
       path: '/notes', route: 'GET /notes' }, decision: 'deny', ruleId: 'resource_scope' },
-    { name: 'API 접두사로 된 전체 목록 별칭 거부', request: { ...normal, requestId: randomUUID(),
+    { name: '메모 전체 목록 API 별칭 거부', request: { ...normal, requestId: randomUUID(),
       path: '/api/notes', route: 'GET /api/notes' }, decision: 'deny', ruleId: 'resource_scope' },
-    { name: '다른 구역 경로 위조 거부', request: { ...normal, requestId: randomUUID(),
-      path: '/notes/admin', route: 'GET /notes/:id' }, decision: 'deny', ruleId: 'resource_scope' },
+    { name: '깊이가 추가된 허용 경로 위조 거부', request: { ...normal, requestId: randomUUID(),
+      path: '/notes/demo/another', route: 'GET /notes/:id' }, decision: 'deny', ruleId: 'resource_scope' },
     { name: '경로와 동작 불일치 거부', request: { ...normal, requestId: randomUUID(),
       method: 'PUT', route: 'GET /notes/:id' }, decision: 'deny', ruleId: 'resource_scope' },
     { name: '미등록 기기 거부', request: { ...normal, requestId: randomUUID(),
@@ -113,7 +112,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     for (const item of results) {
       process.stdout.write(`${item.passed ? '통과' : '확인 필요'} · ${item.name} · ${item.decision ?? '응답 없음'} · ${item.reasonCode ?? '이유 코드 없음'}\n`);
     }
-    process.stdout.write('가상 테스트이며 실제 API 소유자 차단을 측정한 결과는 아닙니다.\n');
+    process.stdout.write('가상 테스트이며 실제 API 소유자·구역 차단을 측정한 결과는 아닙니다.\n');
     if (results.some((item) => !item.passed)) process.exitCode = 1;
   } catch (error) {
     process.stderr.write(`판정기 테스트 오류: ${error.message}\n`);
