@@ -72,7 +72,7 @@ export async function checkDecider({ decide, ruleIds }) {
     checks.push(
       { name: '복합 이상 접속', request: suspicious, decision: 'step_up',
         reasonCode: 'step_up_required', ruleId: 'unusual_access_context' },
-      { name: '다시 확인한 복합 이상 접속', request: { ...suspicious,
+      { name: '가상 추가 인증 완료 후 재판정(재로그인 계약 증거 아님)', request: { ...suspicious,
         requestId: randomUUID(), stepUp: { verified: true, authAgeSeconds: 60 } },
       decision: 'allow' },
     );
