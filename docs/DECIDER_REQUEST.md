@@ -13,7 +13,7 @@
 | `classId`, `projectId` | 운영 엔진이 확인한 반과 학생 프로젝트 |
 | `subjectId` | 발급자·대상·반·프로젝트를 묶어 만든 가명 주체 ID. Supabase 사용자 번호와 직접 비교하지 않습니다. |
 | `deviceId` | 확인된 기기의 16자리 소문자 16진수 ID. 개인키가 아닙니다. |
-| `service`, `method`, `path`, `route` | 확인된 서비스와 요청 경로. `route`는 `GET /notes/:id`처럼 허용된 경로 모양입니다. |
+| `service`, `method`, `path`, `route` | 확인된 서비스와 요청 경로. `route`는 `GET /notes/:id`처럼 허용된 경로 모양이며, `path`에는 실제 자원 ID가 들어갑니다. 메모 ID는 `memo:<UUID>`, 강사 공지 ID는 `instructor-announcement:<UUID>`로 유형을 구분할 수 있습니다. URL의 `:`는 라우터에 따라 `%3A`로 전달될 수 있습니다. |
 | `queryLength`, `querySha256` | 쿼리 문자열의 길이와 SHA-256 지문. 원문 쿼리는 전달되지 않습니다. |
 | `at` | 엔진이 만든 UTC ISO 시각. 판정 시각과 5초 넘게 차이 나면 거부됩니다. |
 | `policyRevision` | 이번 요청에 적용된 정책 버전 |
