@@ -1,4 +1,4 @@
-# BYTE BACK 방어전 자료실 · 8단계 저장점
+# BYTE BACK 방어전 자료실 · 9단계
 
 이 저장소는 1~6단계에서 만든 Supabase Auth 로그인·로그아웃, 사용자별 가상 메모 소유권과 등록 기기 판정 규칙을 보존하고, 7단계 「평소와 다른 접속은 다시 확인합니다」의 접속 정보 출처 검사와 복합 이상 접속의 가상 판정 시험을 다루는 학습용 구성입니다. 로그인한 사용자는 본인 소유의 가상 메모만 조회·추가·수정·삭제할 수 있으며, 목록과 단건 API는 서버에서 검증한 사용자 ID를 기준으로 소유자를 확인합니다. 실제 사용자 자료나 실제 비밀값은 이 실습에 넣지 마세요.
 
@@ -175,3 +175,17 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 - 기존의 미등록 기기 차단, 신호 출처 검증, 위험 사건 및 복합 이상 접속의 추가 확인 규칙은 유지합니다. 자료의 최종 API 인증·소유자·구역 검사는 판정기를 통과해도 별도로 필요합니다.
 - 가상 판정 규칙은 `npm run decider:test`, 자원 ID 호환은 `npm run resource-id:test`로 확인합니다. 이 테스트들은 로컬 검증일 뿐 실제 심판 점수나 모든 실서비스 데이터 접근 경로가 안전하다는 증거는 아닙니다.
 - `npm run bundle`은 로컬에서 제외 목록에 있는 `bundle-notes.json`을 읽고 실제 배포 URL에 대한 자기 점검을 수행해 `artifacts/submission.json`을 만듭니다. 해당 파일과 산출물은 비밀값과 실자료를 포함하지 않도록 관리하고 저장소에 커밋하지 않습니다.
+
+### 8단계 보완 기록 — 자료 API 권한 재확인
+
+- 8단계 저장점 이후 `src/resource-access.mjs`와 메모·공지 API를 한 번 더 보완했습니다. 토큰으로 검증한 주체를 Supabase Auth 사용자와 재대조하고, 요청 본문이나 화면의 `role` 값은 권한 근거로 사용하지 않습니다.
+- 메모는 `owner_id`와 `zone_id`, 공지는 활성 section 멤버십의 저장된 역할과 공지의 `created_by`를 서버에서 다시 검사합니다. 거부 사유는 `UNAUTHORIZED`, `ZONE_ACCESS_DENIED`, `INSTRUCTOR_REQUIRED`, `ANNOUNCEMENT_OWNER_REQUIRED`, `NOT_FOUND`처럼 짧은 코드로 남깁니다.
+- 보완 커밋: [Recheck API owner and instructor permissions](https://github.com/WILDMONSTR/choi-bujang-secret-vault/commit/6bb9f9d3c3461faaf10d5ee45161acee3576aad9). 이 변경은 새 단계가 아니라 8단계 보완입니다.
+
+## 9단계: 도플갱어를 찾고 권한을 거둡니다
+
+- `src/detect.mjs`는 운영 반 엔진이 검증한 사건의 `at`, `method`, `identity.sub`만 받아 탐지합니다. 이벤트 형식이 맞지 않거나 신원이 빠진 사건은 `invalid_detection_event` 오류로 거부합니다.
+- 동일 주체의 `GET` 자료 조회가 어느 10분 구간에서든 120건을 넘으면 `{ action: "propose_revocation", reasonCode: "burst_read", subject: "..." }`를 반환합니다. 정확히 120건, 사용자별 100건씩 나뉜 요청, 10분 창에 120건 이하만 포함되는 분산 요청은 `observe`로 유지합니다.
+- 정상 패턴은 `{ action: "observe" }`입니다. 사건을 서로 다른 `identity.sub`끼리 합산하지 않으며, POST/PUT/DELETE는 조회 폭주 수에 포함하지 않습니다.
+- 이 모듈은 회수 **제안**만 반환합니다. 실제 권한 회수와 첫 의심 요청부터 회수까지의 경과 시간은 운영 심판이 가상 사건을 보내 별도로 확인해야 하며, 로컬 테스트 통과는 실제 회수·지연 측정이나 심판 합격을 뜻하지 않습니다.
+- 로컬 가상 시험은 `npm run detect:test`로 실행합니다. 6개 제공 사례에서 정상 조회, 정확히 120건, 121건 초과, 서로 다른 주체의 분리 집계, 시간 창 경계를 확인합니다.
