@@ -9,7 +9,7 @@ function readEvent(event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)
       || Object.keys(event).sort().join(',') !== EVENT_KEYS
       || typeof event.at !== 'string'
-      || !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/u.test(event.at)
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(event.at)
       || !Number.isFinite(Date.parse(event.at))
       || new Date(Date.parse(event.at)).toISOString() !== event.at
       || typeof event.method !== 'string' || !/^[A-Z]{3,10}$/u.test(event.method)

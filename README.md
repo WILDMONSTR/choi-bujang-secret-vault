@@ -186,6 +186,6 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 
 - `src/detect.mjs`는 운영 반 엔진이 검증한 사건의 `at`, `method`, `identity.sub`만 받아 탐지합니다. 이벤트 형식이 맞지 않거나 신원이 빠진 사건은 `invalid_detection_event` 오류로 거부합니다.
 - 동일 주체의 `GET` 자료 조회가 어느 10분 구간에서든 120건을 넘으면 `{ action: "propose_revocation", reasonCode: "burst_read", subject: "..." }`를 반환합니다. 정확히 120건, 사용자별 100건씩 나뉜 요청, 10분 창에 120건 이하만 포함되는 분산 요청은 `observe`로 유지합니다.
-- 정상 패턴은 `{ action: "observe" }`입니다. 사건을 서로 다른 `identity.sub`끼리 합산하지 않으며, POST/PUT/DELETE는 조회 폭주 수에 포함하지 않습니다.
+- 정상 패턴은 `{ action: "observe" }`입니다. 사건을 서로 다른 `identity.sub`끼리 합산하지 않으며, POST/PUT/PATCH/DELETE는 조회 폭주 수에 포함하지 않습니다.
 - 이 모듈은 회수 **제안**만 반환합니다. 실제 권한 회수와 첫 의심 요청부터 회수까지의 경과 시간은 운영 심판이 가상 사건을 보내 별도로 확인해야 하며, 로컬 테스트 통과는 실제 회수·지연 측정이나 심판 합격을 뜻하지 않습니다.
 - 로컬 가상 시험은 `npm run detect:test`로 실행합니다. 6개 제공 사례에서 정상 조회, 정확히 120건, 121건 초과, 서로 다른 주체의 분리 집계, 시간 창 경계를 확인합니다.
