@@ -4,21 +4,7 @@
   "publicAppUrl": "https://choi-bujang-secret-vault-eosin-zeta.vercel.app",
   "sampleMarker": "STEP7_UNUSUAL_ACCESS",
   "judgeIssuer": "https://aleph-judge-production.up.railway.app/defense/judge",
-  "identityProvider": {
-    "issuer": "https://zskattfklxijebwsgava.supabase.co/auth/v1",
-    "jwksUrl": "https://zskattfklxijebwsgava.supabase.co/auth/v1/.well-known/jwks.json",
-    "audience": "authenticated"
-  },
-  "allowedRoutes": [
-    "POST /api/auth/logout",
-    "GET /api/auth/session",
-    "POST /api/auth/login",
-    "GET /api/notes",
-    "POST /api/notes",
-    "GET /api/notes/:id",
-    "PUT /api/notes/:id",
-    "DELETE /api/notes/:id"
-  ],
-  "originalApiUrl": "https://zskattfklxijebwsgava.supabase.co/rest/v1/learning_notes",
-  "restoreRoute": null
+  "identityProvider": {"issuer":"https://zskattfklxijebwsgava.supabase.co/auth/v1","jwksUrl":"https://zskattfklxijebwsgava.supabase.co/auth/v1/.well-known/jwks.json","audience":"authenticated"},
+  "allowedRoutes": ["POST /api/auth/logout","GET /api/auth/session","POST /api/auth/login","GET /api/notes","POST /api/notes","GET /api/notes/:id","PUT /api/notes/:id","DELETE /api/notes/:id","GET /api/announcements","POST /api/announcements","GET /api/announcements/:id","PUT /api/announcements/:id","DELETE /api/announcements/:id"],
+  "originalApiUrl":"https://zskattfklxijebwsgava.supabase.co/rest/v1/learning_notes","restoreRoute":null
 }
