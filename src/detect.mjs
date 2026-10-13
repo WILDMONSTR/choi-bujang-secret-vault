@@ -5,8 +5,6 @@ const WINDOW_MS = 10 * 60 * 1000;
 const RISK_WINDOW_SECONDS = 300;
 const RISK_COUNT_THRESHOLD = 10;
 
-const IDENTITY_KEYS = 'sub';
-const RECENT_EVENT_KEYS = 'ageSeconds,count,kind';
 const DEVICE_ID_PATTERN = /^[0-9a-f]{16}$/u;
 const NETWORK_STATES = new Set(['usual', 'first_seen', 'unknown']);
 
@@ -23,7 +21,7 @@ function readRecentEvents(value) {
       throw new TypeError('invalid_detection_event');
     }
   }
-  return value;
+  return value.map(({ kind, ageSeconds, count }) => ({ kind, ageSeconds, count }));
 }
 
 function readNetwork(event) {
