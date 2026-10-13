@@ -149,6 +149,14 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 - 실제 자료 응답이 추가 확인 전 차단되는지는 엔진이 재로그인 계약을 제공하고 그 경로에 접속 차단을 연결한 뒤 별도로 실측해야 합니다. 토큰 원문이나 로그인 비밀값은 기록하지 않습니다.
 
 
+## 자원 ID 구분과 기존 주소 호환
+
+- 기존 `learning_notes.id`와 `instructor_announcements.id`는 그대로 유지합니다. 데이터 행을 다시 만들거나 기존 UUID를 변경하지 않으며, DB 스키마 변경도 필요하지 않습니다.
+- 메모 API 응답에는 기존 `id`와 함께 `resourceType: "memo"`, `resourceId: "memo:<UUID>"`를 반환합니다.
+- 강사 공지 API 응답에는 기존 `id`와 함께 `resourceType: "instructor-announcement"`, `resourceId: "instructor-announcement:<UUID>"`를 반환합니다. 두 종류의 UUID가 우연히 같더라도 `resourceId`는 구분됩니다.
+- 기존 경로 패턴은 그대로 유지합니다: `/api/notes/:id`, `/api/announcements/:id`. 항목 API는 이전의 UUID만 있는 주소와 유형 접두사가 포함된 자원 ID를 모두 받습니다. 단, 다른 자원 유형의 접두사를 붙인 ID는 거부합니다.
+- 메모 카드에는 `자원 ID: memo:<UUID>`를 표시합니다. 내비게이션과 화면 메뉴는 변경하지 않습니다.
+
 ## 자원 구역·소유자·강사 권한 방어
 
 - DB의 `resource_zones`와 `resource_zone_memberships`가 구역 및 활성 사용자별 `student` / `instructor` 역할을 관리합니다. 기존 노트는 `personal` 구역에 보존되고, 기존 소유자에게 개인 구역 학생 멤버십이 부여됐습니다.
