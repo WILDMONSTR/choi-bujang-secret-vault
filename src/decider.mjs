@@ -31,10 +31,7 @@ const ROUTES = [
   ]),
   // Reading announcements is left to the final API's membership check.
   ['announcements', 'GET', 'GET /announcements', /^\/announcements$/u],
-  ['announcements', 'POST', 'POST /announcements', /^\/announcements$/u],
-  ...['GET', 'PUT', 'DELETE'].map((method) => [
-    'announcements', method, `${method} /announcements/:id`, ANNOUNCEMENT_ID_PATH
-  ])
+  ['announcements', 'GET', 'GET /announcements/:id', ANNOUNCEMENT_ID_PATH
 ];
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);

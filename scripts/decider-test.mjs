@@ -37,6 +37,10 @@ export async function checkDecider({ decide, ruleIds }) {
     ...normal, requestId: randomUUID(),
     signals: { source: 'judge_fixture', network: 'usual', hour: 14 }
   };
+  const missingHour = {
+    ...normal, requestId: randomUUID(),
+    signals: { ...normal.signals, hour: null }
+  };
   const missingBehavior = { ...normal, requestId: randomUUID() };
   delete missingBehavior.recentEvents;
 
@@ -78,6 +82,7 @@ export async function checkDecider({ decide, ruleIds }) {
     { name: '불명확한 신호 출처', request: { ...normal, requestId: randomUUID(),
       signals: { ...normal.signals, source: 'x-forwarded-for' } }, decision: 'step_up', reasonCode: 'step_up_required' },
     { name: '지역 정보 누락', request: missingRegion, decision: 'step_up', reasonCode: 'step_up_required' },
+    { name: '시각 정보 누락', request: missingHour, decision: 'step_up', reasonCode: 'step_up_required' },
     { name: '행동 정보 누락', request: missingBehavior, decision: 'step_up', reasonCode: 'step_up_required' },
     { name: '지역만 다른 요청은 신규 규칙으로 차단하지 않음', request: { ...normal,
       requestId: randomUUID(), signals: { ...normal.signals, region: 'foreign' } }, decision: 'allow' },
