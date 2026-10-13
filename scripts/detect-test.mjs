@@ -21,8 +21,10 @@ function reads(count, {
 function decisionRequest({
   owner = subject, deviceId = deviceA, network = 'first_seen',
   region = 'foreign', recentEvents = [{ kind: 'bulk_read', ageSeconds: 60, count: 20 }],
-  method = 'GET', at = new Date(START).toISOString(),
+  method = 'GET', at = new Date(START).toISOString(), includeRegion = true,
 } = {}) {
+  const signals = { source: 'judge_fixture', network, hour: 3 };
+  if (includeRegion) signals.region = region;
   return {
     schema: 'aleph.decision.v1',
     requestId: 'fixture-request',
@@ -41,7 +43,7 @@ function decisionRequest({
     deviceRegistered: true,
     stepUp: { verified: false, authAgeSeconds: null },
     recentEvents,
-    signals: { source: 'judge_fixture', region, network, hour: 3 },
+    signals,
   };
 }
 
@@ -71,8 +73,10 @@ const cases = [
     ...reads(100, { owner: subject, network: 'first_seen' }),
     ...reads(100, { owner: 'other_fixture', network: 'first_seen' }),
   ].sort((a, b) => a.at.localeCompare(b.at)), expected: { action: 'observe' } },
-  { name: '새 네트워크와 bulk_read 신호가 있는 공식 요청 형식은 제안',
+  { name: '새 네트워크 + bulk_read 공식 요청 형식은 제안',
     events: [decisionRequest()], expected: proposal(deviceA) },
+  { name: '새 네트워크+bulk_read, region 필드가 없어도 제안',
+    events: [decisionRequest({ includeRegion: false })], expected: proposal(deviceA) },
   { name: '새 네트워크만 있고 bulk_read 신호가 없으면 observe',
     events: [decisionRequest({ recentEvents: [] })], expected: { action: 'observe' } },
   { name: '지역만 다르고 네트워크는 평소이면 observe',
@@ -104,7 +108,6 @@ export async function checkDetection(detect) {
     const actual = await detect(item.events);
     results.push({ name: item.name, passed: isDeepStrictEqual(actual, item.expected) });
   }
-
   const invalidCases = [
     { name: '기기 ID 누락 거부', event: (() => { const { deviceId, ...event } = reads(1)[0]; return event; })() },
     { name: '기기 ID 형식 오류 거부', event: reads(1, { deviceId: 'not-a-device' })[0] },

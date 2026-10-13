@@ -8,12 +8,11 @@ const RISK_COUNT_THRESHOLD = 10;
 const ALLOWED_EVENT_KEYS = new Set([
   'at', 'deviceId', 'identity', 'method', 'network', 'region',
   'signals', 'recentEvents', 'subjectId',
-  // Fields from the established aleph.decision.v1 request contract.
   'schema', 'requestId', 'classId', 'projectId', 'service', 'path', 'route',
   'queryLength', 'querySha256', 'policyRevision', 'deviceRegistered', 'stepUp',
 ]);
+const SIGNAL_KEYS = new Set(['source', 'region', 'network', 'hour']);
 const IDENTITY_KEYS = 'sub';
-const SIGNAL_KEYS = 'hour,network,region,source';
 const RECENT_EVENT_KEYS = 'ageSeconds,count,kind';
 const DEVICE_ID_PATTERN = /^[0-9a-f]{16}$/u;
 const NETWORK_STATES = new Set(['usual', 'first_seen', 'unknown']);
@@ -40,15 +39,26 @@ function readNetwork(event) {
   if (event.signals !== undefined) {
     const signals = event.signals;
     if (!signals || typeof signals !== 'object' || Array.isArray(signals)
-        || Object.keys(signals).sort().join(',') !== SIGNAL_KEYS
-        || typeof signals.source !== 'string'
-        || typeof signals.region !== 'string'
-        || !NETWORK_STATES.has(signals.network)
-        || !(signals.hour === null || (Number.isInteger(signals.hour)
-          && signals.hour >= 0 && signals.hour <= 23))) {
+        || Object.keys(signals).some((key) => !SIGNAL_KEYS.has(key))) {
       throw new TypeError('invalid_detection_event');
     }
-    nestedNetwork = signals.network;
+    if (signals.network !== undefined) {
+      if (!NETWORK_STATES.has(signals.network)) throw new TypeError('invalid_detection_event');
+      nestedNetwork = signals.network;
+    }
+    if (signals.source !== undefined && typeof signals.source !== 'string') {
+      throw new TypeError('invalid_detection_event');
+    }
+    // Region is deliberately not a detection signal. Unknown/null region does not
+    // make an otherwise valid network event look normal or suspicious.
+    if (signals.region !== undefined && signals.region !== null
+        && typeof signals.region !== 'string') {
+      throw new TypeError('invalid_detection_event');
+    }
+    if (signals.hour !== undefined && signals.hour !== null
+        && (!Number.isInteger(signals.hour) || signals.hour < 0 || signals.hour > 23)) {
+      throw new TypeError('invalid_detection_event');
+    }
   }
 
   const directNetwork = event.network;
@@ -59,8 +69,6 @@ function readNetwork(event) {
       && directNetwork !== nestedNetwork) {
     throw new TypeError('invalid_detection_event');
   }
-  // Old, otherwise-valid observation records may lack telemetry. Unknown is
-  // not treated as a new network, so missing evidence cannot trigger a proposal.
   return directNetwork ?? nestedNetwork ?? 'unknown';
 }
 
@@ -97,8 +105,9 @@ function readEvent(event) {
   }
   if (subject === undefined) throw new TypeError('invalid_detection_event');
 
-  if (event.region !== undefined && (typeof event.region !== 'string'
-      || event.region.trim() !== event.region || event.region.length > 64)) {
+  if (event.region !== undefined && event.region !== null
+      && (typeof event.region !== 'string' || event.region.trim() !== event.region
+        || event.region.length > 64)) {
     throw new TypeError('invalid_detection_event');
   }
 
@@ -129,20 +138,19 @@ export function detect(events) {
     const event = readEvent(rawEvent);
     if (event.method !== 'GET' || event.network !== 'first_seen') continue;
 
-    // Support the established decision-request format: an event can carry a
-    // recentEvents bulk_read signal instead of requiring 121 separate records.
+    // The fixed decision-request contract carries bulk reads in recentEvents.
     if (hasRecentBulkRead(event)) {
       candidates.push({ at: event.at, subject: event.subject, deviceId: event.deviceId });
     }
 
+    // Also allow an event stream in which the high-volume pattern is represented
+    // by individual GET entries instead of an aggregated bulk_read observation.
     if (!readsBySubject.has(event.subject)) readsBySubject.set(event.subject, new Map());
     const devices = readsBySubject.get(event.subject);
     if (!devices.has(event.deviceId)) devices.set(event.deviceId, []);
     devices.get(event.deviceId).push(event.at);
   }
 
-  // Keep the 9-stage rolling-window contract too: repeated GET requests from
-  // the same subject/device on a first-seen network must exceed 120 per 10 minutes.
   for (const [subject, devices] of readsBySubject) {
     for (const [deviceId, timestamps] of devices) {
       timestamps.sort((a, b) => a - b);
