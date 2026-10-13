@@ -13,7 +13,6 @@
     "POST /api/auth/logout",
     "GET /api/auth/session",
     "POST /api/auth/login",
-    "GET /api/notes",
     "POST /api/notes",
     "GET /api/notes/:id",
     "PUT /api/notes/:id",
