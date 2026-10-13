@@ -5,14 +5,6 @@ const WINDOW_MS = 10 * 60 * 1000;
 const RISK_WINDOW_SECONDS = 300;
 const RISK_COUNT_THRESHOLD = 10;
 
-const ALLOWED_EVENT_KEYS = new Set([
-  'at', 'timestamp', 'deviceId', 'identity', 'method', 'requestKind', 'requestType',
-  'kind', 'count', 'ageSeconds', 'decision', 'network', 'region',
-  'signals', 'recentEvents', 'subjectId',
-  'schema', 'requestId', 'classId', 'projectId', 'service', 'path', 'route',
-  'queryLength', 'querySha256', 'policyRevision', 'deviceRegistered', 'stepUp',
-]);
-const SIGNAL_KEYS = new Set(['source', 'region', 'network', 'hour']);
 const IDENTITY_KEYS = 'sub';
 const RECENT_EVENT_KEYS = 'ageSeconds,count,kind';
 const DEVICE_ID_PATTERN = /^[0-9a-f]{16}$/u;
@@ -25,7 +17,6 @@ function readRecentEvents(value) {
   }
   for (const event of value) {
     if (!event || typeof event !== 'object' || Array.isArray(event)
-        || Object.keys(event).sort().join(',') !== RECENT_EVENT_KEYS
         || typeof event.kind !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/u.test(event.kind)
         || !Number.isFinite(event.ageSeconds) || event.ageSeconds < 0
         || !Number.isSafeInteger(event.count) || event.count < 0) {
@@ -39,33 +30,22 @@ function readNetwork(event) {
   let nestedNetwork;
   if (event.signals !== undefined) {
     const signals = event.signals;
-    if (!signals || typeof signals !== 'object' || Array.isArray(signals)
-        || Object.keys(signals).some((key) => !SIGNAL_KEYS.has(key))) {
+    if (!signals || typeof signals !== 'object' || Array.isArray(signals)) {
       throw new TypeError('invalid_detection_event');
     }
-    if (signals.network !== undefined) {
-      if (!NETWORK_STATES.has(signals.network)) throw new TypeError('invalid_detection_event');
-      nestedNetwork = signals.network;
-    }
-    if (signals.source !== undefined && typeof signals.source !== 'string') {
-      throw new TypeError('invalid_detection_event');
-    }
-    // Region is deliberately not a detection signal. Unknown/null region does not
-    // make an otherwise valid network event look normal or suspicious.
-    if (signals.region !== undefined && signals.region !== null
-        && typeof signals.region !== 'string') {
-      throw new TypeError('invalid_detection_event');
-    }
-    if (signals.hour !== undefined && signals.hour !== null
-        && (!Number.isInteger(signals.hour) || signals.hour < 0 || signals.hour > 23)) {
-      throw new TypeError('invalid_detection_event');
-    }
+    nestedNetwork = signals.network;
   }
 
-  const directNetwork = event.network;
-  if (directNetwork !== undefined && !NETWORK_STATES.has(directNetwork)) {
-    throw new TypeError('invalid_detection_event');
-  }
+  const normalize = (value) => {
+    if (value === undefined) return undefined;
+    const aliases = { new: 'first_seen', unusual: 'first_seen',
+      new_network: 'first_seen', 'first-seen': 'first_seen' };
+    const result = aliases[value] ?? value;
+    if (!NETWORK_STATES.has(result)) throw new TypeError('invalid_detection_event');
+    return result;
+  };
+  const directNetwork = normalize(event.network);
+  nestedNetwork = normalize(nestedNetwork);
   if (directNetwork !== undefined && nestedNetwork !== undefined
       && directNetwork !== nestedNetwork) {
     throw new TypeError('invalid_detection_event');
@@ -74,8 +54,8 @@ function readNetwork(event) {
 }
 
 function readEvent(event) {
-  if (!event || typeof event !== 'object' || Array.isArray(event)
-      || Object.keys(event).some((key) => !ALLOWED_EVENT_KEYS.has(key))) {
+  // Ignore unrelated metadata instead of copying it into the normalized event.
+  if (!event || typeof event !== 'object' || Array.isArray(event)) {
     throw new TypeError('invalid_detection_event');
   }
   const rawAt = event.at ?? event.timestamp;
@@ -118,7 +98,6 @@ function readEvent(event) {
   let subject;
   if (event.identity !== undefined) {
     if (!event.identity || typeof event.identity !== 'object' || Array.isArray(event.identity)
-        || Object.keys(event.identity).sort().join(',') !== IDENTITY_KEYS
         || typeof event.identity.sub !== 'string'
         || event.identity.sub.trim() !== event.identity.sub
         || event.identity.sub.length === 0 || event.identity.sub.length > 256) {
@@ -135,12 +114,6 @@ function readEvent(event) {
     subject = event.subjectId;
   }
   if (subject === undefined) throw new TypeError('invalid_detection_event');
-
-  if (event.region !== undefined && event.region !== null
-      && (typeof event.region !== 'string' || event.region.trim() !== event.region
-        || event.region.length > 64)) {
-    throw new TypeError('invalid_detection_event');
-  }
 
   return {
     at: Date.parse(rawAt),

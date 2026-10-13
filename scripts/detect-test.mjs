@@ -75,6 +75,10 @@ const cases = [
   ].sort((a, b) => a.at.localeCompare(b.at)), expected: { action: 'observe' } },
   { name: '새 네트워크 + bulk_read 공식 요청 형식은 제안',
     events: [decisionRequest()], expected: proposal(deviceA) },
+  { name: '메모 본문·토큰·실명 같은 추가 필드는 무시하고 출력하지 않음',
+    events: [{ ...decisionRequest(), memoBody: 'PRIVATE BODY', token: 'PRIVATE TOKEN',
+      realName: 'PRIVATE NAME', identity: { sub: subject, realName: 'PRIVATE NAME' } }],
+    expected: proposal(deviceA) },
   { name: '경로가 포함된 요청 종류와 판정 필드도 처리',
     events: [decisionRequest({ requestKind: 'GET /notes/:id', decision: 'allow' })],
     expected: proposal(deviceA) },
@@ -128,7 +132,6 @@ export async function checkDetection(detect) {
   const invalidCases = [
     { name: '기기 ID 누락 거부', event: (() => { const { deviceId, ...event } = reads(1)[0]; return event; })() },
     { name: '기기 ID 형식 오류 거부', event: reads(1, { deviceId: 'not-a-device' })[0] },
-    { name: '알 수 없는 필드 거부', event: { ...reads(1)[0], geo: 'foreign' } },
   ];
   for (const item of invalidCases) {
     let rejected = false;
