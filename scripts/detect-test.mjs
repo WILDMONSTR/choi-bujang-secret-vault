@@ -95,6 +95,12 @@ const cases = [
   { name: '10분 밖으로 흩어진 새 네트워크 조회 200건은 observe',
     events: reads(200, { intervalSeconds: 7, network: 'first_seen' }),
     expected: { action: 'observe' } },
+  { name: '요청 종류와 판정 필드가 있는 공식 가상 사건은 제안',
+    events: [{ ...decisionRequest({ requestKind: 'GET', decision: 'allow' }) }],
+    expected: proposal(deviceA) },
+  { name: 'bulk_read 요청 종류가 10회 반복되면 제안', events: reads(10, {
+    network: 'first_seen', requestKind: 'bulk_read', decision: 'allow',
+  }), expected: proposal(deviceA) },
   { name: '두 후보 중 최초 제안 한 대만 선택', events: [
     ...reads(121, { deviceId: deviceA, network: 'first_seen' }),
     ...reads(121, { deviceId: deviceB, network: 'first_seen', start: START + 60_000 }),

@@ -6,7 +6,8 @@ const RISK_WINDOW_SECONDS = 300;
 const RISK_COUNT_THRESHOLD = 10;
 
 const ALLOWED_EVENT_KEYS = new Set([
-  'at', 'deviceId', 'identity', 'method', 'network', 'region',
+  'at', 'timestamp', 'deviceId', 'identity', 'method', 'requestKind', 'requestType',
+  'kind', 'count', 'ageSeconds', 'decision', 'network', 'region',
   'signals', 'recentEvents', 'subjectId',
   'schema', 'requestId', 'classId', 'projectId', 'service', 'path', 'route',
   'queryLength', 'querySha256', 'policyRevision', 'deviceRegistered', 'stepUp',
@@ -74,13 +75,42 @@ function readNetwork(event) {
 
 function readEvent(event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)
-      || Object.keys(event).some((key) => !ALLOWED_EVENT_KEYS.has(key))
-      || typeof event.at !== 'string'
-      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(event.at)
-      || !Number.isFinite(Date.parse(event.at))
-      || new Date(Date.parse(event.at)).toISOString() !== event.at
-      || typeof event.method !== 'string' || !/^[A-Z]{3,10}$/u.test(event.method)
+      || Object.keys(event).some((key) => !ALLOWED_EVENT_KEYS.has(key))) {
+    throw new TypeError('invalid_detection_event');
+  }
+  const rawAt = event.at ?? event.timestamp;
+  if (typeof rawAt !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(rawAt)
+      || !Number.isFinite(Date.parse(rawAt))
+      || new Date(Date.parse(rawAt)).toISOString() !== rawAt
       || typeof event.deviceId !== 'string' || !DEVICE_ID_PATTERN.test(event.deviceId)) {
+    throw new TypeError('invalid_detection_event');
+  }
+
+  if (event.decision !== undefined) {
+    const decision = typeof event.decision === 'string' ? event.decision : event.decision?.decision;
+    if (!['allow', 'deny', 'step_up'].includes(decision)) {
+      throw new TypeError('invalid_detection_event');
+    }
+  }
+  if (event.count !== undefined && (!Number.isSafeInteger(event.count) || event.count < 0)) {
+    throw new TypeError('invalid_detection_event');
+  }
+  if (event.ageSeconds !== undefined && (!Number.isFinite(event.ageSeconds) || event.ageSeconds < 0)) {
+    throw new TypeError('invalid_detection_event');
+  }
+
+  const rawMethod = event.method ?? event.requestKind ?? event.requestType ?? event.kind;
+  if (typeof rawMethod !== 'string') throw new TypeError('invalid_detection_event');
+  const normalizedRequestKind = String(event.requestKind ?? event.requestType ?? event.kind ?? rawMethod)
+    .toLowerCase().replaceAll('-', '_');
+  const methodAliases = {
+    read: 'GET', bulk_read: 'GET', create: 'POST', write: 'POST',
+    update: 'PUT', remove: 'DELETE',
+  };
+  const normalizedMethod = methodAliases[rawMethod.toLowerCase().replaceAll('-', '_')]
+    ?? rawMethod.toUpperCase();
+  if (!/^[A-Z]{3,10}$/u.test(normalizedMethod)) {
     throw new TypeError('invalid_detection_event');
   }
 
@@ -112,12 +142,15 @@ function readEvent(event) {
   }
 
   return {
-    at: Date.parse(event.at),
-    method: event.method,
+    at: Date.parse(rawAt),
+    method: normalizedMethod,
+    requestKind: normalizedRequestKind,
     network: readNetwork(event),
     recentEvents: readRecentEvents(event.recentEvents),
     subject,
     deviceId: event.deviceId,
+    count: event.count,
+    ageSeconds: event.ageSeconds,
   };
 }
 
@@ -132,23 +165,42 @@ export function detect(events) {
   if (!Array.isArray(events)) throw new TypeError('invalid_detection_events');
 
   const readsBySubject = new Map();
+  const bulkReadTimes = new Map();
   const candidates = [];
 
   for (const rawEvent of events) {
     const event = readEvent(rawEvent);
     if (event.method !== 'GET' || event.network !== 'first_seen') continue;
 
-    // The fixed decision-request contract carries bulk reads in recentEvents.
-    if (hasRecentBulkRead(event)) {
+    if (hasRecentBulkRead(event)
+        || (event.requestKind === 'bulk_read' && event.count >= RISK_COUNT_THRESHOLD
+          && event.ageSeconds <= RISK_WINDOW_SECONDS)) {
       candidates.push({ at: event.at, subject: event.subject, deviceId: event.deviceId });
     }
 
-    // Also allow an event stream in which the high-volume pattern is represented
-    // by individual GET entries instead of an aggregated bulk_read observation.
+    if (event.requestKind === 'bulk_read') {
+      const key = event.subject + '\u0000' + event.deviceId;
+      if (!bulkReadTimes.has(key)) {
+        bulkReadTimes.set(key, { subject: event.subject, deviceId: event.deviceId, times: [] });
+      }
+      bulkReadTimes.get(key).times.push(event.at);
+    }
+
     if (!readsBySubject.has(event.subject)) readsBySubject.set(event.subject, new Map());
     const devices = readsBySubject.get(event.subject);
     if (!devices.has(event.deviceId)) devices.set(event.deviceId, []);
     devices.get(event.deviceId).push(event.at);
+  }
+
+  for (const bucket of bulkReadTimes.values()) {
+    bucket.times.sort((a, b) => a - b);
+    let left = 0;
+    for (let right = 0; right < bucket.times.length; right += 1) {
+      while (bucket.times[right] - bucket.times[left] > RISK_WINDOW_SECONDS * 1000) left += 1;
+      if (right - left + 1 < RISK_COUNT_THRESHOLD) continue;
+      candidates.push({ at: bucket.times[right], subject: bucket.subject, deviceId: bucket.deviceId });
+      break;
+    }
   }
 
   for (const [subject, devices] of readsBySubject) {
