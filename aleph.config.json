@@ -1,8 +1,8 @@
 {
-  "step": 8,
+  "step": 9,
   "repoUrl": "https://github.com/wildmonstr/choi-bujang-secret-vault",
   "publicAppUrl": "https://choi-bujang-secret-vault-eosin-zeta.vercel.app",
-  "sampleMarker": "STEP8_RESOURCE_SCOPE",
+  "sampleMarker": "STEP9_COMPOSITE_REVOCATION",
   "judgeIssuer": "https://aleph-judge-production.up.railway.app/defense/judge",
   "identityProvider": {
     "issuer": "https://zskattfklxijebwsgava.supabase.co/auth/v1",
