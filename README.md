@@ -16,6 +16,7 @@
 ```powershell
 npm install
 npm run device:test
+npm run stage11:test
 npm run decider:test
 npm run resource-id:test
 npm run detect:test
