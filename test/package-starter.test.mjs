@@ -34,6 +34,7 @@ test('패키징 함수 기준표는 중첩 경로를 포함한 실제 API와 일
     'api/devices/approve-self.js',
     'api/devices/approve.js',
     'api/devices/register.js',
+    'api/devices/status.js',
     'api/notes.js',
     'api/notes/[id].js',
     'api/stage10/memo-restore.js',
