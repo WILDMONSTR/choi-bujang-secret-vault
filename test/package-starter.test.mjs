@@ -13,7 +13,7 @@ async function listApiFiles(directory, prefix = 'api') {
     const relative = join(prefix, entry.name).replaceAll('\\', '/');
     const absolute = join(directory, entry.name);
     if (entry.isDirectory()) found.push(...await listApiFiles(absolute, relative));
-    else if (/\\.(?:m?js|ts)$/u.test(entry.name)) found.push(relative);
+    else if (/\.(?:m?js|ts)$/u.test(entry.name)) found.push(relative);
   }
   return found.sort();
 }
@@ -66,5 +66,5 @@ test('P7 시작 틀 안내는 실제 빌드 조건과 새 배포 시험에 맞�
   assert.match(readme, /새 Vercel 프로젝트/u);
   assert.match(readme, /Vercel이 제공하는 저장소·커밋·배포 URL 정보/u);
   assert.doesNotMatch(readme, /npm start/u);
-  assert.match(selfCheck, /P7-3\\.png/u);
+  assert.match(selfCheck, /P7-3\.png/u);
 });
