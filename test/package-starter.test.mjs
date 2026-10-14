@@ -31,15 +31,10 @@ test('패키징 함수 기준표는 중첩 경로를 포함한 실제 API와 일
     'api/auth/logout.js',
     'api/auth/session.js',
     'api/devices.js',
-    'api/devices/approve-self.js',
-    'api/devices/approve.js',
-    'api/devices/register.js',
-    'api/devices/status.js',
+    'api/devices/[...action].js',
     'api/notes.js',
     'api/notes/[id].js',
-    'api/stage10/memo-restore.js',
-    'api/stage10/policy-diff.js',
-    'api/stage10/policy-restore.js',
+    'api/stage10/[...action].js',
     'api/threat-intel.js'
   ]);
   assert.deepEqual(actual, [...baseline.functions, ...baseline.allowedNew].sort());
