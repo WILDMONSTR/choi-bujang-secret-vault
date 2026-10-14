@@ -32,17 +32,17 @@ test('보호 자료 API는 서버의 승인 기기 확인을 거친다', async (
 });
 
 test('기기 등록·승인은 서버가 발급한 쿠키와 비밀번호 재확인을 사용한다', async () => {
-  const register = await read('api/devices/register.js');
+  const register = await read('src/api-handlers/device-register.mjs');
   assert.match(register, /status:\s*'pending'/u);
   assert.match(register, /device_cookie_sha256/u);
   assert.match(register, /setDeviceCookie/u);
   assert.doesNotMatch(register, /publicJwk|privateKey|crypto\.subtle/u);
 
-  const approve = await read('api/devices/approve-self.js');
+  const approve = await read('src/api-handlers/device-approve-self.mjs');
   assert.match(approve, /signInWithPassword/u);
   assert.match(approve, /findDeviceForSession/u);
   assert.doesNotMatch(approve, /body\?\.deviceId/u);
-  const next = await read('api/devices/approve.js');
+  const next = await read('src/api-handlers/device-approve.mjs');
   assert.match(next, /requireApprovedDevice/u);
 });
 
