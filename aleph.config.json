@@ -23,6 +23,7 @@
     "POST /api/stage10/policy-restore",
     "POST /api/stage10/memo-restore",
     "POST /api/devices/register",
+    "GET /api/devices/status",
     "GET /api/devices",
     "POST /api/devices/approve",
     "POST /api/devices/approve-self"
