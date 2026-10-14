@@ -1,8 +1,8 @@
 {
-  "step": 10,
+  "step": 11,
   "repoUrl": "https://github.com/wildmonstr/choi-bujang-secret-vault",
   "publicAppUrl": "https://choi-bujang-secret-vault-eosin-zeta.vercel.app",
-  "sampleMarker": "STEP10_BACKUP_RESTORE",
+  "sampleMarker": "STEP11_SIGNED_DEVICE_APPROVAL",
   "judgeIssuer": "https://aleph-judge-production.up.railway.app/defense/judge",
   "identityProvider": {
     "issuer": "https://zskattfklxijebwsgava.supabase.co/auth/v1",
@@ -21,7 +21,11 @@
     "GET /api/announcements/:id",
     "GET /api/stage10/policy-diff",
     "POST /api/stage10/policy-restore",
-    "POST /api/stage10/memo-restore"
+    "POST /api/stage10/memo-restore",
+    "POST /api/devices/register",
+    "GET /api/devices",
+    "POST /api/devices/approve",
+    "POST /api/devices/approve-self"
   ],
   "originalApiUrl": "https://zskattfklxijebwsgava.supabase.co/rest/v1/learning_notes",
   "restoreRoute": "POST /api/stage10/memo-restore"
