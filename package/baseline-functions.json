@@ -10,15 +10,10 @@
     "api/auth/logout.js",
     "api/auth/session.js",
     "api/devices.js",
-    "api/devices/approve-self.js",
-    "api/devices/approve.js",
-    "api/devices/register.js",
-    "api/devices/status.js",
+    "api/devices/[...action].js",
     "api/notes.js",
     "api/notes/[id].js",
-    "api/stage10/memo-restore.js",
-    "api/stage10/policy-diff.js",
-    "api/stage10/policy-restore.js",
+    "api/stage10/[...action].js",
     "api/threat-intel.js"
   ]
 }
