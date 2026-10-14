@@ -1,15 +1,15 @@
 # BYTE BACK 방어전 자료실 · 11단계
 
-이 저장소는 1~10단계에서 만든 로그인·로그아웃, 사용자별 가상 메모 소유권, 위험 접속 판정, 탐지 연습과 안전한 복원 기능을 보존하는 학습용 구성입니다. 11단계에서는 설치형 웹앱 화면과 기기 등록·승인, P-256 요청 서명을 추가합니다. 실제 운영 정책·실제 사용자 자료·비밀값은 이 실습에 넣지 마세요.
+이 저장소는 1~10단계에서 만든 로그인·로그아웃, 사용자별 가상 메모 소유권, 위험 접속 판정, 탐지 연습과 안전한 복원 기능을 보존하는 학습용 구성입니다. 11단계에서는 설치형 웹앱 화면과 서버가 확인하는 기기 등록·승인을 추가합니다. 브라우저에서 기기 개인키를 생성하거나 웹 저장소에 보관하지 않습니다. 실제 운영 정책·실제 사용자 자료·비밀값은 이 실습에 넣지 마세요.
 
 
 ## 11단계: 설치형 웹앱과 서명된 기기 승인
 
 - `public/manifest.webmanifest`, `public/sw.js`, `public/app-icon.svg`가 설치 가능한 웹앱 화면과 앱 셸 오프라인 캐시를 제공합니다. 서비스 워커는 HTML/아이콘/클라이언트 모듈만 캐시하며 `/api/` 응답이나 메모 본문을 캐시하지 않습니다.
-- 브라우저는 P-256 ECDSA 키 쌍을 생성하고 개인키를 IndexedDB의 CryptoKey로 보관합니다. 서버로 보내는 것은 공개키뿐입니다. 등록은 `POST /api/devices/register`이며 새 기기는 `pending` 상태로만 생성됩니다. 설치 여부만으로 승인되지 않습니다.
-- 첫 기기는 `POST /api/devices/approve-self`에서 로그인 이메일과 비밀번호를 다시 확인한 뒤 승인합니다. 이후에는 이미 승인된 기기에서 서명한 `POST /api/devices/approve` 요청으로 같은 계정의 대기 기기를 승인할 수 있습니다. 기기 목록 `GET /api/devices`도 승인된 기기의 서명이 필요합니다.
-- 보호된 메모 및 공지 API는 `X-App-Device-Id`, `X-App-Timestamp`, `X-App-Nonce`, `X-App-Signature` 헤더를 검증합니다. 서명 메시지에는 HTTP 메서드, 원본 경로와 쿼리, 타임스탬프, nonce, 본문 SHA-256이 포함됩니다. 서명 후 경로·쿼리·본문을 바꾸면 검증이 실패하고, 60초보다 오래된 서명과 이미 사용한 nonce도 거부합니다.
-- DB의 `app_devices`와 `app_device_request_nonces` 테이블은 RLS가 켜져 있고 `anon`/`authenticated` 권한이 제거되어 있습니다. 서버는 기존 `SUPABASE_SECRET_KEY` 환경변수로만 이 테이블에 접근합니다. 비밀값이나 개인키를 저장소에 추가하지 않습니다.
+- `public/device-client.js`에는 기기 개인키 생성·서명 코드, `localStorage`, `sessionStorage`, `IndexedDB` 사용이 없습니다. 등록은 `POST /api/devices/register`이며 서버가 만든 무작위 기기 세션을 `HttpOnly; Secure; SameSite=Strict` 쿠키로 전달합니다. 쿠키 원문은 JavaScript나 API JSON에 노출하지 않고 DB에는 SHA-256 해시만 저장합니다. 새 기기는 `pending` 상태로만 생성됩니다.
+- 화면은 `GET /api/devices/status`의 서버 응답이 `approved`라고 확인된 경우에만 기존 자료실을 엽니다. 로그인 직후나 승인 요청 버튼 클릭만으로 메모를 표시하지 않습니다. 첫 기기는 `POST /api/devices/approve-self`에서 로그인 이메일과 비밀번호를 다시 확인한 뒤 승인하며, 이후에는 이미 승인된 기기에서 `POST /api/devices/approve`로 같은 계정의 대기 기기를 승인할 수 있습니다.
+- 보호된 메모 및 공지 API는 로그인 사용자와 `HttpOnly` 기기 세션을 서버에서 확인하고, `app_devices`의 소유자 및 `approved` 상태를 매 요청마다 검사합니다. 승인 전·회수된 기기에서는 메모 목록을 열지 않고, API도 보호 자료를 반환하지 않습니다.
+- DB의 `app_devices`와 기존 `app_device_request_nonces` 테이블은 RLS가 켜져 있고 `anon`/`authenticated` 권한이 제거되어 있습니다. `device_cookie_sha256`에는 쿠키 원문이 아닌 SHA-256 해시만 저장합니다. 서버는 기존 `SUPABASE_SECRET_KEY` 환경변수로만 이 테이블에 접근합니다. 비밀값이나 개인키를 저장소에 추가하지 않습니다.
 
 ### 11단계 검사
 
