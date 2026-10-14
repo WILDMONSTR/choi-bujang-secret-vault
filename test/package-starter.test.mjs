@@ -10,7 +10,7 @@ async function listApiFiles(directory, prefix = 'api') {
   const entries = await readdir(directory, { withFileTypes: true });
   const found = [];
   for (const entry of entries) {
-    const relative = join(prefix, entry.name).replaceAll('\\\\', '/');
+    const relative = join(prefix, entry.name).replaceAll('\\', '/');
     const absolute = join(directory, entry.name);
     if (entry.isDirectory()) found.push(...await listApiFiles(absolute, relative));
     else if (/\\.(?:m?js|ts)$/u.test(entry.name)) found.push(relative);
