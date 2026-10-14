@@ -54,6 +54,7 @@
         <input id="auth-password" name="password" type="password" autocomplete="current-password" required>
         <button id="login-submit" type="submit">로그인</button>
       </form>
+      <button id="install-app-button" class="secondary" type="button" hidden>이 자료실 앱 설치</button>
       <div id="signed-in" hidden>
         <p id="session-status" role="status" aria-live="polite"></p>
         <button id="logout-button" type="button">로그아웃</button>
@@ -107,6 +108,7 @@
     const sessionStatus = document.querySelector('#session-status');
     const logoutButton = document.querySelector('#logout-button');
     const authMessage = document.querySelector('#auth-message');
+    const installAppButton = document.querySelector('#install-app-button');
 
     const notesWorkspace = document.querySelector('#notes-workspace');
     const noteForm = document.querySelector('#note-form');
@@ -130,6 +132,7 @@
     let activeSession = null;
     let currentEditingId = null;
     let notesRequestVersion = 0;
+    let deferredInstallPrompt = null;
 
     function setAuthMessage(message) {
       authMessage.textContent = message;
@@ -466,6 +469,26 @@
       renderSession(null);
       setAuthMessage('기존 로그인 상태 확인 실패: ' + describeError(error));
     }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      installAppButton.hidden = false;
+    });
+    installAppButton.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) {
+        authMessage.textContent = '브라우저 메뉴에서 “앱 설치” 또는 “홈 화면에 추가”를 선택해 주세요.';
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      installAppButton.hidden = true;
+    });
+    window.addEventListener('appinstalled', () => {
+      installAppButton.hidden = true;
+      authMessage.textContent = '자료실 앱이 설치되었습니다. 설치만으로 기기가 승인되지는 않습니다.';
+    });
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
