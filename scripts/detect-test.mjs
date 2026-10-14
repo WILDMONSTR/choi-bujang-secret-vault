@@ -3,147 +3,176 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
 const START = Date.UTC(2026, 9, 1, 0, 0, 0);
-const subject = 'learner_fixture';
-const deviceA = 'aaaaaaaaaaaaaaaa';
-const deviceB = 'bbbbbbbbbbbbbbbb';
+const SUBJECT_A = 'learner_fixture_a';
+const SUBJECT_B = 'learner_fixture_b';
 
 function reads(count, {
-  intervalSeconds = 2, owner = subject, deviceId = deviceA,
-  network = 'usual', region = 'local', start = START, recentEvents,
-  requestKind, decision,
+  owner = SUBJECT_A,
+  method = 'GET',
+  intervalMs = 1000,
+  start = START,
+  extra = {},
 } = {}) {
   return Array.from({ length: count }, (_, index) => ({
-    at: new Date(start + index * intervalSeconds * 1000).toISOString(),
-    method: 'GET', deviceId, network, region, identity: { sub: owner },
-    ...(recentEvents ? { recentEvents } : {}),
-    ...(requestKind ? { requestKind } : {}),
-    ...(decision ? { decision } : {}),
+    at: new Date(start + index * intervalMs).toISOString(),
+    method,
+    identity: { sub: owner },
+    ...extra,
   }));
 }
 
-function decisionRequest({
-  owner = subject, deviceId = deviceA, network = 'first_seen',
-  region = 'foreign', recentEvents = [{ kind: 'bulk_read', ageSeconds: 60, count: 20 }],
-  method = 'GET', requestKind, decision, at = new Date(START).toISOString(), includeRegion = true,
-} = {}) {
-  const signals = { source: 'judge_fixture', network, hour: 3 };
-  if (includeRegion) signals.region = region;
-  return {
-    schema: 'aleph.decision.v1',
-    requestId: 'fixture-request',
-    classId: 'class_fixture',
-    projectId: 'project_fixture',
-    subjectId: owner,
-    deviceId,
-    service: 'notes',
-    ...(requestKind ? { requestKind } : { method }),
-    ...(decision ? { decision } : {}),
-    path: '/notes/demo',
-    route: 'GET /notes/:id',
-    queryLength: 0,
-    querySha256: '0'.repeat(64),
-    at,
-    policyRevision: 1,
-    deviceRegistered: true,
-    stepUp: { verified: false, authAgeSeconds: null },
-    recentEvents,
-    signals,
-  };
-}
-
-const proposal = (deviceId) => ({
+const observe = { action: 'observe' };
+const proposal = (subject) => ({
   action: 'propose_revocation',
   reasonCode: 'burst_read',
-  target: { kind: 'virtual_device', deviceId },
+  subject,
 });
 
 const cases = [
-  { name: '정상 조회 30건', events: reads(30), expected: { action: 'observe' } },
-  { name: '평소 네트워크의 121건은 단독으로 제안하지 않음',
-    events: reads(121), expected: { action: 'observe' } },
-  { name: '새 네트워크에서 정확히 120건은 observe',
-    events: reads(120, { network: 'first_seen' }), expected: { action: 'observe' } },
-  { name: '새 네트워크에서 121건이면 가상 기기 한 대 제안',
-    events: reads(121, { network: 'first_seen' }), expected: proposal(deviceA) },
-  { name: '정상·의심 기기가 섞여도 의심 기기만 제안', events: [
-    ...reads(30, { deviceId: deviceB, network: 'usual' }),
-    ...reads(121, { deviceId: deviceA, network: 'first_seen' }),
-  ].sort((a, b) => a.at.localeCompare(b.at)), expected: proposal(deviceA) },
-  { name: '같은 주체의 두 기기 각각 100건은 observe', events: [
-    ...reads(100, { deviceId: deviceA, network: 'first_seen' }),
-    ...reads(100, { deviceId: deviceB, network: 'first_seen' }),
-  ].sort((a, b) => a.at.localeCompare(b.at)), expected: { action: 'observe' } },
-  { name: '다른 사용자 각 100건은 합산하지 않음', events: [
-    ...reads(100, { owner: subject, network: 'first_seen' }),
-    ...reads(100, { owner: 'other_fixture', network: 'first_seen' }),
-  ].sort((a, b) => a.at.localeCompare(b.at)), expected: { action: 'observe' } },
-  { name: '새 네트워크 + bulk_read 공식 요청 형식은 제안',
-    events: [decisionRequest()], expected: proposal(deviceA) },
-  { name: '메모 본문·토큰·실명 같은 추가 필드는 무시하고 출력하지 않음',
-    events: [{ ...decisionRequest(), memoBody: 'PRIVATE BODY', token: 'PRIVATE TOKEN',
-      realName: 'PRIVATE NAME', identity: { sub: subject, realName: 'PRIVATE NAME' },
-      recentEvents: [{ kind: 'bulk_read', ageSeconds: 60, count: 20,
-        memoBody: 'PRIVATE NESTED BODY', token: 'PRIVATE NESTED TOKEN' }] }],
-    expected: proposal(deviceA) },
-  { name: '경로가 포함된 요청 종류와 판정 필드도 처리',
-    events: [decisionRequest({ requestKind: 'GET /notes/:id', decision: 'allow' })],
-    expected: proposal(deviceA) },
-  { name: '새 네트워크+bulk_read, region 필드가 없어도 제안',
-    events: [decisionRequest({ includeRegion: false })], expected: proposal(deviceA) },
-  { name: '새 네트워크만 있고 bulk_read 신호가 없으면 observe',
-    events: [decisionRequest({ recentEvents: [] })], expected: { action: 'observe' } },
-  { name: '지역만 다르고 네트워크는 평소이면 observe',
-    events: [decisionRequest({ network: 'usual', recentEvents: [{ kind: 'bulk_read', ageSeconds: 60, count: 20 }] })],
-    expected: { action: 'observe' } },
-  { name: 'bulk_read가 5분보다 오래됐으면 observe',
-    events: [decisionRequest({ recentEvents: [{ kind: 'bulk_read', ageSeconds: 301, count: 20 }] })],
-    expected: { action: 'observe' } },
-  { name: 'bulk_read 건수가 기준 미만이면 observe',
-    events: [decisionRequest({ recentEvents: [{ kind: 'bulk_read', ageSeconds: 60, count: 9 }] })],
-    expected: { action: 'observe' } },
-  { name: 'POST 다량 요청은 회수 제안을 내지 않음',
-    events: [decisionRequest({ method: 'POST' })], expected: { action: 'observe' } },
-  { name: '지역 값만 다르고 신규 네트워크가 아니면 제안하지 않음',
-    events: reads(121, { network: 'usual', region: 'foreign' }), expected: { action: 'observe' } },
-  { name: '10분 밖으로 흩어진 새 네트워크 조회 200건은 observe',
-    events: reads(200, { intervalSeconds: 7, network: 'first_seen' }),
-    expected: { action: 'observe' } },
-  { name: '요청 종류와 판정 필드가 있는 공식 가상 사건은 제안',
-    events: [{ ...decisionRequest({ requestKind: 'GET', decision: 'allow' }) }],
-    expected: proposal(deviceA) },
-  { name: 'bulk_read 요청 종류가 10회 반복되면 제안', events: reads(10, {
-    network: 'first_seen', requestKind: 'bulk_read', decision: 'allow',
-  }), expected: proposal(deviceA) },
-  { name: '두 후보 중 최초 제안 한 대만 선택', events: [
-    ...reads(121, { deviceId: deviceA, network: 'first_seen' }),
-    ...reads(121, { deviceId: deviceB, network: 'first_seen', start: START + 60_000 }),
-  ].sort((a, b) => a.at.localeCompare(b.at)), expected: proposal(deviceA) },
+  {
+    name: 'GET 30건은 observe',
+    events: reads(30),
+    expected: observe,
+  },
+  {
+    name: 'GET 정확히 120건은 observe',
+    events: reads(120, { intervalMs: 5000 }),
+    expected: observe,
+  },
+  {
+    name: '10분 경계 포함 121건이면 제안',
+    events: reads(121, { intervalMs: 5000 }),
+    expected: proposal(SUBJECT_A),
+  },
+  {
+    name: '10분 안의 GET 121건이면 제안',
+    events: reads(121, { intervalMs: 1000 }),
+    expected: proposal(SUBJECT_A),
+  },
+  {
+    name: '모든 10분 구간에 120건 이하이면 observe',
+    events: reads(121, { intervalMs: 6001 }),
+    expected: observe,
+  },
+  {
+    name: '다른 사용자 두 명의 GET 100건씩은 합산하지 않음',
+    events: [
+      ...reads(100, { owner: SUBJECT_A }),
+      ...reads(100, { owner: SUBJECT_B }),
+    ],
+    expected: observe,
+  },
+  {
+    name: 'A의 GET 121건과 B의 GET 100건은 A만 제안',
+    events: [
+      ...reads(100, { owner: SUBJECT_B }),
+      ...reads(121, { owner: SUBJECT_A }),
+    ],
+    expected: proposal(SUBJECT_A),
+  },
+  {
+    name: '동일 사용자의 GET 121건을 순서가 섞여도 집계',
+    events: [
+      ...reads(61, { start: START }),
+      ...reads(60, { start: START + 500 }),
+    ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)),
+    expected: proposal(SUBJECT_A),
+  },
+  {
+    name: 'GET이 아닌 POST 200건은 observe',
+    events: reads(200, { method: 'POST' }),
+    expected: observe,
+  },
+  {
+    name: '기기와 네트워크 값 없이도 세 필드 계약으로 제안',
+    events: reads(121),
+    expected: proposal(SUBJECT_A),
+  },
+  {
+    name: '추가 메타데이터는 사용하지 않고 정확한 응답만 반환',
+    events: reads(121, {
+      extra: {
+        deviceId: null,
+        network: null,
+        memoBody: 'PRIVATE BODY',
+        token: 'PRIVATE TOKEN',
+      },
+    }),
+    expected: proposal(SUBJECT_A),
+  },
+  {
+    name: '단일 사건 객체도 받아 정상 관찰',
+    events: {
+      at: new Date(START).toISOString(),
+      method: 'GET',
+      identity: { sub: SUBJECT_A },
+    },
+    expected: observe,
+  },
+  {
+    name: 'GET이 아닌 사건은 GET 건수에 포함하지 않음',
+    events: [
+      ...reads(120),
+      ...reads(20, { method: 'POST', start: START + 100 }),
+    ],
+    expected: observe,
+  },
+  {
+    name: '다른 사용자의 다량 사건이 있어도 대상 사용자는 별도 계산',
+    events: [
+      ...reads(121, { owner: SUBJECT_A }),
+      ...reads(121, { owner: SUBJECT_B, start: START + 20_000 }),
+    ],
+    expected: proposal(SUBJECT_A),
+  },
+  {
+    name: '정확한 10분 구간 밖으로 분산된 121건은 observe',
+    events: reads(121, { intervalMs: 6001 }),
+    expected: observe,
+  },
 ];
 
 export async function checkDetection(detect) {
-  if (typeof detect !== 'function') throw new TypeError('src/detect.mjs에서 detect 함수를 내보내야 합니다.');
-  const results = [];
-  for (const item of cases) {
-    const actual = await detect(item.events);
-    results.push({ name: item.name, passed: isDeepStrictEqual(actual, item.expected) });
+  if (typeof detect !== 'function') {
+    throw new TypeError('src/detect.mjs에서 detect 함수를 내보내야 합니다.');
   }
 
-  // A single incident object is also a valid input from the judge connector.
-  const singleActual = await detect(decisionRequest());
-  results.push({
-    name: '단일 공식 가상 사건 객체도 복합 의심으로 탐지',
-    passed: isDeepStrictEqual(singleActual, proposal(deviceA)),
-  });
+  const results = [];
+  for (const item of cases) {
+    let passed = false;
+    try {
+      const actual = await detect(item.events);
+      passed = isDeepStrictEqual(actual, item.expected);
+    } catch {
+      passed = false;
+    }
+    results.push({ name: item.name, passed });
+  }
 
   const invalidCases = [
-    { name: '기기 ID 누락 거부', event: (() => { const { deviceId, ...event } = reads(1)[0]; return event; })() },
-    { name: '기기 ID 형식 오류 거부', event: reads(1, { deviceId: 'not-a-device' })[0] },
+    {
+      name: '시각 누락 사건은 거부',
+      event: { method: 'GET', identity: { sub: SUBJECT_A } },
+    },
+    {
+      name: '주체 누락 사건은 거부',
+      event: { at: new Date(START).toISOString(), method: 'GET', identity: {} },
+    },
+    {
+      name: '잘못된 시각 사건은 거부',
+      event: { at: 'not-a-time', method: 'GET', identity: { sub: SUBJECT_A } },
+    },
   ];
   for (const item of invalidCases) {
     let rejected = false;
-    try { await detect([item.event]); } catch { rejected = true; }
+    try {
+      await detect([item.event]);
+    } catch {
+      rejected = true;
+    }
     results.push({ name: item.name, passed: rejected });
   }
+
   return results;
 }
 

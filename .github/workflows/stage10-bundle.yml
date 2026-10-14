@@ -7,6 +7,9 @@ on:
       - .github/workflows/stage10-bundle.yml
       - aleph.config.json
       - README.md
+      - src/detect.mjs
+      - docs/DETECT_EVENTS.md
+      - scripts/detect-test.mjs
       - package.json
       - package-lock.json
       - src/attack-check.mjs
@@ -34,6 +37,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Run detector contract tests
+        run: npm run detect:test
       - name: Prepare local ignored bundle notes
         run: |
           cat > bundle-notes.json <<'JSON'

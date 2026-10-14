@@ -1,205 +1,81 @@
-// 9단계: 평소와 다른 네트워크와 다량 조회가 함께 나타난 가상 기기만 회수 제안 대상으로 표시합니다.
-// 운영 반 엔진이 검증한 사건만 전달해야 합니다. 실제 권한 회수는 수행하지 않습니다.
+// 9단계: 같은 가명 주체의 GET 사건이 10분 안에 120건을 초과하면 회수를 제안합니다.
+// 계약에는 at, method, identity.sub만 사용합니다. 실제 권한 회수는 수행하지 않습니다.
 const READ_LIMIT = 120;
 const WINDOW_MS = 10 * 60 * 1000;
-const RISK_WINDOW_SECONDS = 300;
-const RISK_COUNT_THRESHOLD = 10;
 
-const DEVICE_ID_PATTERN = /^[0-9a-f]{16}$/u;
-const NETWORK_STATES = new Set(['usual', 'first_seen', 'unknown']);
-
-function readRecentEvents(value) {
-  if (value === undefined) return [];
-  if (!Array.isArray(value) || value.length > 12) {
-    throw new TypeError('invalid_detection_event');
-  }
-  for (const event of value) {
-    if (!event || typeof event !== 'object' || Array.isArray(event)
-        || typeof event.kind !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/u.test(event.kind)
-        || !Number.isFinite(event.ageSeconds) || event.ageSeconds < 0
-        || !Number.isSafeInteger(event.count) || event.count < 0) {
-      throw new TypeError('invalid_detection_event');
-    }
-  }
-  return value.map(({ kind, ageSeconds, count }) => ({ kind, ageSeconds, count }));
+function invalidEvent() {
+  throw new TypeError('invalid_detection_event');
 }
 
-function readNetwork(event) {
-  let nestedNetwork;
-  if (event.signals !== undefined) {
-    const signals = event.signals;
-    if (!signals || typeof signals !== 'object' || Array.isArray(signals)) {
-      throw new TypeError('invalid_detection_event');
-    }
-    nestedNetwork = signals.network;
-  }
-
-  const normalize = (value) => {
-    if (value === undefined) return undefined;
-    const aliases = { new: 'first_seen', unusual: 'first_seen',
-      new_network: 'first_seen', 'first-seen': 'first_seen' };
-    const result = aliases[value] ?? value;
-    if (!NETWORK_STATES.has(result)) throw new TypeError('invalid_detection_event');
-    return result;
-  };
-  const directNetwork = normalize(event.network);
-  nestedNetwork = normalize(nestedNetwork);
-  if (directNetwork !== undefined && nestedNetwork !== undefined
-      && directNetwork !== nestedNetwork) {
-    throw new TypeError('invalid_detection_event');
-  }
-  return directNetwork ?? nestedNetwork ?? 'unknown';
-}
-
-function readEvent(event) {
-  // Ignore unrelated metadata instead of copying it into the normalized event.
+function parseEvent(event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)) {
-    throw new TypeError('invalid_detection_event');
+    invalidEvent();
   }
-  const rawAt = event.at ?? event.timestamp;
+
+  const rawAt = event.at;
   if (typeof rawAt !== 'string'
-      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(rawAt)
-      || !Number.isFinite(Date.parse(rawAt))
-      || new Date(Date.parse(rawAt)).toISOString() !== rawAt
-      || typeof event.deviceId !== 'string' || !DEVICE_ID_PATTERN.test(event.deviceId)) {
-    throw new TypeError('invalid_detection_event');
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(rawAt)) {
+    invalidEvent();
+  }
+  const at = Date.parse(rawAt);
+  if (!Number.isFinite(at) || new Date(at).toISOString() !== rawAt) {
+    invalidEvent();
   }
 
-  if (event.decision !== undefined) {
-    const decision = typeof event.decision === 'string' ? event.decision : event.decision?.decision;
-    if (!['allow', 'deny', 'step_up'].includes(decision)) {
-      throw new TypeError('invalid_detection_event');
-    }
-  }
-  if (event.count !== undefined && (!Number.isSafeInteger(event.count) || event.count < 0)) {
-    throw new TypeError('invalid_detection_event');
-  }
-  if (event.ageSeconds !== undefined && (!Number.isFinite(event.ageSeconds) || event.ageSeconds < 0)) {
-    throw new TypeError('invalid_detection_event');
+  if (typeof event.method !== 'string' || event.method.length === 0
+      || event.method.length > 16) {
+    invalidEvent();
   }
 
-  const rawMethod = event.method ?? event.requestKind ?? event.requestType ?? event.kind;
-  if (typeof rawMethod !== 'string') throw new TypeError('invalid_detection_event');
-  const normalizedRequestKind = String(event.requestKind ?? event.requestType ?? event.kind ?? rawMethod)
-    .toLowerCase().replaceAll('-', '_');
-  const methodAliases = {
-    read: 'GET', bulk_read: 'GET', create: 'POST', write: 'POST',
-    update: 'PUT', remove: 'DELETE',
-  };
-  const normalizedMethod = methodAliases[rawMethod.toLowerCase().replaceAll('-', '_')]
-    ?? rawMethod.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)(?:\s|$)/iu)?.[1]?.toUpperCase()
-    ?? rawMethod.toUpperCase();
-  if (!/^[A-Z]{3,10}$/u.test(normalizedMethod)) {
-    throw new TypeError('invalid_detection_event');
+  const identity = event.identity;
+  if (!identity || typeof identity !== 'object' || Array.isArray(identity)
+      || typeof identity.sub !== 'string'
+      || identity.sub.trim() !== identity.sub
+      || identity.sub.length === 0 || identity.sub.length > 256) {
+    invalidEvent();
   }
 
-  let subject;
-  if (event.identity !== undefined) {
-    if (!event.identity || typeof event.identity !== 'object' || Array.isArray(event.identity)
-        || typeof event.identity.sub !== 'string'
-        || event.identity.sub.trim() !== event.identity.sub
-        || event.identity.sub.length === 0 || event.identity.sub.length > 256) {
-      throw new TypeError('invalid_detection_event');
-    }
-    subject = event.identity.sub;
-  }
-  if (event.subjectId !== undefined) {
-    if (typeof event.subjectId !== 'string' || event.subjectId.trim() !== event.subjectId
-        || event.subjectId.length === 0 || event.subjectId.length > 256
-        || (subject !== undefined && subject !== event.subjectId)) {
-      throw new TypeError('invalid_detection_event');
-    }
-    subject = event.subjectId;
-  }
-  if (subject === undefined) throw new TypeError('invalid_detection_event');
-
-  return {
-    at: Date.parse(rawAt),
-    method: normalizedMethod,
-    requestKind: normalizedRequestKind,
-    network: readNetwork(event),
-    recentEvents: readRecentEvents(event.recentEvents),
-    subject,
-    deviceId: event.deviceId,
-    count: event.count,
-    ageSeconds: event.ageSeconds,
-  };
+  // Project only the three fields in the detector contract. Other metadata,
+  // including absent device/network properties, is never read or returned.
+  return { at, method: event.method, subject: identity.sub };
 }
 
-function hasRecentBulkRead(event) {
-  return event.recentEvents.some((item) =>
-    item.kind === 'bulk_read'
-      && item.ageSeconds <= RISK_WINDOW_SECONDS
-      && item.count >= RISK_COUNT_THRESHOLD);
-}
-
-export function detect(events) {
-  // The judge may deliver either one virtual incident or a batch of incidents.
-  if (!Array.isArray(events)) {
-    if (events && typeof events === 'object') events = [events];
-    else throw new TypeError('invalid_detection_events');
-  }
+export function detect(input) {
+  const events = Array.isArray(input)
+    ? input
+    : input && typeof input === 'object'
+      ? [input]
+      : invalidEvent();
 
   const readsBySubject = new Map();
-  const bulkReadTimes = new Map();
-  const candidates = [];
-
   for (const rawEvent of events) {
-    const event = readEvent(rawEvent);
-    if (event.method !== 'GET' || event.network !== 'first_seen') continue;
-
-    if (hasRecentBulkRead(event)
-        || (event.requestKind === 'bulk_read' && event.count >= RISK_COUNT_THRESHOLD
-          && event.ageSeconds <= RISK_WINDOW_SECONDS)) {
-      candidates.push({ at: event.at, subject: event.subject, deviceId: event.deviceId });
-    }
-
-    if (event.requestKind === 'bulk_read') {
-      const key = event.subject + '\u0000' + event.deviceId;
-      if (!bulkReadTimes.has(key)) {
-        bulkReadTimes.set(key, { subject: event.subject, deviceId: event.deviceId, times: [] });
-      }
-      bulkReadTimes.get(key).times.push(event.at);
-    }
-
-    if (!readsBySubject.has(event.subject)) readsBySubject.set(event.subject, new Map());
-    const devices = readsBySubject.get(event.subject);
-    if (!devices.has(event.deviceId)) devices.set(event.deviceId, []);
-    devices.get(event.deviceId).push(event.at);
+    const event = parseEvent(rawEvent);
+    if (event.method !== 'GET') continue;
+    if (!readsBySubject.has(event.subject)) readsBySubject.set(event.subject, []);
+    readsBySubject.get(event.subject).push(event.at);
   }
 
-  for (const bucket of bulkReadTimes.values()) {
-    bucket.times.sort((a, b) => a - b);
+  const candidates = [];
+  for (const [subject, timestamps] of readsBySubject) {
+    timestamps.sort((a, b) => a - b);
     let left = 0;
-    for (let right = 0; right < bucket.times.length; right += 1) {
-      while (bucket.times[right] - bucket.times[left] > RISK_WINDOW_SECONDS * 1000) left += 1;
-      if (right - left + 1 < RISK_COUNT_THRESHOLD) continue;
-      candidates.push({ at: bucket.times[right], subject: bucket.subject, deviceId: bucket.deviceId });
-      break;
-    }
-  }
-
-  for (const [subject, devices] of readsBySubject) {
-    for (const [deviceId, timestamps] of devices) {
-      timestamps.sort((a, b) => a - b);
-      let left = 0;
-      for (let right = 0; right < timestamps.length; right += 1) {
-        while (timestamps[right] - timestamps[left] > WINDOW_MS) left += 1;
-        if (right - left + 1 <= READ_LIMIT) continue;
-        candidates.push({ at: timestamps[right], subject, deviceId });
+    for (let right = 0; right < timestamps.length; right += 1) {
+      while (timestamps[right] - timestamps[left] > WINDOW_MS) left += 1;
+      if (right - left + 1 > READ_LIMIT) {
+        candidates.push({ at: timestamps[right], subject });
         break;
       }
     }
   }
 
   if (candidates.length === 0) return { action: 'observe' };
-  candidates.sort((a, b) => a.at - b.at
-    || a.deviceId.localeCompare(b.deviceId)
-    || a.subject.localeCompare(b.subject));
-  const target = candidates[0];
+
+  // If multiple subjects cross the limit, choose the first crossing time.
+  // A lexical tie-break makes the result deterministic for simultaneous crossings.
+  candidates.sort((a, b) => a.at - b.at || a.subject.localeCompare(b.subject));
   return {
     action: 'propose_revocation',
     reasonCode: 'burst_read',
-    target: { kind: 'virtual_device', deviceId: target.deviceId },
+    subject: candidates[0].subject,
   };
 }
