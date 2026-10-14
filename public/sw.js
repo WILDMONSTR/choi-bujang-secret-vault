@@ -1,16 +1,34 @@
-const CACHE = 'byte-back-shell-v1';
+const CACHE = 'byte-back-shell-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/device-client.js', '/app-icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 
+function removeLegacyDeviceKeyDatabase() {
+  return new Promise((resolve) => {
+    if (!('indexedDB' in self)) return resolve();
+    let request;
+    try {
+      request = self.indexedDB.deleteDatabase('byte-back-device-v1');
+    } catch {
+      return resolve();
+    }
+    request.onsuccess = resolve;
+    request.onerror = resolve;
+    request.onblocked = resolve;
+  });
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key.startsWith('byte-back-') && key !== CACHE)
-        .map((key) => caches.delete(key))
-    )).then(() => self.clients.claim())
+    Promise.all([
+      caches.keys().then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith('byte-back-') && key !== CACHE)
+          .map((key) => caches.delete(key))
+      )),
+      removeLegacyDeviceKeyDatabase()
+    ]).then(() => self.clients.claim())
   );
 });
 
