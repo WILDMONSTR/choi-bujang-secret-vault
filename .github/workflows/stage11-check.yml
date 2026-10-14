@@ -37,7 +37,7 @@ jobs:
           cache: npm
       - name: Install locked dependencies without package lifecycle scripts
         run: npm ci --ignore-scripts
-      - name: Test device request signatures and tampering
+      - name: Test HttpOnly device session handling
         run: npm run device:test
       - name: Test stage 11 PWA and approval wiring
         run: npm run stage11:test
@@ -70,7 +70,7 @@ jobs:
           cache: npm
       - name: Install locked dependencies without package lifecycle scripts
         run: npm.cmd ci --ignore-scripts
-      - name: Test device request signatures and tampering
+      - name: Test HttpOnly device session handling
         run: npm.cmd run device:test
       - name: Test stage 11 PWA and approval wiring
         run: npm.cmd run stage11:test
