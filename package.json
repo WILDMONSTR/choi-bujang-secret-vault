@@ -17,7 +17,7 @@
     "stage11:test": "node --test scripts/stage11-test.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
