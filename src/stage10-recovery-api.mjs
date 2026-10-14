@@ -1,5 +1,6 @@
 import config from '../aleph.config.json' with { type: 'json' };
 import { requireResourceIdentity, sendResourceError } from './resource-access.mjs';
+import { requireApprovedDevice } from './require-approved-device.mjs';
 import {
   Stage10Error,
   hashJson,
@@ -11,6 +12,7 @@ import {
 export async function requireStage10TestOwner(req, res) {
   const auth = await requireResourceIdentity(req, res, config);
   if (!auth) return null;
+  if (!await requireApprovedDevice(req, res, auth)) return null;
 
   const ownerB = process.env.STAGE10_TEST_OWNER_B_ID;
   if (!ownerB || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(ownerB)) {
