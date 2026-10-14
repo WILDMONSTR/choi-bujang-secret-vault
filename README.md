@@ -1,6 +1,31 @@
-# BYTE BACK 방어전 자료실 · 10단계
+# BYTE BACK 방어전 자료실 · 11단계
 
-이 저장소는 1~9단계에서 만든 로그인·로그아웃, 사용자별 가상 메모 소유권, 등록 기기·위험 접속 판정과 탐지 연습을 보존하는 학습용 구성입니다. 10단계에서는 침해 전에 검증한 안전 정책 사본과 현재 시험 정책의 차이를 미리 확인하고, 검증된 범위만 시험 정책에 복원하며, 시험 계정 B의 가상 메모 한 건을 ID·소유자·내용 SHA-256으로 대조해 복원합니다. 검증된 사본이 없거나 검증에 실패하면 작업을 중단합니다. 실제 운영 정책·실제 사용자 자료·비밀값은 이 실습에 넣지 마세요.
+이 저장소는 1~10단계에서 만든 로그인·로그아웃, 사용자별 가상 메모 소유권, 위험 접속 판정, 탐지 연습과 안전한 복원 기능을 보존하는 학습용 구성입니다. 11단계에서는 설치형 웹앱 화면과 기기 등록·승인, P-256 요청 서명을 추가합니다. 실제 운영 정책·실제 사용자 자료·비밀값은 이 실습에 넣지 마세요.
+
+
+## 11단계: 설치형 웹앱과 서명된 기기 승인
+
+- `public/manifest.webmanifest`, `public/sw.js`, `public/app-icon.svg`가 설치 가능한 웹앱 화면과 앱 셸 오프라인 캐시를 제공합니다. 서비스 워커는 HTML/아이콘/클라이언트 모듈만 캐시하며 `/api/` 응답이나 메모 본문을 캐시하지 않습니다.
+- 브라우저는 P-256 ECDSA 키 쌍을 생성하고 개인키를 IndexedDB의 CryptoKey로 보관합니다. 서버로 보내는 것은 공개키뿐입니다. 등록은 `POST /api/devices/register`이며 새 기기는 `pending` 상태로만 생성됩니다. 설치 여부만으로 승인되지 않습니다.
+- 첫 기기는 `POST /api/devices/approve-self`에서 로그인 이메일과 비밀번호를 다시 확인한 뒤 승인합니다. 이후에는 이미 승인된 기기에서 서명한 `POST /api/devices/approve` 요청으로 같은 계정의 대기 기기를 승인할 수 있습니다. 기기 목록 `GET /api/devices`도 승인된 기기의 서명이 필요합니다.
+- 보호된 메모 및 공지 API는 `X-App-Device-Id`, `X-App-Timestamp`, `X-App-Nonce`, `X-App-Signature` 헤더를 검증합니다. 서명 메시지에는 HTTP 메서드, 원본 경로와 쿼리, 타임스탬프, nonce, 본문 SHA-256이 포함됩니다. 서명 후 경로·쿼리·본문을 바꾸면 검증이 실패하고, 60초보다 오래된 서명과 이미 사용한 nonce도 거부합니다.
+- DB의 `app_devices`와 `app_device_request_nonces` 테이블은 RLS가 켜져 있고 `anon`/`authenticated` 권한이 제거되어 있습니다. 서버는 기존 `SUPABASE_SECRET_KEY` 환경변수로만 이 테이블에 접근합니다. 비밀값이나 개인키를 저장소에 추가하지 않습니다.
+
+### 11단계 검사
+
+```powershell
+npm install
+npm run device:test
+npm run decider:test
+npm run resource-id:test
+npm run detect:test
+npm run stage10:test
+npm run test:r5
+npm run test:package
+npm run build -- --local
+```
+
+`npm install`과 위 검사는 이 변경을 작성한 시점에 원격 실행 환경에서 실제로 실행하지 않았습니다. 실행 후에만 통과 여부를 기록하세요. 기기 등록·승인 및 서명 검증은 배포 환경에서 로그인한 가상 계정으로 추가 확인해야 합니다. `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 환경변수로 설정하고 값을 GitHub나 채팅에 보내지 마세요.
 
 ## 5단계: 서버 로그인과 사용자별 메모 소유권
 
