@@ -55,36 +55,17 @@ test('배포 식별 정보는 4단계와 이후 단계를 지원한다', () => {
 
 test('단건 메모 GET·PUT·DELETE는 검증된 사용자 소유 행만 접근한다', async () => {
   const source = await readFile(new URL('../api/notes/[id].js', import.meta.url), 'utf8');
-  const getStart = source.indexOf("if (request.method === 'GET') {");
-  const putStart = source.indexOf("if (request.method === 'PUT') {", getStart);
-  const firstOwnershipComment = source.indexOf(
-    '// Access only a row owned by the verified user.',
-    putStart,
-  );
-  const deleteOwnershipComment = source.indexOf(
-    '// Access only a row owned by the verified user.',
-    firstOwnershipComment + 1,
-  );
 
-  assert.ok(getStart >= 0 && putStart > getStart);
-  assert.ok(firstOwnershipComment > putStart && deleteOwnershipComment > firstOwnershipComment);
-
-  const getBlock = source.slice(getStart, putStart);
-  const putBlock = source.slice(putStart, deleteOwnershipComment);
-  const deleteBlock = source.slice(deleteOwnershipComment);
-
-  for (const [method, block] of [
-    ['GET', getBlock],
-    ['PUT', putBlock],
-    ['DELETE', deleteBlock],
-  ]) {
-    assert.match(
-      block,
-      /\.eq\('id', id\)\s*\.eq\('owner_id', identity\.userId\)/u,
-      `${method} must filter by both memo ID and verified owner ID`,
-    );
-  }
-  assert.match(source, /if \(!data\) return sendError\(response, 404, 'NOT_FOUND'\);/u);
+  assert.match(source, /\.eq\('id',id\)\.eq\('owner_id',identity\.userId\)/u,
+    'lookup must filter by both memo ID and verified owner ID');
+  assert.match(source, /\.update\(\{title:value\.title,content:value\.body\}\)[\s\S]*?\.eq\('id',id\)\.eq\('owner_id',identity\.userId\)/u,
+    'PUT must update only the verified owner row');
+  assert.match(source, /\.delete\(\)[\s\S]*?\.eq\('id',id\)\.eq\('owner_id',identity\.userId\)/u,
+    'DELETE must delete only the verified owner row');
+  assert.match(source, /sendResourceError\(res,404,'NOT_FOUND'\)/u,
+    'missing or non-owned records must not be exposed');
+  assert.match(source, /requireApprovedDevice\(req,res,auth\)/u,
+    'protected resource routes must require an approved device signature');
 });
 
 test('비로그인 점검은 정적 메모 부재와 모든 CRUD 경로의 자료 없는 거부를 확인한다', async () => {
