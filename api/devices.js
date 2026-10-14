@@ -14,13 +14,13 @@ export default async function handler(req, res) {
 
   try {
     const { data, error } = await auth.supabase.from('app_devices')
-      .select('id,label,status,created_at,approved_at,last_seen_at,public_key_sha256')
+      .select('id,label,status,created_at,approved_at,last_seen_at')
       .eq('owner_id', auth.identity.userId).order('created_at', { ascending: false });
     if (error || !Array.isArray(data)) return sendResourceError(res, 503, 'DEVICE_REGISTRY_UNAVAILABLE');
     return res.status(200).json(data.map((device) => ({
       deviceId: device.id, label: device.label, status: device.status,
       createdAt: device.created_at, approvedAt: device.approved_at,
-      lastSeenAt: device.last_seen_at, fingerprint: device.public_key_sha256.slice(0, 16)
+      lastSeenAt: device.last_seen_at
     })));
   } catch {
     return sendResourceError(res, 503, 'DEVICE_REGISTRY_UNAVAILABLE');
