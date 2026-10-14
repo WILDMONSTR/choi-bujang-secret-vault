@@ -1,66 +1,56 @@
-import { verifyDeviceRequest } from './device-signature.mjs';
+import { matchesDeviceToken, readDeviceCredential } from './device-cookie.mjs';
 
-export async function requireApprovedDevice(req, res, auth) {
-  const deviceId = req?.headers?.['x-app-device-id'];
-  if (typeof deviceId !== 'string') {
-    res.status(401).json({ error: 'DEVICE_SIGNATURE_REQUIRED' });
-    return false;
-  }
+export async function findDeviceForSession(req, auth) {
+  const credential = readDeviceCredential(req);
+  if (!credential) return { device: null, code: 'DEVICE_NOT_REGISTERED' };
 
   const { supabase: db, identity } = auth ?? {};
   if (!db || typeof identity?.userId !== 'string') {
-    res.status(401).json({ error: 'UNAUTHORIZED' });
-    return false;
+    return { device: null, code: 'UNAUTHORIZED' };
   }
 
-  try {
-    const { data: device, error } = await db.from('app_devices')
-      .select('id,owner_id,public_jwk,status')
-      .eq('id', deviceId)
-      .eq('owner_id', identity.userId)
-      .maybeSingle();
+  const { data: device, error } = await db.from('app_devices')
+    .select('id,owner_id,status,device_cookie_sha256,label,created_at,approved_at,last_seen_at')
+    .eq('id', credential.deviceId)
+    .eq('owner_id', identity.userId)
+    .maybeSingle();
 
-    if (error) {
-      res.status(503).json({ error: 'DEVICE_REGISTRY_UNAVAILABLE' });
+  if (error) return { device: null, code: 'DEVICE_REGISTRY_UNAVAILABLE' };
+  if (!device || !matchesDeviceToken(credential.token, device.device_cookie_sha256)) {
+    return { device: null, code: 'DEVICE_COOKIE_INVALID' };
+  }
+  return { device, code: null };
+}
+
+export async function requireApprovedDevice(req, res, auth) {
+  try {
+    const result = await findDeviceForSession(req, auth);
+    if (result.code === 'DEVICE_REGISTRY_UNAVAILABLE') {
+      res.status(503).json({ error: result.code });
       return false;
     }
-    if (!device || device.owner_id !== identity.userId) {
+    if (result.code === 'UNAUTHORIZED') {
+      res.status(401).json({ error: result.code });
+      return false;
+    }
+    if (!result.device) {
       res.status(403).json({ error: 'DEVICE_NOT_REGISTERED' });
       return false;
     }
-    if (device.status !== 'approved') {
+    if (result.device.status !== 'approved') {
       res.status(403).json({ error: 'DEVICE_NOT_APPROVED' });
       return false;
     }
 
-    const checked = verifyDeviceRequest(req, device.public_jwk);
-    if (!checked.valid || checked.deviceId !== device.id) {
-      res.status(401).json({ error: checked.code || 'INVALID_DEVICE_SIGNATURE' });
+    const { error: seenError } = await auth.supabase.from('app_devices')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', result.device.id)
+      .eq('owner_id', auth.identity.userId)
+      .eq('status', 'approved');
+    if (seenError) {
+      res.status(503).json({ error: 'DEVICE_REGISTRY_UNAVAILABLE' });
       return false;
     }
-
-    const signedAt = new Date(checked.timestamp).toISOString();
-    const expiresAt = new Date(checked.timestamp + 120_000).toISOString();
-    const { error: nonceError } = await db.from('app_device_request_nonces').insert({
-      device_id: device.id,
-      nonce: checked.nonce,
-      signed_at: signedAt,
-      expires_at: expiresAt
-    });
-    if (nonceError) {
-      res.status(nonceError.code === '23505' ? 409 : 503).json({
-        error: nonceError.code === '23505' ? 'DEVICE_REQUEST_REPLAYED' : 'DEVICE_REPLAY_CHECK_UNAVAILABLE'
-      });
-      return false;
-    }
-
-    await db.from('app_devices').update({ last_seen_at: new Date().toISOString() })
-      .eq('id', device.id).eq('owner_id', identity.userId).eq('status', 'approved');
-
-    // Expired replay records are safe to remove; live nonces remain protected by the primary key.
-    await db.from('app_device_request_nonces').delete()
-      .lt('expires_at', new Date().toISOString());
-
     return true;
   } catch {
     res.status(503).json({ error: 'DEVICE_VERIFICATION_UNAVAILABLE' });
