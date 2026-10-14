@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/decider-test.mjs && node scripts/resource-id-test.mjs && node scripts/detect-test.mjs && node scripts/stage10-test.mjs && node scripts/device-signature-test.mjs && node scripts/build-public.mjs",
+    "build": "node scripts/decider-test.mjs && node scripts/resource-id-test.mjs && node scripts/detect-test.mjs && node scripts/stage10-test.mjs && node scripts/device-signature-test.mjs && node --test scripts/stage11-test.mjs && node scripts/build-public.mjs",
     "test:r5": "node --test test/r5.test.mjs",
     "test:package": "node --test test/package-starter.test.mjs",
     "bundle": "node scripts/bundle.mjs",
@@ -13,7 +13,8 @@
     "xdr:run": "node scripts/xdr-run.mjs",
     "resource-id:test": "node scripts/resource-id-test.mjs",
     "stage10:test": "node scripts/stage10-test.mjs",
-    "device:test": "node scripts/device-signature-test.mjs"
+    "device:test": "node scripts/device-signature-test.mjs",
+    "stage11:test": "node --test scripts/stage11-test.mjs"
   },
   "engines": {
     "node": ">=22"
