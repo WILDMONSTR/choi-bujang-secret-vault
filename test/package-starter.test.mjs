@@ -5,14 +5,41 @@ import { test } from 'node:test';
 
 const baseline = JSON.parse(await readFile(new URL('../package/baseline-functions.json', import.meta.url)));
 
-test('패키징 함수 기준표는 시작 틀의 실제 API와 일치한다', async () => {
-  const actual = (await readdir(new URL('../api/', import.meta.url)))
-    .filter(name => /\.(?:m?js|ts)$/u.test(name))
-    .map(name => join('api', name).replaceAll('\\', '/')).sort();
+async function listApiFiles(directory, prefix = 'api') {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const found = [];
+  for (const entry of entries) {
+    const relative = join(prefix, entry.name).replaceAll('\\\\', '/');
+    const absolute = join(directory, entry.name);
+    if (entry.isDirectory()) found.push(...await listApiFiles(absolute, relative));
+    else if (/\\.(?:m?js|ts)$/u.test(entry.name)) found.push(relative);
+  }
+  return found.sort();
+}
+
+test('패키징 함수 기준표는 중첩 경로를 포함한 실제 API와 일치한다', async () => {
+  const actual = await listApiFiles(new URL('../api/', import.meta.url).pathname.replace(/^\\//u, ''));
   assert.equal(baseline.version, 1);
   assert.equal(baseline.starter, 'ChoiTimo/aleph-defense-starter');
   assert.deepEqual(baseline.functions, []);
-  assert.deepEqual(baseline.allowedNew, ['api/ai.js', 'api/announcements.js', 'api/devices.js', 'api/notes.js', 'api/threat-intel.js']);
+  assert.deepEqual(baseline.allowedNew, [
+    'api/ai.js',
+    'api/announcements.js',
+    'api/announcements/[id].js',
+    'api/auth/login.js',
+    'api/auth/logout.js',
+    'api/auth/session.js',
+    'api/devices.js',
+    'api/devices/approve-self.js',
+    'api/devices/approve.js',
+    'api/devices/register.js',
+    'api/notes.js',
+    'api/notes/[id].js',
+    'api/stage10/memo-restore.js',
+    'api/stage10/policy-diff.js',
+    'api/stage10/policy-restore.js',
+    'api/threat-intel.js'
+  ]);
   assert.deepEqual(actual, [...baseline.functions, ...baseline.allowedNew].sort());
 });
 
@@ -38,5 +65,5 @@ test('P7 시작 틀 안내는 실제 빌드 조건과 새 배포 시험에 맞�
   assert.match(readme, /새 Vercel 프로젝트/u);
   assert.match(readme, /Vercel이 제공하는 저장소·커밋·배포 URL 정보/u);
   assert.doesNotMatch(readme, /npm start/u);
-  assert.match(selfCheck, /P7-3\.png/u);
+  assert.match(selfCheck, /P7-3\\.png/u);
 });
