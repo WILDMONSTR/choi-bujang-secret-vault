@@ -1,8 +1,7 @@
 import config from '../../aleph.config.json' with { type: 'json' };
 import { requireResourceIdentity, sendResourceError } from '../../src/resource-access.mjs';
-import { publicKeyFingerprint, validatePublicJwk } from '../../src/device-signature.mjs';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+import { clearDeviceCookie, createDeviceCredential, readDeviceCredential, setDeviceCookie } from '../../src/device-cookie.mjs';
+import { findDeviceForSession } from '../../src/require-approved-device.mjs';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -13,56 +12,39 @@ export default async function handler(req, res) {
   const auth = await requireResourceIdentity(req, res, config);
   if (!auth) return;
 
-  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null;
-  const deviceId = body?.deviceId;
-  const label = typeof body?.label === 'string' ? body.label.trim() : '이 기기';
-  const publicJwk = validatePublicJwk(body?.publicJwk);
-  if (!body || typeof deviceId !== 'string' || !UUID.test(deviceId)
-      || !publicJwk || !label || label.length > 80) {
-    return sendResourceError(res, 400, 'INVALID_DEVICE_REGISTRATION');
-  }
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const suppliedLabel = typeof body.label === 'string' ? body.label.trim() : '이 브라우저';
+  const label = suppliedLabel.slice(0, 80) || '이 브라우저';
 
   try {
-    const fingerprint = publicKeyFingerprint(publicJwk);
-    const db = auth.supabase;
-    const { data: sameId, error: idError } = await db.from('app_devices')
-      .select('id,owner_id,public_key_sha256,status,label')
-      .eq('id', deviceId).maybeSingle();
-    if (idError) return sendResourceError(res, 503, 'DEVICE_REGISTRY_UNAVAILABLE');
-    if (sameId) {
-      if (sameId.owner_id !== auth.identity.userId || sameId.public_key_sha256 !== fingerprint) {
-        return sendResourceError(res, 409, 'DEVICE_ID_CONFLICT');
-      }
+    const current = await findDeviceForSession(req, auth);
+    if (current.code === 'DEVICE_REGISTRY_UNAVAILABLE') {
+      return sendResourceError(res, 503, current.code);
+    }
+    if (current.device) {
       return res.status(200).json({
-        deviceId: sameId.id, status: sameId.status, label: sameId.label,
-        fingerprint: fingerprint.slice(0, 16)
+        deviceId: current.device.id, status: current.device.status, label: current.device.label
       });
     }
 
-    const { data: existingKey, error: keyError } = await db.from('app_devices')
-      .select('id,owner_id,status,label')
-      .eq('owner_id', auth.identity.userId).eq('public_key_sha256', fingerprint).maybeSingle();
-    if (keyError) return sendResourceError(res, 503, 'DEVICE_REGISTRY_UNAVAILABLE');
-    if (existingKey) {
-      return res.status(200).json({
-        deviceId: existingKey.id, status: existingKey.status, label: existingKey.label,
-        fingerprint: fingerprint.slice(0, 16)
-      });
-    }
+    const oldCookie = readDeviceCredential(req);
+    if (oldCookie) clearDeviceCookie(res);
 
-    const { data, error } = await db.from('app_devices').insert({
-      id: deviceId,
+    const credential = createDeviceCredential();
+    const { data, error } = await auth.supabase.from('app_devices').insert({
+      id: credential.deviceId,
       owner_id: auth.identity.userId,
-      public_jwk: publicJwk,
-      public_key_sha256: fingerprint,
+      public_jwk: null,
+      public_key_sha256: null,
+      device_cookie_sha256: credential.tokenHash,
       label,
       status: 'pending'
-    }).select('id,status,label,public_key_sha256').single();
+    }).select('id,status,label').single();
 
     if (error || !data) return sendResourceError(res, 503, 'DEVICE_REGISTRY_UNAVAILABLE');
+    setDeviceCookie(res, credential.deviceId, credential.token);
     return res.status(201).json({
-      deviceId: data.id, status: data.status, label: data.label,
-      fingerprint: data.public_key_sha256.slice(0, 16)
+      deviceId: data.id, status: data.status, label: data.label
     });
   } catch {
     return sendResourceError(res, 503, 'DEVICE_REGISTRY_UNAVAILABLE');
