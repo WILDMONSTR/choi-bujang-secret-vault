@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import config from '../../aleph.config.json' with { type: 'json' };
 import { requireResourceIdentity, sendResourceError } from '../../src/resource-access.mjs';
-import { validatePublicJwk } from '../../src/device-signature.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
