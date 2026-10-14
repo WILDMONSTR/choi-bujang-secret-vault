@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
 const baseline = JSON.parse(await readFile(new URL('../package/baseline-functions.json', import.meta.url)));
@@ -18,7 +19,7 @@ async function listApiFiles(directory, prefix = 'api') {
 }
 
 test('패키징 함수 기준표는 중첩 경로를 포함한 실제 API와 일치한다', async () => {
-  const actual = await listApiFiles(new URL('../api/', import.meta.url).pathname.replace(/^\\//u, ''));
+  const actual = await listApiFiles(fileURLToPath(new URL('../api/', import.meta.url)));
   assert.equal(baseline.version, 1);
   assert.equal(baseline.starter, 'ChoiTimo/aleph-defense-starter');
   assert.deepEqual(baseline.functions, []);
