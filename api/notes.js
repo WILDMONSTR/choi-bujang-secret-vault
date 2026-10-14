@@ -1,6 +1,7 @@
 import config from '../aleph.config.json' with {type:'json'};
 import {requireResourceIdentity,requireZoneMembership,sendResourceError} from '../src/resource-access.mjs';
 import {formatResourceId} from '../src/resource-id.mjs';
+import {requireApprovedDevice} from '../src/require-approved-device.mjs';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 function parse(body){
@@ -25,6 +26,7 @@ export default async function handler(req,res){
   }
   const auth=await requireResourceIdentity(req,res,config);
   if(!auth)return;
+  if(!await requireApprovedDevice(req,res,auth))return;
   const {supabase:db,identity}=auth;
 
   try{
