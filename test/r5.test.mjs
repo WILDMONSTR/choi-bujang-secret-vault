@@ -74,7 +74,7 @@ test('비로그인 점검은 정적 메모 부재와 모든 CRUD 경로의 자�
   try {
     globalThis.fetch = async (url, init) => {
       const parsed = new URL(String(url));
-      requests.push({ path: parsed.pathname, method: init.method, options: init });
+      requests.push({ path: parsed.pathname, method: init?.method ?? 'GET', options: init ?? {} });
       if (parsed.pathname === '/data.json') return new Response('Not found', { status: 404 });
       if (parsed.pathname === '/api/notes' || parsed.pathname.startsWith('/api/notes/')) {
         return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
