@@ -3,7 +3,7 @@
 이 저장소는 1~10단계에서 만든 로그인·로그아웃, 사용자별 가상 메모 소유권, 위험 접속 판정, 탐지 연습과 안전한 복원 기능을 보존하는 학습용 구성입니다. 11단계에서는 설치형 웹앱 화면과 서버가 확인하는 기기 등록·승인을 추가합니다. 브라우저에서 기기 개인키를 생성하거나 웹 저장소에 보관하지 않습니다. 실제 운영 정책·실제 사용자 자료·비밀값은 이 실습에 넣지 마세요.
 
 
-## 11단계: 설치형 웹앱과 서명된 기기 승인
+## 11단계: 설치형 웹앱과 서버 확인형 기기 승인
 
 - `public/manifest.webmanifest`, `public/sw.js`, `public/app-icon.svg`가 설치 가능한 웹앱 화면과 앱 셸 오프라인 캐시를 제공합니다. 서비스 워커는 HTML/아이콘/클라이언트 모듈만 캐시하며 `/api/` 응답이나 메모 본문을 캐시하지 않습니다.
 - `public/device-client.js`에는 기기 개인키 생성·서명 코드, `localStorage`, `sessionStorage`, `IndexedDB` 사용이 없습니다. 등록은 `POST /api/devices/register`이며 서버가 만든 무작위 기기 세션을 `HttpOnly; Secure; SameSite=Strict` 쿠키로 전달합니다. 쿠키 원문은 JavaScript나 API JSON에 노출하지 않고 DB에는 SHA-256 해시만 저장합니다. 새 기기는 `pending` 상태로만 생성됩니다.
