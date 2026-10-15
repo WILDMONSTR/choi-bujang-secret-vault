@@ -110,6 +110,8 @@ test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_r
     assert.ok(requests.every(item => item.options.headers.Authorization === undefined));
     assert.ok(requests.every(item => !Object.keys(item.options.headers).some(name => name.toLowerCase() === 'x-aleph-attack-id')));
     assert.ok(requests.every(item => item.options.alephEvidence?.requestKey === 'read'));
+    assert.ok(requests.every(item => item.options.redirect === 'manual'),
+      'a redirect response must be observed instead of being converted into a fetch rejection');
     for (const item of requests) {
       const measured = results.find(result => result.attackId === item.caseId);
       assert.equal(
@@ -138,6 +140,15 @@ test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_r
       failedStaticCheck.find(item => item.attackId === 'anonymous_static_data_read').observed,
       /^HTTP 200; method=GET; urlSha256=[a-f0-9]{64}; bodyBytes=\d+$/u,
     );
+
+    globalThis.fetch = async () => new Response(null, {
+      status: 307, headers: { location: 'https://redirect.example.invalid/target' },
+    });
+    const redirected = await runAttackChecks(config);
+    assert.ok(redirected
+      .filter(item => ['anonymous_static_data_read', 'anonymous_notes_list', 'anonymous_note_read'].includes(item.attackId))
+      .every(item => /^HTTP 307; method=GET; urlSha256=[a-f0-9]{64}; bodyBytes=0$/u.test(item.observed)),
+    'a received 307 response must retain its actual HTTP status, not become not_run');
 
     globalThis.fetch = async () => { throw new Error('network unavailable'); };
     const unavailable = await runAttackChecks(config);
