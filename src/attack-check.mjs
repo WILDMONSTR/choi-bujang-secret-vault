@@ -76,6 +76,7 @@ export async function runAttackChecks(config) {
       const url = new URL(probe.path, app);
       const response = await fetch(url, {
         method: probe.method,
+        // Preserve received 3xx statuses as evidence rather than turning them into fetch errors.
         redirect: 'manual',
         signal: AbortSignal.timeout(10000),
         cache: 'no-store',
