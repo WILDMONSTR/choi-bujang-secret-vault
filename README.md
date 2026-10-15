@@ -297,3 +297,79 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 12. 1~9단계의 정상·금지 요청을 다시 실행합니다. 미등록 기기, 허용 범위 밖 경로, 공지 쓰기, 출처가 불명확한 신호, 지역 신호만 다른 경우를 이전 단계의 기대값에 맞춰 확인합니다. 실행하지 않은 항목은 미실행으로 유지합니다.
 
 로컬 단위 시험은 실제 Supabase 복원, 배포 API 또는 심판 판정을 증명하지 않습니다. 실제 DB 사본과 환경변수 설정 전에는 복원 성공을 주장할 수 없습니다. 최종 제출 묶음은 준비가 끝난 로컬 저장소에서 npm run bundle로 생성합니다. bundle-notes.json과 artifacts/submission.json은 커밋하지 않습니다.
+
+
+## 12단계 재제출 안내: 출처와 재현 절차
+
+### 검사 기준과 코드 출처
+
+- 이 안내에서 확인한 읽기 전용 공격 점검 구현의 기준 커밋은 `89e6e219c07393405e6d6452f1cd0f184c02235c`입니다. 이 커밋의 `src/attack-check.mjs`는 공개 HTTPS 주소로 GET만 전송하고, POST·PUT·DELETE 점검은 전송하지 않은 채 `observed: "not_run"`으로 기록합니다. README를 갱신한 문서 커밋은 이 코드 커밋의 후속 커밋이므로, 실제 제출 때에는 `git rev-parse HEAD`로 제출 커밋을 별도로 기록하세요.
+- **학생 작업(이 저장소):** `src/decider.mjs`의 판정 규칙과 `RULE_IDS`, `src/detect.mjs`의 사건 탐지, `src/attack-check.mjs`의 읽기 전용 자체 점검, `public/index.html` 및 `public/operations-room.js`의 접속 앱·화면, `api/` 및 `src/api-handlers/`의 자료실 API, `supabase/migrations/`의 데이터베이스 변경입니다. 탐지기의 `propose_revocation` 결과는 제안일 뿐 실제 기기 권한을 회수하지 않습니다.
+- **제공 엔진(ALEPH SDP 엔진):** `aleph.config.json`의 `judgeIssuer`에 등록된 접수 주소는 ALEPH SDP 엔진에 요청을 제출하기 위한 설정입니다. 엔진 구현 소스는 이 학생 저장소에 포함되어 있지 않습니다. 접수 주소를 실제 시험별 결과 조회 API로 간주하지 말고, 심판 결과를 조회할 수 없으면 미확인으로 기록하세요.
+- 학생의 앱·판정·탐지 코드와 제공 엔진의 동작을 같은 출처로 보고하지 마세요. 환경변수 이름은 문서화할 수 있지만, 비밀값·세션 쿠키·토큰·메모 본문은 커밋이나 제출 묶음에 넣지 않습니다.
+
+### 설치
+
+1. Node.js 22.x가 설치되어 있는지 `node --version`으로 확인합니다. 이 프로젝트의 `package.json`과 GitHub Actions는 Node.js 22 계열을 사용합니다.
+2. 새 폴더에서 저장소를 가져오고 의존성을 설치합니다.
+
+```powershell
+git clone https://github.com/WILDMONSTR/choi-bujang-secret-vault.git
+cd choi-bujang-secret-vault
+git checkout main
+node --version
+npm.cmd ci
+```
+
+Windows PowerShell에서 `npm` 스크립트 실행이 차단되면 `npm.cmd`를 사용합니다. 설치 오류가 나면 원래 오류를 보존하고 무관한 파일이나 잠금 파일을 임의로 수정하지 마세요.
+
+### 실행 및 제출 묶음 생성
+
+1. 먼저 작업 트리와 현재 제출 커밋을 기록합니다.
+
+```powershell
+git status --short
+git rev-parse HEAD
+```
+
+2. 잠금 파일에 맞게 설치한 뒤 프로젝트 검사들을 실행합니다. 각각의 종료 코드와 실제 결과를 기록하고 실행하지 않은 항목은 통과로 표시하지 않습니다.
+
+```powershell
+npm.cmd run device:test
+npm.cmd run stage11:test
+npm.cmd run stage12:test
+npm.cmd run decider:test
+npm.cmd run resource-id:test
+npm.cmd run detect:test
+npm.cmd run stage10:test
+npm.cmd run test:r5
+npm.cmd run test:package
+npm.cmd run build -- --local
+```
+
+3. 제출 설명 파일 `bundle-notes.json`은 로컬 전용 파일입니다. UTF-8 JSON의 `explanation`에 이번 작업 설명만 적고, 실제 비밀값이나 개인 자료를 넣지 않습니다. `.gitignore`가 이 파일과 `artifacts/`를 제외하는지 확인하고 둘 다 커밋하지 마세요.
+4. 작업 트리가 커밋되지 않은 변경 없이 깨끗한 상태인지 확인하고 `npm run bundle`을 실행합니다. Windows PowerShell에서는 다음과 같이 실행합니다.
+
+```powershell
+git status --short
+npm.cmd run bundle
+```
+
+5. 번들러는 현재 커밋의 파일 목록과 규칙 등록을 검사하고 `aleph.config.json`의 공개 HTTPS 주소에 GET 요청을 보내 자체 점검 결과를 만듭니다. 쓰기 요청을 요구하는 점검은 요청하지 않고 `observed: "not_run"`으로 둡니다. 읽기 요청이 실제 HTTP 응답을 받으면 `observed`에는 응답 상태(예: `HTTP 401`)만 기록합니다. 네트워크 실패를 HTTP 상태로 꾸며 쓰지 않습니다.
+6. 성공 시 생성된 `artifacts/submission.json`에서 `commit`, `changedFiles`, `attackAttempts`를 확인합니다. 산출물은 해당 실행의 제출 기록이며, 외부 심판의 최종 합격 판정과 같지 않습니다.
+
+### 중지
+
+- `npm run bundle`은 일회성 명령이며 완료되면 종료됩니다. 실행 중 멈춰야 하는 터미널 작업은 `Ctrl+C`로 중단합니다. 이 저장소는 별도 `npm run start` 또는 `npm run dev` 스크립트를 정의하지 않습니다.
+- 배포된 앱을 중지하거나 이전 배포로 되돌려야 한다면 Vercel 대시보드의 해당 프로젝트에서 배포 상태와 마지막 정상 배포를 확인한 뒤 운영자가 직접 중지·롤백합니다. 롤백은 앱 코드 배포를 바꿀 뿐 Supabase 데이터나 복구 테이블을 자동으로 되돌리지 않습니다.
+- 검사기가 보내는 요청은 읽기 전용 GET뿐입니다. POST·PUT·DELETE를 이용해 상태 변경을 시도하지 마세요.
+
+### 복구
+
+1. 장애나 침해가 의심되면 먼저 추가 변경을 중지합니다. 운영 정책이나 사용자 메모를 임의로 덮어쓰지 않습니다.
+2. 자료실의 시험 정책 복구가 필요하면 승인된 로그인과 기기 인증을 정상적으로 거친 시험 계정 B로 `GET /api/stage10/policy-diff`를 먼저 조회합니다. 복구할 사본 버전, SHA-256, 현재 정책 지문과 변경 범위를 확인하고 `canRestore: true`가 아니면 진행하지 않습니다.
+3. 신뢰할 수 있는 사전 검증 사본이 없거나 지문·검증 시각이 맞지 않으면 복구를 중단합니다. 추측으로 백업을 만들거나 성공으로 기록하지 않습니다.
+4. 미리보기와 현재 상태가 일치하는 경우에만 승인된 절차로 `POST /api/stage10/policy-restore`를 실행하여 `stage10_test_policies`의 `services.learning_notes` 범위만 복원합니다. 메모 한 건은 별도로 검증된 `stage10_memo_backups` 사본이 있을 때만 `POST /api/stage10/memo-restore`로 복구합니다. 이러한 변경 요청은 자체 점검기에서 보내지 않습니다.
+5. 응답의 버전·ID·해시와 데이터베이스 감사 기록을 대조하고, 정상 조회 및 타인 소유 메모 접근 거부를 다시 검사합니다. 감사 기록이 없거나 검증을 실행하지 않았으면 각각 `기록 없음` 또는 `미실행`으로 남깁니다. 앱 배포를 롤백했다면 데이터베이스 상태는 별도로 확인합니다.
+
+위 명령과 순서는 재현을 위한 지침입니다. 실제로 실행해 얻은 로그나 HTTP 상태만 결과로 보고하며, 제출 커밋 SHA와 심판이 기록한 요청·결과가 일치하는지 제출 전에 대조하세요.
