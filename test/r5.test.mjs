@@ -74,7 +74,12 @@ test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_r
   try {
     globalThis.fetch = async (url, init) => {
       const parsed = new URL(String(url));
-      requests.push({ path: parsed.pathname, method: init?.method ?? 'GET', options: init ?? {} });
+      requests.push({
+        attackId: init?.headers?.['x-aleph-attack-id'],
+        path: parsed.pathname,
+        method: init?.method ?? 'GET',
+        options: init ?? {},
+      });
       if (parsed.pathname === '/data.json') return new Response('Not found', { status: 404 });
       if (parsed.pathname === '/api/notes' || parsed.pathname.startsWith('/api/notes/')) {
         return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
@@ -85,11 +90,16 @@ test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_r
     };
 
     const results = await runAttackChecks(config);
-    assert.deepEqual(requests.map(item => [item.path, item.method]), [
-      ['/data.json', 'GET'],
-      ['/api/notes', 'GET'],
-      ['/api/notes/00000000-0000-4000-8000-000000000001', 'GET'],
+    assert.deepEqual(requests.map(item => [item.attackId, item.path, item.method]), [
+      ['anonymous_static_data_read', '/data.json', 'GET'],
+      ['anonymous_notes_list', '/api/notes', 'GET'],
+      ['anonymous_note_read', '/api/notes/00000000-0000-4000-8000-000000000001', 'GET'],
     ]);
+    assert.deepEqual(
+      results.filter(item => item.observed !== 'not_run').map(item => item.attackId),
+      requests.map(item => item.attackId),
+      'each observed record must map one-to-one to the request carrying that attack ID',
+    );
     assert.ok(requests.every(item => ['GET', 'HEAD'].includes(item.method)));
     assert.ok(requests.every(item => item.options.headers.Authorization === undefined));
     assert.equal(results.find(item => item.attackId === 'anonymous_static_data_read').observed, 'HTTP 404');
