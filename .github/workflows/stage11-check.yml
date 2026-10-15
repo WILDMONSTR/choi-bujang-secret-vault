@@ -36,7 +36,7 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Install locked dependencies without package lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: npm install
       - name: Test HttpOnly device session handling
         run: npm run device:test
       - name: Test stage 11 PWA and approval wiring
@@ -71,7 +71,7 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Install locked dependencies without package lifecycle scripts
-        run: npm.cmd ci --ignore-scripts
+        run: npm.cmd install
       - name: Test HttpOnly device session handling
         run: npm.cmd run device:test
       - name: Test stage 11 PWA and approval wiring
