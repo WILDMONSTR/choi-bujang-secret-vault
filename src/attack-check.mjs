@@ -1,6 +1,7 @@
 // Each stage updates this self-check to inspect the current protection boundary.
 // Never return tokens, private keys, real names, or note bodies.
 const TEST_ID = '00000000-0000-4000-8000-000000000001';
+const READ_METHODS = new Set(['GET', 'HEAD']);
 
 export async function runAttackChecks(config) {
   if (!Number.isInteger(config.step) || config.step < 2 || config.step > 12) {
@@ -18,35 +19,71 @@ export async function runAttackChecks(config) {
     throw new Error('aleph.config.json의 실제 배포 주소를 먼저 넣어 주세요.');
   }
 
+  // GET only: this check never changes remote data.
   const staticResponse = await fetch(new URL('/data.json', app), {
-    redirect: 'error', signal: AbortSignal.timeout(10000), cache: 'no-store',
+    method: 'GET',
+    redirect: 'error',
+    signal: AbortSignal.timeout(10000),
+    cache: 'no-store',
   });
   const staticDataMissing = staticResponse.status === 404 || staticResponse.status === 410;
 
+  // Write-method entries stay in the report as not_run. They are deliberately
+  // skipped before fetch(), so this self-check never sends POST, PUT, or DELETE.
   const anonymousProbes = [
-    { path: '/api/notes', method: 'GET' },
-    { path: '/api/notes', method: 'POST', body: { title: 'anonymous-test', body: 'must be denied' } },
-    { path: '/api/notes/' + TEST_ID, method: 'GET' },
-    { path: '/api/notes/' + TEST_ID, method: 'PUT', body: { title: 'anonymous-test', body: 'must be denied' } },
-    { path: '/api/notes/' + TEST_ID, method: 'DELETE' },
+    {
+      attackId: 'anonymous_notes_list',
+      path: '/api/notes',
+      method: 'GET',
+      expected: 'Unauthenticated GET /api/notes returns HTTP 401 without memo data',
+    },
+    {
+      attackId: 'anonymous_notes_create',
+      path: '/api/notes',
+      method: 'POST',
+      expected: 'Unauthenticated POST /api/notes is denied without creating a memo',
+    },
+    {
+      attackId: 'anonymous_note_read',
+      path: '/api/notes/' + TEST_ID,
+      method: 'GET',
+      expected: 'Unauthenticated GET /api/notes/:id returns HTTP 401 without memo data',
+    },
+    {
+      attackId: 'anonymous_note_update',
+      path: '/api/notes/' + TEST_ID,
+      method: 'PUT',
+      expected: 'Unauthenticated PUT /api/notes/:id is denied without changing a memo',
+    },
+    {
+      attackId: 'anonymous_note_delete',
+      path: '/api/notes/' + TEST_ID,
+      method: 'DELETE',
+      expected: 'Unauthenticated DELETE /api/notes/:id is denied without deleting a memo',
+    },
   ];
+
   const probeResults = [];
   for (const probe of anonymousProbes) {
-    const headers = { Accept: 'application/json' };
-    const init = {
+    if (!READ_METHODS.has(probe.method)) {
+      probeResults.push({
+        attackId: probe.attackId,
+        expected: probe.expected,
+        observed: 'not_run',
+      });
+      continue;
+    }
+
+    const response = await fetch(new URL(probe.path, app), {
       method: probe.method,
       redirect: 'error',
       signal: AbortSignal.timeout(10000),
       cache: 'no-store',
-      headers,
-    };
-    if (probe.body) {
-      headers['Content-Type'] = 'application/json';
-      init.body = JSON.stringify(probe.body);
-    }
-    const response = await fetch(new URL(probe.path, app), init);
-    let deniedWithoutData = false;
-    if (response.status === 401) {
+      headers: { Accept: 'application/json' },
+    });
+
+    let deniedWithoutData = response.status === 401 && probe.method === 'HEAD';
+    if (response.status === 401 && probe.method === 'GET') {
       try {
         const payload = await response.json();
         deniedWithoutData = payload?.error === 'UNAUTHORIZED'
@@ -57,16 +94,15 @@ export async function runAttackChecks(config) {
         // A malformed response is not a passing denial.
       }
     }
+
     probeResults.push({
-      route: probe.method + ' ' + probe.path,
-      passed: deniedWithoutData,
-      status: response.status,
+      attackId: probe.attackId,
+      expected: probe.expected,
+      observed: deniedWithoutData
+        ? 'HTTP 401 UNAUTHORIZED without memo data'
+        : `Request sent using ${probe.method}; received HTTP ${response.status}; expected HTTP 401 without memo data`,
     });
   }
-
-  const allAnonymousDenied = probeResults.every(result => result.passed);
-  const failedRoutes = probeResults.filter(result => !result.passed)
-    .map(result => result.route + ' (HTTP ' + result.status + ')');
 
   return [
     {
@@ -76,12 +112,6 @@ export async function runAttackChecks(config) {
         ? '/data.json is not found (HTTP 404/410)'
         : `/data.json is still reachable (HTTP ${staticResponse.status})`,
     },
-    {
-      attackId: 'anonymous_notes_crud',
-      expected: 'unauthenticated GET/POST /api/notes and GET/PUT/DELETE /api/notes/:id all return 401 without memo data',
-      observed: allAnonymousDenied
-        ? 'All five unauthenticated list/create/item requests returned HTTP 401 without memo data'
-        : 'Unauthenticated requests not correctly denied: ' + failedRoutes.join('; '),
-    },
+    ...probeResults,
   ];
 }
