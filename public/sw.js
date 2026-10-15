@@ -1,5 +1,5 @@
 const CACHE = 'byte-back-shell-v2';
-const SHELL = ['/', '/manifest.webmanifest', '/device-client.js', '/app-icon.svg'];
+const SHELL = ['/', '/manifest.webmanifest', '/device-client.js', '/operations-room.js', '/app-icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

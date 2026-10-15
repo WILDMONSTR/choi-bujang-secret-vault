@@ -45,7 +45,7 @@ export async function requireResourceIdentity(req,res,config){
     sendResourceError(res,401,'UNAUTHORIZED');
     return null;
   }
-  if(cookie&&req.method!=='GET'&&!isTrustedBrowserOrigin(req,config)){
+  if(['POST','PUT','PATCH','DELETE'].includes(req.method)&&!isTrustedBrowserOrigin(req,config)){
     sendResourceError(res,403,'ORIGIN_NOT_ALLOWED');
     return null;
   }

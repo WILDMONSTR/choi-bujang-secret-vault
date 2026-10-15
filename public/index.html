@@ -37,6 +37,23 @@
     .note-card strong { display: block; font-size: 18px; margin-bottom: 8px; }
     .note-card span { color: #bfd0e5; line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }
     .note-card .note-id { font-size: 12px; opacity: .75; margin-top: 12px; }
+
+    .ops-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px; margin: 18px 0; }
+    .ops-card { min-width: 0; border: 1px solid #51667c; border-radius: 12px; padding: 16px; background: #172538; }
+    .ops-card h3 { margin: 0 0 8px; font-size: 18px; }
+    .ops-card p, #operations-room p { font-size: 14px; }
+    .ops-card pre, .ops-output { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 290px; border-radius: 8px; padding: 12px; background: #0d1622; color: #d7e8fa; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .ops-input { display: grid; gap: 6px; margin: 12px 0; }
+    .ops-input input { width: 100%; box-sizing: border-box; border: 1px solid #617993; border-radius: 8px; padding: 10px; color: #ecf4ff; background: #101a28; font: inherit; }
+    #operations-room button { width: fit-content; border: 0; border-radius: 8px; padding: 9px 12px; color: #081522; background: #8ad8df; font: inherit; font-weight: 700; cursor: pointer; }
+    #operations-room button.secondary { background: #435971; color: #ecf4ff; }
+    #operations-room button:disabled { opacity: .55; cursor: wait; }
+    #ops-device-list { list-style: none; padding: 0; }
+    .ops-device { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #435971; padding: 10px 0; }
+    .ops-device strong, .ops-device small { display: block; overflow-wrap: anywhere; }
+    .ops-device small { margin-top: 4px; color: #a9bfd4; font-size: 11px; }
+    .ops-note { padding: 12px; border-left: 3px solid #8ad8df; background: #172538; border-radius: 6px; }
+
   </style>
 </head>
 <body>
@@ -80,6 +97,77 @@
       <p id="device-status" role="status" aria-live="polite">로그인 후 이 브라우저를 등록하고 승인하세요.</p>
       <ul id="device-list" aria-label="등록된 기기 목록"></ul>
     </section>
+
+    <section id="operations-room" hidden aria-labelledby="operations-title">
+      <h2 id="operations-title">12단계 · 탈환 작전실</h2>
+      <p>아래 상태는 화면 문구가 아니라 서버 응답과 DB 감사 기록으로 확인합니다. 미실행·조회 불가·미확인은 통과가 아닙니다.</p>
+      <div class="button-row">
+        <button id="ops-refresh" type="button">새로고침</button>
+      </div>
+      <div class="ops-grid">
+        <article class="ops-card">
+          <h3>학생 판정기</h3>
+          <p>현재 배포의 학생 코드에 가상 계약 요청 4건을 실행합니다. 외부 심판 결과와는 별개입니다.</p>
+          <button id="ops-run-decision" type="button">검사 실행</button>
+          <pre id="ops-decision-result" aria-live="polite">미실행</pre>
+        </article>
+        <article class="ops-card">
+          <h3>학생 탐지기</h3>
+          <p>가상 GET 사건 121건에 대한 실제 코드 출력을 확인합니다. 이 동작은 권한을 회수하지 않습니다.</p>
+          <button id="ops-run-detection" type="button">검사 실행</button>
+          <pre id="ops-detection-result" aria-live="polite">미실행</pre>
+        </article>
+        <article class="ops-card">
+          <h3>회수 결과 · 실제 DB 상태</h3>
+          <p>승인된 다른 기기의 회수 작업은 서버가 소유권을 재확인하고 감사 기록을 남깁니다. 현재 기기는 회수할 수 없습니다.</p>
+          <ul id="ops-device-list" aria-label="실제 등록 기기와 상태"></ul>
+          <pre id="ops-revoke-result" aria-live="polite">미실행 — 실제 회수 기록을 아직 조회하지 않았습니다.</pre>
+        </article>
+        <article class="ops-card">
+          <h3>복구 결과 · 실제 감사 기록</h3>
+          <p>복구 이력은 데이터베이스 감사 행에서 읽습니다. 정책 미리보기는 복구 실행과 다릅니다.</p>
+          <button id="ops-run-recovery-preview" class="secondary" type="button">시험 정책 복구 미리보기</button>
+          <pre id="ops-recovery-result" aria-live="polite">미실행 — 실제 복구 감사 기록을 아직 조회하지 않았습니다.</pre>
+        </article>
+        <article class="ops-card">
+          <h3>실제 익명 API 검사</h3>
+          <p>인증 쿠키를 보내지 않고 현재 배포에 GET·POST·PUT·DELETE 5건을 전송합니다. 메모 본문은 표시하지 않습니다.</p>
+          <button id="ops-run-anonymous" type="button">익명 조회·변경 5건 검사</button>
+          <pre id="ops-anonymous-result" aria-live="polite">미실행</pre>
+        </article>
+        <article class="ops-card">
+          <h3>타인 메모 소유권</h3>
+          <p>시험 계정 A의 메모 ID를 넣으면 현재 로그인 계정으로 실제 단건 조회를 시도합니다. 결과 화면에는 메모 내용이 노출되지 않습니다.</p>
+          <label class="ops-input" for="ops-owner-note-id">타인 메모 UUID 또는 memo:UUID
+            <input id="ops-owner-note-id" autocomplete="off" spellcheck="false" maxlength="64" placeholder="00000000-0000-4000-8000-000000000001">
+          </label>
+          <button id="ops-run-owner-check" type="button">타인 메모 ID 조회</button>
+          <pre id="ops-owner-result" aria-live="polite">미실행</pre>
+        </article>
+        <article class="ops-card">
+          <h3>구역 경계</h3>
+          <p>현재 계정에 속하지 않은 테스트 구역 ID로 실제 메모 목록 API를 조회합니다. 구역 멤버십이 확인되지 않으면 거부되어야 합니다.</p>
+          <label class="ops-input" for="ops-zone-id">허용되지 않은 구역 ID
+            <input id="ops-zone-id" autocomplete="off" spellcheck="false" maxlength="64" placeholder="external-lab-zone">
+          </label>
+          <button id="ops-run-zone-check" type="button">구역 밖 메모 조회</button>
+          <pre id="ops-zone-result" aria-live="polite">미실행</pre>
+        </article>
+        <article class="ops-card">
+          <h3>41종 필수 공세 · 외부 심판</h3>
+          <p>최종 클리어 조건은 12단계 통과와 41종 공격 방어입니다. 저장소에는 41개 시험별 심판 결과 조회 계약이 없어 이 화면이 실행·통과·미실행을 임의로 만들어낼 수 없습니다.</p>
+          <p class="ops-note"><strong>현재 상태: 미확인</strong><br>아래 로컬 점검의 결과는 별도로 기록됩니다. 외부 심판에서 확인 가능한 시험별 결과가 제공되기 전에는 41종 통과 또는 최종 클리어로 표시하지 않습니다.</p>
+        </article>
+        <article class="ops-card">
+          <h3>제공 엔진과 학생 작업의 출처</h3>
+          <p>배포 서버가 실제로 공개한 /aleph.json에서 저장소·커밋·단계 정보를 읽습니다.</p>
+          <pre id="ops-deployment-source" aria-live="polite">미실행</pre>
+        </article>
+      </div>
+      <h3>실제 서버 상태 조회</h3>
+      <pre id="ops-live-status" aria-live="polite">미실행</pre>
+    </section>
+
     <section id="notes-workspace" hidden aria-labelledby="notes-title">
       <h2 id="notes-title">내 가상 메모</h2>
       <form id="note-form" class="note-form">
@@ -99,6 +187,7 @@
   </main>
   <script type="module">
     import { approveCurrentDevice, getDeviceStatus, registerCurrentDevice, deviceRequest } from '/device-client.js';
+    import { mountOperationsRoom } from '/operations-room.js';
 
     const loginForm = document.querySelector('#login-form');
     const emailInput = document.querySelector('#auth-email');
@@ -126,6 +215,7 @@
     const deviceReauthPassword = document.querySelector('#device-reauth-password');
     const deviceStatus = document.querySelector('#device-status');
     const deviceList = document.querySelector('#device-list');
+    const operationsRoom = mountOperationsRoom();
 
     let authBusy = false;
     let noteBusy = false;
@@ -169,6 +259,7 @@
       loggedInPanel.hidden = !user;
       notesWorkspace.hidden = true;
       devicePanel.hidden = !user;
+      void operationsRoom.setVisible(false);
       if (user) {
         sessionStatus.textContent = '로그인됨: ' + (user.email || '이메일 정보 없음');
         notesList.replaceChildren();
@@ -228,7 +319,7 @@
           deviceList.append(item);
         }
         deviceStatus.textContent = devices.length
-          ? '기기 목록을 불러왔습니다. 승인된 기기만 서명 요청을 보낼 수 있습니다.'
+          ? '기기 목록을 불러왔습니다. 승인된 기기만 보호 API 요청을 보낼 수 있습니다.'
           : '등록된 기기가 없습니다.';
       } catch (error) {
         const code = error?.message || '';
@@ -300,11 +391,13 @@
           notesWorkspace.hidden = false;
           deviceStatus.textContent = '서버가 이 기기를 승인한 것을 확인했습니다. 기존 자료실을 표시합니다.';
           await loadNotesForSession(session);
+          void operationsRoom.setVisible(true);
           if (requestVersion === deviceStatusCheckVersion) await refreshDevices();
           return;
         }
 
         notesWorkspace.hidden = true;
+        void operationsRoom.setVisible(false);
         notesStatus.hidden = false;
         notesStatus.textContent = '서버에서 기기 승인이 확인될 때까지 보호 메모를 표시하지 않습니다.';
         if (!status?.registered) {
@@ -318,6 +411,7 @@
         if (requestVersion !== deviceStatusCheckVersion) return;
         approvedDeviceAccess = false;
         notesWorkspace.hidden = true;
+        void operationsRoom.setVisible(false);
         notesList.replaceChildren();
         notesStatus.hidden = false;
         notesStatus.textContent = '서버에서 승인 여부를 확인할 수 없어 보호 자료를 표시하지 않았습니다.';

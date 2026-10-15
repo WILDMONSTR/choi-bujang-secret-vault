@@ -2,13 +2,15 @@ import register from '../../src/api-handlers/device-register.mjs';
 import approve from '../../src/api-handlers/device-approve.mjs';
 import approveSelf from '../../src/api-handlers/device-approve-self.mjs';
 import status from '../../src/api-handlers/device-status.mjs';
+import revoke from '../../src/api-handlers/device-revoke.mjs';
 import { sendResourceError } from '../../src/resource-access.mjs';
 
 const handlers = {
   register,
   approve,
   'approve-self': approveSelf,
-  status
+  status,
+  revoke
 };
 
 export default async function handler(req, res) {

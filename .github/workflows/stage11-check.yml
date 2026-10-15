@@ -1,4 +1,4 @@
-name: Stage 11 security checks
+name: Stage 11 and 12 security checks
 
 on:
   push:
@@ -41,6 +41,8 @@ jobs:
         run: npm run device:test
       - name: Test stage 11 PWA and approval wiring
         run: npm run stage11:test
+      - name: Test stage 12 reclaim operations room
+        run: npm run stage12:test
       - name: Run existing regression tests
         run: |
           npm run decider:test
@@ -74,6 +76,8 @@ jobs:
         run: npm.cmd run device:test
       - name: Test stage 11 PWA and approval wiring
         run: npm.cmd run stage11:test
+      - name: Test stage 12 reclaim operations room
+        run: npm.cmd run stage12:test
       - name: Test decision contract
         run: npm.cmd run decider:test
       - name: Test resource IDs
