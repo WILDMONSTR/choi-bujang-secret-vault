@@ -304,6 +304,7 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 ### 검사 기준과 코드 출처
 
 - 이 안내에서 확인한 읽기 전용 공격 점검 구현의 기준 커밋은 `89e6e219c07393405e6d6452f1cd0f184c02235c`입니다. 이 커밋의 `src/attack-check.mjs`는 공개 HTTPS 주소로 GET만 전송하고, POST·PUT·DELETE 점검은 전송하지 않은 채 `observed: "not_run"`으로 기록합니다. README를 갱신한 문서 커밋은 이 코드 커밋의 후속 커밋이므로, 실제 제출 때에는 `git rev-parse HEAD`로 제출 커밋을 별도로 기록하세요.
+- `test/r5.test.mjs`의 회귀 계약은 `f931eff0d5395e52d2ff8d97e8be4f949e57dc6b`에서 읽기 전용 요청 및 `not_run` 동작에 맞췄습니다. 해당 커밋의 [GitHub Actions 검사](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/38698856605)는 Ubuntu와 Windows PowerShell 작업 모두 성공했습니다. 화면 파일은 이 보완에서 수정하지 않았습니다.
 - **학생 작업(이 저장소):** `src/decider.mjs`의 판정 규칙과 `RULE_IDS`, `src/detect.mjs`의 사건 탐지, `src/attack-check.mjs`의 읽기 전용 자체 점검, `public/index.html` 및 `public/operations-room.js`의 접속 앱·화면, `api/` 및 `src/api-handlers/`의 자료실 API, `supabase/migrations/`의 데이터베이스 변경입니다. 탐지기의 `propose_revocation` 결과는 제안일 뿐 실제 기기 권한을 회수하지 않습니다.
 - **제공 엔진(ALEPH SDP 엔진):** `aleph.config.json`의 `judgeIssuer`에 등록된 접수 주소는 ALEPH SDP 엔진에 요청을 제출하기 위한 설정입니다. 엔진 구현 소스는 이 학생 저장소에 포함되어 있지 않습니다. 접수 주소를 실제 시험별 결과 조회 API로 간주하지 말고, 심판 결과를 조회할 수 없으면 미확인으로 기록하세요.
 - 학생의 앱·판정·탐지 코드와 제공 엔진의 동작을 같은 출처로 보고하지 마세요. 환경변수 이름은 문서화할 수 있지만, 비밀값·세션 쿠키·토큰·메모 본문은 커밋이나 제출 묶음에 넣지 않습니다.
