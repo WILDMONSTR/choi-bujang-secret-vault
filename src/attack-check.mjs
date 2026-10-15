@@ -76,7 +76,7 @@ export async function runAttackChecks(config) {
       const url = new URL(probe.path, app);
       const response = await fetch(url, {
         method: probe.method,
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.timeout(10000),
         cache: 'no-store',
         headers: { Accept: 'application/json' },
