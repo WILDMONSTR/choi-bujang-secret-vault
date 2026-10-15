@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import notesHandler from '../api/notes.js';
@@ -74,37 +75,49 @@ test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_r
   try {
     globalThis.fetch = async (url, init) => {
       const parsed = new URL(String(url));
-      requests.push({
-        attackId: init?.headers?.['x-aleph-attack-id'],
-        path: parsed.pathname,
-        method: init?.method ?? 'GET',
-        options: init ?? {},
-      });
-      if (parsed.pathname === '/data.json') return new Response('Not found', { status: 404 });
-      if (parsed.pathname === '/api/notes' || parsed.pathname.startsWith('/api/notes/')) {
-        return new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
+      let response;
+      if (parsed.pathname === '/data.json') response = new Response('Not found', { status: 404 });
+      else if (parsed.pathname === '/api/notes' || parsed.pathname.startsWith('/api/notes/')) {
+        response = new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), {
           status: 401, headers: { 'content-type': 'application/json' },
         });
-      }
-      return new Response('Not found', { status: 404 });
+      } else response = new Response('Not found', { status: 404 });
+      requests.push({
+        caseId: init?.alephEvidence?.caseId,
+        requestKey: init?.alephEvidence?.requestKey,
+        url: parsed.href,
+        path: parsed.pathname,
+        method: init?.method ?? 'GET',
+        status: response.status,
+        bodyBytes: (await response.clone().arrayBuffer()).byteLength,
+        options: init ?? {},
+      });
+      return response;
     };
 
     const results = await runAttackChecks(config);
-    assert.deepEqual(requests.map(item => [item.attackId, item.path, item.method]), [
-      ['anonymous_static_data_read', '/data.json', 'GET'],
-      ['anonymous_notes_list', '/api/notes', 'GET'],
-      ['anonymous_note_read', '/api/notes/00000000-0000-4000-8000-000000000001', 'GET'],
+    assert.deepEqual(requests.map(item => [item.caseId, item.requestKey, item.path, item.method]), [
+      ['anonymous_static_data_read', 'read', '/data.json', 'GET'],
+      ['anonymous_notes_list', 'read', '/api/notes', 'GET'],
+      ['anonymous_note_read', 'read', '/api/notes/00000000-0000-4000-8000-000000000001', 'GET'],
     ]);
     assert.deepEqual(
       results.filter(item => item.observed !== 'not_run').map(item => item.attackId),
-      requests.map(item => item.attackId),
-      'each observed record must map one-to-one to the request carrying that attack ID',
+      requests.map(item => item.caseId),
+      'each measured request must correlate to exactly one result through alephEvidence.caseId',
     );
     assert.ok(requests.every(item => ['GET', 'HEAD'].includes(item.method)));
     assert.ok(requests.every(item => item.options.headers.Authorization === undefined));
-    assert.equal(results.find(item => item.attackId === 'anonymous_static_data_read').observed, 'HTTP 404');
-    assert.equal(results.find(item => item.attackId === 'anonymous_notes_list').observed, 'HTTP 401');
-    assert.equal(results.find(item => item.attackId === 'anonymous_note_read').observed, 'HTTP 401');
+    assert.ok(requests.every(item => !Object.keys(item.options.headers).some(name => name.toLowerCase() === 'x-aleph-attack-id')));
+    assert.ok(requests.every(item => item.options.alephEvidence?.requestKey === 'read'));
+    for (const item of requests) {
+      const measured = results.find(result => result.attackId === item.caseId);
+      assert.equal(
+        measured.observed,
+        `HTTP ${item.status}; method=${item.method}; urlSha256=${createHash('sha256').update(item.url).digest('hex')}; bodyBytes=${item.bodyBytes}`,
+        item.caseId,
+      );
+    }
     assert.equal(results.find(item => item.attackId === 'anonymous_notes_create').observed, 'not_run');
     assert.equal(results.find(item => item.attackId === 'anonymous_note_update').observed, 'not_run');
     assert.equal(results.find(item => item.attackId === 'anonymous_note_delete').observed, 'not_run');
@@ -121,10 +134,15 @@ test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_r
       });
     };
     const failedStaticCheck = await runAttackChecks(config);
-    assert.equal(
+    assert.match(
       failedStaticCheck.find(item => item.attackId === 'anonymous_static_data_read').observed,
-      'HTTP 200',
+      /^HTTP 200; method=GET; urlSha256=[a-f0-9]{64}; bodyBytes=\d+$/u,
     );
+
+    globalThis.fetch = async () => { throw new Error('network unavailable'); };
+    const unavailable = await runAttackChecks(config);
+    assert.ok(unavailable.every(item => item.observed === 'not_run'),
+      'a missing HTTP response must not be replaced by a guessed status');
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto';
+
 // Each stage updates this self-check to inspect the current protection boundary.
 // Never return tokens, private keys, real names, or note bodies.
 const TEST_ID = '00000000-0000-4000-8000-000000000001';
 const READ_METHODS = new Set(['GET', 'HEAD']);
-const ATTACK_ID_HEADER = 'x-aleph-attack-id';
 
 export async function runAttackChecks(config) {
   if (!Number.isInteger(config.step) || config.step < 2 || config.step > 12) {
@@ -71,20 +72,34 @@ export async function runAttackChecks(config) {
       continue;
     }
 
-    const response = await fetch(new URL(probe.path, app), {
-      method: probe.method,
-      redirect: 'error',
-      signal: AbortSignal.timeout(10000),
-      cache: 'no-store',
-      headers: { Accept: 'application/json', [ATTACK_ID_HEADER]: probe.attackId },
-    });
+    try {
+      const url = new URL(probe.path, app);
+      const response = await fetch(url, {
+        method: probe.method,
+        redirect: 'error',
+        signal: AbortSignal.timeout(10000),
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+        // The judge runner recognizes this fetch metadata; it is not an HTTP header.
+        alephEvidence: { caseId: probe.attackId, requestKey: 'read' },
+      });
+      const body = await response.arrayBuffer();
+      const urlSha256 = createHash('sha256').update(url.href).digest('hex');
 
-    // observed contains only the HTTP status actually returned by the server.
-    results.push({
-      attackId: probe.attackId,
-      expected: probe.expected,
-      observed: `HTTP ${response.status}`,
-    });
+      // Only facts observed from this request are recorded. Never record the body itself.
+      results.push({
+        attackId: probe.attackId,
+        expected: probe.expected,
+        observed: `HTTP ${response.status}; method=${probe.method}; urlSha256=${urlSha256}; bodyBytes=${body.byteLength}`,
+      });
+    } catch {
+      // No HTTP response was available, so do not fabricate a status.
+      results.push({
+        attackId: probe.attackId,
+        expected: probe.expected,
+        observed: 'not_run',
+      });
+    }
   }
 
   return results;

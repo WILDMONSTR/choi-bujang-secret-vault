@@ -43,7 +43,7 @@ jobs:
         run: |
           cat > bundle-notes.json <<'JSON'
           {
-            "explanation": "10단계는 검증된 안전 정책과 시험 정책의 차이를 먼저 보여 주고 learning_notes 시험 범위만 복원하도록 했습니다. 시험 계정 B의 가상 메모 한 건은 ID·소유자·본문 SHA-256을 검증하고 민감한 본문이나 토큰은 응답과 감사 이력에 기록하지 않습니다. 실제 검증 사본과 B 메모 백업이 별도 적재되지 않았다면 복원 요청은 거부됩니다."
+            "explanation": "12단계 저장점에서는 anonymous_static_data_read, anonymous_notes_list, anonymous_note_read의 실제 GET을 심판의 alephEvidence.caseId/requestKey 메타데이터로 연결합니다. observed에는 받은 HTTP 상태, GET 메서드, 요청 URL의 SHA-256, 응답 본문 바이트 수만 기록하며 본문은 기록하지 않습니다. HTTP 응답을 받지 못한 요청과 전송하지 않은 POST·PUT·DELETE는 not_run으로 남기고 화면 코드는 수정하지 않았습니다."
           }
           JSON
       - name: Run submission bundle checks
