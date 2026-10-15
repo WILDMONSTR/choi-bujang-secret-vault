@@ -319,7 +319,7 @@ git clone https://github.com/WILDMONSTR/choi-bujang-secret-vault.git
 cd choi-bujang-secret-vault
 git checkout main
 node --version
-npm.cmd ci
+npm.cmd install
 ```
 
 Windows PowerShell에서 `npm` 스크립트 실행이 차단되면 `npm.cmd`를 사용합니다. 설치 오류가 나면 원래 오류를 보존하고 무관한 파일이나 잠금 파일을 임의로 수정하지 마세요.
