@@ -68,7 +68,7 @@ test('단건 메모 GET·PUT·DELETE는 검증된 사용자 소유 행만 접근
     'protected resource routes must require an approved device signature');
 });
 
-test('비로그인 점검은 정적 메모 부재와 모든 CRUD 경로의 자료 없는 거부를 확인한다', async () => {
+test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_run으로 둔다', async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
   try {
@@ -88,18 +88,19 @@ test('비로그인 점검은 정적 메모 부재와 모든 CRUD 경로의 자�
     assert.deepEqual(requests.map(item => [item.path, item.method]), [
       ['/data.json', 'GET'],
       ['/api/notes', 'GET'],
-      ['/api/notes', 'POST'],
       ['/api/notes/00000000-0000-4000-8000-000000000001', 'GET'],
-      ['/api/notes/00000000-0000-4000-8000-000000000001', 'PUT'],
-      ['/api/notes/00000000-0000-4000-8000-000000000001', 'DELETE'],
     ]);
-    assert.equal(requests[1].options.headers.Authorization, undefined);
-    assert.equal(requests[2].options.headers.Authorization, undefined);
-    assert.equal(requests[2].options.headers['Content-Type'], 'application/json');
-    assert.match(results.find(item => item.attackId === 'anonymous_static_data_read').observed, /not found/u);
-    assert.match(results.find(item => item.attackId === 'anonymous_notes_crud').observed, /All five/u);
+    assert.ok(requests.every(item => ['GET', 'HEAD'].includes(item.method)));
+    assert.ok(requests.every(item => item.options.headers.Authorization === undefined));
+    assert.equal(results.find(item => item.attackId === 'anonymous_static_data_read').observed, 'HTTP 404');
+    assert.equal(results.find(item => item.attackId === 'anonymous_notes_list').observed, 'HTTP 401');
+    assert.equal(results.find(item => item.attackId === 'anonymous_note_read').observed, 'HTTP 401');
+    assert.equal(results.find(item => item.attackId === 'anonymous_notes_create').observed, 'not_run');
+    assert.equal(results.find(item => item.attackId === 'anonymous_note_update').observed, 'not_run');
+    assert.equal(results.find(item => item.attackId === 'anonymous_note_delete').observed, 'not_run');
 
-    globalThis.fetch = async url => {
+    globalThis.fetch = async (url, init) => {
+      assert.ok(['GET', 'HEAD'].includes(init?.method ?? 'GET'));
       if (new URL(String(url)).pathname === '/data.json') {
         return new Response(JSON.stringify({ notes: [{ title: 'stale', content: 'old public note' }] }), {
           status: 200, headers: { 'content-type': 'application/json' },
@@ -110,9 +111,9 @@ test('비로그인 점검은 정적 메모 부재와 모든 CRUD 경로의 자�
       });
     };
     const failedStaticCheck = await runAttackChecks(config);
-    assert.match(
+    assert.equal(
       failedStaticCheck.find(item => item.attackId === 'anonymous_static_data_read').observed,
-      /still reachable/u,
+      'HTTP 200',
     );
   } finally {
     globalThis.fetch = originalFetch;
