@@ -2,6 +2,7 @@
 // Never return tokens, private keys, real names, or note bodies.
 const TEST_ID = '00000000-0000-4000-8000-000000000001';
 const READ_METHODS = new Set(['GET', 'HEAD']);
+const ATTACK_ID_HEADER = 'x-aleph-attack-id';
 
 export async function runAttackChecks(config) {
   if (!Number.isInteger(config.step) || config.step < 2 || config.step > 12) {
@@ -75,7 +76,7 @@ export async function runAttackChecks(config) {
       redirect: 'error',
       signal: AbortSignal.timeout(10000),
       cache: 'no-store',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', [ATTACK_ID_HEADER]: probe.attackId },
     });
 
     // observed contains only the HTTP status actually returned by the server.
