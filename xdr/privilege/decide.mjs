@@ -83,12 +83,6 @@ export function decide(alert) {
   const clearAttack = level >= BLOCK_MIN_LEVEL && (
     elevatedThenCommand
     || groupAndCommand
-    || (groupAddition && atNewAddress)
-    || addedSeveralAccounts
-    || repeatedAdminReadd && (offHours || atNewAddress)
-    || otherAccountCommand
-    || newAddressOffHoursCommand
-    || sessionElevationAtNewAddress
   );
   if (clearAttack) {
     return output("block", 0.96, "명확한 권한 상승·관리자 악용 패턴 확인");
