@@ -63,7 +63,7 @@ export function decide(alert) {
   const adminCommand = hasAdminCommand(alert);
   const group = oneLine(alert?.data?.group);
   const eventCount = Number(alert?.data?.count);
-  const atNewAddress = /처음 보는 주소|낯선 주소|원격 주소|first.seen address|new address|remote address/i.test(description);
+  const atNewAddress = /처음 보는 주소|주소는 처음 봅니다|처음 봅니다|낯선 주소|원격 주소|first.seen address|new address|remote address/i.test(description);
   const offHours = /수업 시간 밖|업무처럼 보이지 않는 시각|비정상 시간|off.hours|outside class hours/i.test(description);
   const addedSeveralAccounts = groupAddition
     && ((Number.isFinite(eventCount) && eventCount >= 3)
