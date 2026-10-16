@@ -414,3 +414,5 @@ npm.cmd run bundle
 - `xdr/privilege/decide.mjs`는 관리자 그룹 변경과 관리자 명령 사용을 판정합니다. 단일 사건만으로 근거가 모자라면 알림만 남기고, `xdr/privilege/respond.mjs`가 동일한 신뢰 계정·출발지의 5분 이내 사건을 상관분석합니다.
 - 실행: `npm.cmd run xdr:run -- privilege`, `node xdr/privilege/respond.mjs`, `npm.cmd run privilege:test`.
 - 명확한 사건에만 인증된 `subjectId` 기준 15분 ZTNA 거부 규칙을 생성합니다. `src/decider.mjs`는 변경하지 않습니다. 가상 fixture 검사와 로컬 거부 규칙은 실제 Windows 로그 수집이나 IdP 전역 토큰 폐기가 아닙니다.
+
+- 한 번에 분류와 세션 거부 시뮬레이션 실행: `npm.cmd run privilege:run` (실제 단말·IdP 세션을 바꾸지 않는 가상 경보 실행입니다).
