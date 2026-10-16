@@ -98,10 +98,10 @@ async function main() {
     outputs.push({ alert, decision });
     counts[decision.action] += 1;
     const subjectId = trustedSubject(alert);
-    if (decision.action === "block" && subjectId && validAddress(alert)
+    if (decision.action === "block" && decision.confidence >= 0.85 && subjectId && validAddress(alert)
         && Number(alert?.rule?.level) >= 10
         && Array.isArray(alert?.rule?.mitre)
-        && alert.rule.mitre.some((id) => ["T1078", "T1068", "T1098"].includes(id))) {
+        && alert.rule.mitre.some((id) => ["T1078", "T1068"].includes(id))) {
       createCandidate(candidates, subjectId, [alert.id],
         decision.reason.includes("recent_elevation_then_admin_command")
           ? "recent_elevation_then_admin_command" : "admin_group_added_then_admin_command",
@@ -134,9 +134,12 @@ async function main() {
       if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime) || Math.abs(leftTime - rightTime) > CORRELATION_MS) continue;
       const paired = (groupAddition(left) && adminCommand(right)) || (adminCommand(left) && groupAddition(right));
       if (!paired) continue;
+      const leftDecision = outputs.find((item) => item.alert === left)?.decision;
+      const rightDecision = outputs.find((item) => item.alert === right)?.decision;
+      if (![leftDecision, rightDecision].some((decision) => decision?.action === "block" && decision.confidence >= 0.85)) continue;
       if (Number(left?.rule?.level) < 10 || Number(right?.rule?.level) < 10) continue;
       const techniques = [...(left?.rule?.mitre ?? []), ...(right?.rule?.mitre ?? [])];
-      if (!techniques.some((id) => ["T1078", "T1068", "T1098"].includes(id))) continue;
+      if (!techniques.some((id) => ["T1078", "T1068"].includes(id))) continue;
       createCandidate(candidates, leftSubject, [left.id, right.id],
         "recent_group_change_then_admin_command", 0.97);
     }
