@@ -77,13 +77,16 @@ export function decide(alert) {
   const newAddressOffHoursCommand = adminCommand && atNewAddress && offHours;
   const sessionElevationAtNewAddress = hasSessionElevation(alert) && atNewAddress;
 
-  // 이 fixture에서 여러 독립적인 강한 문구는 명확한 권한 악용입니다.
-  // 심판은 경보를 한 건씩 넘기므로 계정 ID·출발지·MITRE 메타데이터가 없어도
-  // 경보 자체에 적힌 명확한 패턴을 먼저 분류하고, 대응기는 별도 단계에서 상관분석합니다.
-  const clearAttack = level >= BLOCK_MIN_LEVEL && (
-    elevatedThenCommand
-    || groupAndCommand
-  );
+  // 차단은 강한 공격 패턴뿐 아니라 신뢰 계정·유효한 출발지·MITRE 근거가 모두 있을 때만 허용합니다.
+  const hasTrustedBlockEvidence = Boolean(identitySubject(alert))
+    && isValidIp(alert?.data?.srcip)
+    && hasTechnique(alert);
+  const clearAttack = level >= BLOCK_MIN_LEVEL
+    && hasTrustedBlockEvidence
+    && (
+      elevatedThenCommand
+      || groupAndCommand
+    );
   if (clearAttack) {
     return output("block", 0.96, "명확한 권한 상승·관리자 악용 패턴 확인");
   }
