@@ -1,4 +1,5 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -143,7 +144,7 @@ async function main() {
 
   const rulesById = new Map(currentRules.map((rule) => [rule.id, rule]));
   for (const candidate of candidates.values()) {
-    const safeSuffix = candidate.subjectId.replace(/[^A-Za-z0-9_-]/g, "-");
+    const safeSuffix = createHash("sha256").update(candidate.subjectId).digest("hex").slice(0, 16);
     const id = "xdr-privilege-" + safeSuffix;
     const rule = {
       id,

@@ -19,7 +19,8 @@
     "known-cve:test": "node --test test/known-cve.test.mjs",
     "persistence:test": "node --test test/persistence.test.mjs",
     "privilege:test": "node --test test/privilege.test.mjs",
-    "privilege:run": "node scripts/xdr-run.mjs privilege && node xdr/privilege/respond.mjs"
+    "privilege:run": "node scripts/xdr-run.mjs privilege && node xdr/privilege/respond.mjs",
+    "privilege:check": "npm run privilege:test && npm run xdr:run -- privilege"
   },
   "engines": {
     "node": "22.x"
