@@ -69,7 +69,7 @@ test('단건 메모 GET·PUT·DELETE는 검증된 사용자 소유 행만 접근
     'protected resource routes must require an approved device signature');
 });
 
-test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_run으로 둔다', async () => {
+test('응답을 받은 요청은 HTTP 상태를 기록하고 보내지 않은 쓰기 요청만 not_run으로 둔다', async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
   try {
@@ -150,10 +150,29 @@ test('읽기 전용 점검은 HTTP 상태만 기록하고 쓰기 요청은 not_r
       .every(item => /^HTTP 307; method=GET; urlSha256=[a-f0-9]{64}; bodyBytes=0$/u.test(item.observed)),
     'a received 307 response must retain its actual HTTP status, not become not_run');
 
+    globalThis.fetch = async () => {
+      const response = new Response('body unavailable', { status: 418 });
+      Object.defineProperty(response, 'arrayBuffer', {
+        value: async () => { throw new Error('body stream failed after response headers'); },
+      });
+      return response;
+    };
+    const bodyReadFailed = await runAttackChecks(config);
+    assert.ok(bodyReadFailed
+      .filter(item => ['anonymous_static_data_read', 'anonymous_notes_list', 'anonymous_note_read'].includes(item.attackId))
+      .every(item => /^HTTP 418; method=GET; urlSha256=[a-f0-9]{64}; bodyBytes=unavailable$/u.test(item.observed)),
+    'body reading failure must not erase the HTTP status already received');
+
     globalThis.fetch = async () => { throw new Error('network unavailable'); };
     const unavailable = await runAttackChecks(config);
-    assert.ok(unavailable.every(item => item.observed === 'not_run'),
-      'a missing HTTP response must not be replaced by a guessed status');
+    assert.ok(unavailable
+      .filter(item => ['anonymous_static_data_read', 'anonymous_notes_list', 'anonymous_note_read'].includes(item.attackId))
+      .every(item => item.observed === 'no_http_response'),
+    'a request attempt with no HTTP response must be distinguished from a request that was not sent');
+    assert.ok(unavailable
+      .filter(item => ['anonymous_notes_create', 'anonymous_note_update', 'anonymous_note_delete'].includes(item.attackId))
+      .every(item => item.observed === 'not_run'),
+    'only intentionally unrequested write probes remain not_run');
   } finally {
     globalThis.fetch = originalFetch;
   }

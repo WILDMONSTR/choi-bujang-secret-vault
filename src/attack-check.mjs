@@ -72,9 +72,10 @@ export async function runAttackChecks(config) {
       continue;
     }
 
+    const url = new URL(probe.path, app);
+    let response;
     try {
-      const url = new URL(probe.path, app);
-      const response = await fetch(url, {
+      response = await fetch(url, {
         method: probe.method,
         // Preserve received 3xx statuses as evidence rather than turning them into fetch errors.
         redirect: 'manual',
@@ -84,23 +85,32 @@ export async function runAttackChecks(config) {
         // The judge runner recognizes this fetch metadata; it is not an HTTP header.
         alephEvidence: { caseId: probe.attackId, requestKey: 'read' },
       });
-      const body = await response.arrayBuffer();
-      const urlSha256 = createHash('sha256').update(url.href).digest('hex');
-
-      // Only facts observed from this request are recorded. Never record the body itself.
-      results.push({
-        attackId: probe.attackId,
-        expected: probe.expected,
-        observed: `HTTP ${response.status}; method=${probe.method}; urlSha256=${urlSha256}; bodyBytes=${body.byteLength}`,
-      });
     } catch {
-      // No HTTP response was available, so do not fabricate a status.
+      // A request was attempted but yielded no HTTP response; do not mislabel it as unrequested.
       results.push({
         attackId: probe.attackId,
         expected: probe.expected,
-        observed: 'not_run',
+        observed: 'no_http_response',
       });
+      continue;
     }
+
+    // Preserve status as soon as fetch returns a Response. Body consumption may fail after
+    // headers have arrived; that must never erase the HTTP status or turn this into not_run.
+    const urlSha256 = createHash('sha256').update(url.href).digest('hex');
+    let bodyBytes = 'unavailable';
+    try {
+      bodyBytes = (await response.arrayBuffer()).byteLength;
+    } catch {
+      // The response status is still real; only the body length is unavailable.
+    }
+
+    // Record only response metadata, never the response body itself.
+    results.push({
+      attackId: probe.attackId,
+      expected: probe.expected,
+      observed: `HTTP ${response.status}; method=${probe.method}; urlSha256=${urlSha256}; bodyBytes=${bodyBytes}`,
+    });
   }
 
   return results;

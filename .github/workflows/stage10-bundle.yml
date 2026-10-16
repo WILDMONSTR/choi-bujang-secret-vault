@@ -43,7 +43,7 @@ jobs:
         run: |
           cat > bundle-notes.json <<'JSON'
           {
-            "explanation": "12단계 저장점에서는 anonymous_static_data_read, anonymous_notes_list, anonymous_note_read의 실제 GET을 심판의 alephEvidence.caseId/requestKey 메타데이터로 연결합니다. observed에는 받은 HTTP 상태, GET 메서드, 요청 URL의 SHA-256, 응답 본문 바이트 수만 기록하며 본문은 기록하지 않습니다. HTTP 응답을 받지 못한 요청과 전송하지 않은 POST·PUT·DELETE는 not_run으로 남기고 화면 코드는 수정하지 않았습니다."
+            "explanation": "12단계에서는 세 읽기 전용 GET을 alephEvidence.caseId/requestKey로 연결합니다. fetch가 응답을 반환하면 본문 읽기에 실패해도 실제 HTTP 상태를 observed에 보존하고, 읽지 못한 본문 길이는 unavailable로 명시합니다. 요청은 시도했지만 HTTP 응답이 없으면 no_http_response, 전송하지 않은 POST·PUT·DELETE만 not_run으로 기록합니다. 응답 본문과 화면 코드는 수정하지 않았습니다."
           }
           JSON
       - name: Run submission bundle checks
