@@ -12,8 +12,37 @@ import { fixtureRequests } from "../scripts/fixture-7.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "xdr", "fixtures", "privilege.json");
-const BLOCK_IDS = ["pv-02", "pv-04", "pv-07"];
-const ALERT_IDS = ["pv-01", "pv-03", "pv-05", "pv-06", "pv-08", "pv-09", "pv-10", "pv-14", "pv-16"];
+const EXPECTED_ACTIONS = Object.freeze({
+  "pv-01": "alert",
+  "pv-02": "block",
+  "pv-03": "alert",
+  "pv-04": "block",
+  "pv-05": "alert",
+  "pv-06": "alert",
+  "pv-07": "block",
+  "pv-08": "alert",
+  "pv-09": "alert",
+  "pv-10": "alert",
+  "pv-11": "record",
+  "pv-12": "record",
+  "pv-13": "record",
+  "pv-14": "alert",
+  "pv-15": "record",
+  "pv-16": "alert",
+  "pv-17": "record",
+  "pv-18": "record",
+  "pv-19": "record",
+  "pv-20": "record",
+  "pv-21": "record",
+  "pv-22": "record",
+  "pv-23": "record",
+  "pv-24": "record",
+  "pv-25": "record",
+  "pv-26": "record"
+});
+const BLOCK_IDS = Object.keys(EXPECTED_ACTIONS).filter((id) => EXPECTED_ACTIONS[id] === "block");
+const ALERT_IDS = Object.keys(EXPECTED_ACTIONS).filter((id) => EXPECTED_ACTIONS[id] === "alert");
+const RECORD_IDS = Object.keys(EXPECTED_ACTIONS).filter((id) => EXPECTED_ACTIONS[id] === "record");
 
 test("privilege fixture: 명확한 권한 상승만 block, 모호한 신호는 alert, 정상은 record", async () => {
   const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
@@ -22,10 +51,16 @@ test("privilege fixture: 명확한 권한 상승만 block, 모호한 신호는 a
   const results = fixture.alerts.map((alert) => ({ alertId: alert.id, ...decidePrivilege(alert) }));
   const counts = results.reduce((out, item) => { out[item.action] += 1; return out; }, { block: 0, alert: 0, record: 0 });
   assert.deepEqual(counts, { block: 3, alert: 9, record: 14 });
+  assert.deepEqual(Object.keys(EXPECTED_ACTIONS).sort(), fixture.alerts.map((alert) => alert.id).sort());
+  assert.deepEqual(results.map(({ alertId, action }) => [alertId, action]),
+    fixture.alerts.map((alert) => [alert.id, EXPECTED_ACTIONS[alert.id]]));
   assert.deepEqual(results.filter((item) => item.action === "block").map((item) => item.alertId), BLOCK_IDS);
   assert.deepEqual(results.filter((item) => item.action === "alert").map((item) => item.alertId), ALERT_IDS);
-  assert.deepEqual(results.filter((item) => item.action === "record").map((item) => item.alertId),
-    fixture.alerts.filter((alert) => !BLOCK_IDS.includes(alert.id) && !ALERT_IDS.includes(alert.id)).map((alert) => alert.id));
+  assert.deepEqual(results.filter((item) => item.action === "record").map((item) => item.alertId), RECORD_IDS);
+  // 이 두 경보는 일반 관리자 그룹 추가 분기보다 먼저 애매한 활동 분기로 분류돼야 합니다.
+  for (const alertId of ["pv-05", "pv-09"]) {
+    assert.match(results.find((item) => item.alertId === alertId).reason, /^ambiguous_privilege_activity:/u);
+  }
   assert.ok(results.every((item) => item.confidence >= 0 && item.confidence <= 1 && typeof item.reason === "string"));
   assert.ok(results.every((item) => !/user\d{2}|acct-user/i.test(item.reason)));
 });
@@ -82,7 +117,12 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
     const log = await readFile(join(temp, "xdr", "alerts.log"), "utf8");
     assert.match(log, /existing-log-line/u);
     assert.doesNotMatch(log, /user\d{2}|acct-user\d{2}/i);
-    const parsed = log.trim().split(/\r?\n/u).slice(1).map((line) => JSON.parse(line));
+    const appendedLogLines = log.trim().split(/\r?\n/u).slice(1);
+    const parsed = appendedLogLines.map((line) => JSON.parse(line));
+    assert.equal(appendedLogLines.length, 15);
+    const alertRows = parsed.filter((row) => row.action === "alert" && typeof row.alertId === "string");
+    assert.equal(alertRows.length, 9);
+    assert.deepEqual(alertRows.map((row) => row.alertId).sort(), [...ALERT_IDS].sort());
     assert.ok(parsed.some((row) => row.action === "block" && row.alertIds?.includes("pv-01") && row.alertIds?.includes("pv-02")));
     assert.ok(parsed.every((row) => row.moduleKey === "privilege"));
   } finally {
