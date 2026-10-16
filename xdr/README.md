@@ -75,3 +75,5 @@ node scripts/xdr-run.mjs brute-force
 - `node xdr/privilege/respond.mjs`는 같은 정규 계정 ID·출발지·계정명인 사건에서 5분 안의 관리자 그룹 추가와 관리자 명령을 함께 확인합니다. 명확한 사건은 `xdr/privilege/session-rules.json`에 계정 ID 기준 15분 거부 규칙으로 기록하고, 알림 로그에는 사용자명 등 원문을 남기지 않습니다.
 - `src/xdr-ztna-gate.mjs`는 인증된 `request.subjectId`에 해당하는 활성 privilege 규칙을 먼저 확인합니다. 일치하면 해당 계정의 이후 ZTNA 요청을 거부하고, 일치하지 않으면 기존 XDR 확인과 원래 `src/decider.mjs` 정책 판정을 계속합니다. 원래 판정기 규칙은 바꾸지 않습니다.
 - 로컬 검사: `npm run xdr:run -- privilege`, `npm run privilege:test`. 세션 규칙은 fixture 기반 시뮬레이션이며, 실제 IdP 토큰 폐기 API를 직접 호출하지 않습니다. 실제 서비스에 연결하려면 신뢰된 ID 매핑과 세션 폐기 어댑터가 별도로 필요합니다.
+
+- 검사 범위: 명확한 세션 차단 3건, 별도 경보의 5분 이내 상관분석, 애매한 시도 알림, 정상 이벤트 기록 및 기존 정책 판정 보존을 `npm run privilege:test`에서 확인합니다.
