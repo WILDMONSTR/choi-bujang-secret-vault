@@ -60,14 +60,14 @@ const PATTERN_SPEC = Object.freeze({
 });
 
 function oneLine(value) {
-  return typeof value === "string" ? value.replace(/[\\r\\n\\t]+/g, " ").trim() : "";
+  return typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : "";
 }
 function descriptionOf(alert) {
   return oneLine(alert?.rule?.description);
 }
 function validIp(value) {
   const ip = oneLine(value);
-  const ipv4 = /^(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}$/;
+  const ipv4 = /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
   const ipv6 = /^[0-9a-f:]+$/i;
   return ipv4.test(ip) || (ip.includes(":") && ipv6.test(ip));
 }
@@ -132,7 +132,7 @@ export function decide(alert) {
   const eventCount = Number(alert?.data?.count);
   const addedSeveralAccounts = groupAddition && (
     (Number.isFinite(eventCount) && eventCount >= 3)
-    || /계정\\s*[3-9]\\d*\\s*개.*관리자 그룹|(?:three|four|several) accounts?.{0,30}administrator group/i.test(description)
+    || /계정\s*[3-9]\d*\s*개.*관리자 그룹|(?:three|four|several) accounts?.{0,30}administrator group/i.test(description)
   );
   const repeatedAdminReadd = groupAddition
     && /빠진 계정.{0,30}1분 뒤.{0,20}다시 관리자로|removed.{0,30}one minute later.{0,20}re.added/i.test(description);
