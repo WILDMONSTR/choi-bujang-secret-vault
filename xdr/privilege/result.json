@@ -1,0 +1,167 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "privilege",
+  "decisions": [
+    {
+      "alertId": "pv-01",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — T1078은 계정 권한 변경 악용 가능성을 뒷받침하지만 단독 변경은 확정 증거가 아님"
+    },
+    {
+      "alertId": "pv-02",
+      "action": "block",
+      "confidence": 0.96,
+      "reason": "recent_elevation_then_admin_command: 권한 상승 직후 관리자 명령 — T1068은 권한 상승 악용, T1078은 유효 계정 악용 맥락을 뒷받침"
+    },
+    {
+      "alertId": "pv-03",
+      "action": "alert",
+      "confidence": 0.72,
+      "reason": "off_hours_privilege_use: 업무 시간 밖 권한 사용 — T1078의 계정 악용·T1068의 권한 상승 맥락에 부합할 수 있으나 시간대만으로 확정하지 않음"
+    },
+    {
+      "alertId": "pv-04",
+      "action": "block",
+      "confidence": 0.96,
+      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — T1078은 유효 계정 악용, T1068은 관리자 권한 상승 악용 맥락을 뒷받침"
+    },
+    {
+      "alertId": "pv-05",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — T1078은 계정 권한 변경 악용 가능성을 뒷받침하지만 단독 변경은 확정 증거가 아님"
+    },
+    {
+      "alertId": "pv-06",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068과 관련될 수 있지만 성공한 공격으로 확정할 근거가 부족함"
+    },
+    {
+      "alertId": "pv-07",
+      "action": "block",
+      "confidence": 0.96,
+      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — T1078은 유효 계정 악용, T1068은 관리자 권한 상승 악용 맥락을 뒷받침"
+    },
+    {
+      "alertId": "pv-08",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — T1078은 유효 계정의 비정상 사용 가능성을 설명"
+    },
+    {
+      "alertId": "pv-09",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — T1078은 계정 권한 변경 악용 가능성을 뒷받침하지만 단독 변경은 확정 증거가 아님"
+    },
+    {
+      "alertId": "pv-10",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068과 관련될 수 있지만 성공한 공격으로 확정할 근거가 부족함"
+    },
+    {
+      "alertId": "pv-11",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-12",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-13",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-14",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068과 관련될 수 있지만 성공한 공격으로 확정할 근거가 부족함"
+    },
+    {
+      "alertId": "pv-15",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-16",
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — T1078은 유효 계정의 비정상 사용 가능성을 설명"
+    },
+    {
+      "alertId": "pv-17",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-18",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-19",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-20",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-21",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-22",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-23",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-24",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-25",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    },
+    {
+      "alertId": "pv-26",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 변경 없는 정상 활동에 T1068/T1078의 악용 신호가 결합되지 않음"
+    }
+  ],
+  "counts": {
+    "block": 3,
+    "alert": 9,
+    "record": 14
+  }
+}
