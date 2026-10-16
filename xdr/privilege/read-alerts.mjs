@@ -8,16 +8,16 @@ const FIXTURE = join(HERE, "../fixtures/privilege.json");
 const REDACTED = "[REDACTED]";
 
 function oneLine(value) {
-  return typeof value === "string" ? value.replace(/[\\r\\n\\t]+/g, " ").trim() : "";
+  return typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : "";
 }
 function redactSecrets(value) {
   let text = oneLine(value);
   text = text
-    .replace(/\\b(password|passwd|pwd|token|secret|api[_ -]?key|authorization|client[_ -]?secret|access[_ -]?key|private[_ -]?key)\\b\\s*[:=]\\s*(?:"[^"]*"|'[^']*'|[^\\s,;]+)/gi, "$1=[REDACTED]")
-    .replace(/\\bBearer\\s+[A-Za-z0-9._~+\\/-]+=*/gi, "Bearer [REDACTED]")
-    .replace(/\\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\\b/g, REDACTED)
-    .replace(/\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\b/g, REDACTED)
-    .replace(/\\b[A-Fa-f0-9]{32,}\\b/g, REDACTED);
+    .replace(/\b(password|passwd|pwd|token|secret|api[_ -]?key|authorization|client[_ -]?secret|access[_ -]?key|private[_ -]?key)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1=[REDACTED]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [REDACTED]")
+    .replace(/\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b/g, REDACTED)
+    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, REDACTED)
+    .replace(/\b[A-Fa-f0-9]{32,}\b/g, REDACTED);
   return text;
 }
 function safeAddress(value) {
@@ -26,7 +26,7 @@ function safeAddress(value) {
 }
 function safeAccount(value) {
   const candidate = redactSecrets(value);
-  if (!candidate || candidate === REDACTED || /(?:password|passwd|pwd|token|secret|api[_ -]?key|authorization)\\s*[:=]/i.test(candidate)) {
+  if (!candidate || candidate === REDACTED || /(?:password|passwd|pwd|token|secret|api[_ -]?key|authorization)\s*[:=]/i.test(candidate)) {
     return REDACTED;
   }
   return candidate;
