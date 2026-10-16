@@ -106,7 +106,8 @@ export async function checkZtnaDeny(sourceAddress, at = new Date()) {
   const ip = typeof sourceAddress === 'string' ? sourceAddress.trim() : '';
   if (isIP(ip) === 0) return null;
   const now = at instanceof Date ? at : new Date(at);
-  return (await activeRules(now)).find((r) => r.sourceAddress === ip) ?? null;
+  return (await activeRules(now)).find((r) =>
+    r.sourceAddress === ip && r.id.startsWith('xdr-brute-force-')) ?? null;
 }
 
 async function main() {

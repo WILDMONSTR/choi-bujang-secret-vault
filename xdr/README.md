@@ -49,3 +49,12 @@ node scripts/xdr-run.mjs brute-force
 - `xdr/alerts.log` 기록과 판정기 연결은 `respond.mjs` 같은 다른 파일에서 합니다. `decide.mjs` 는 판단 결과만 돌려줍니다.
 
 인터넷을 끈 상태에서 `npm run xdr:run -- <moduleKey>` 를 돌려도 같은 결과가 나오면 심판에서도 같은 결과가 나옵니다.
+
+## known-cve: Log4Shell 보너스 방어
+
+- xdr/fixtures/known-cve.json은 CVE-2021-44228(Log4Shell) 관련 명확한 표식, 약한 정황, 정상 이벤트를 섞은 가상 fixture입니다. 실제 PC의 로그나 실제 공격 기록이 아닙니다.
+- xdr/known-cve/decide.mjs는 완전한 원격 JNDI 조회 표식, 경보 수준(10 이상), 출발지, CVE 또는 MITRE ATT&CK T1190 근거가 모두 있을 때만 block을 반환합니다. 부분 표식은 alert, 무관한 일반 이벤트는 record입니다. 원문 요청·헤더를 판정 이유에 넣지 않습니다.
+- 패턴 참고 자료는 xdr/known-cve/patterns.json에 있습니다: https://nvd.nist.gov/vuln/detail/CVE-2021-44228, https://www.cisa.gov/news-events/alerts/2021/12/22/mitigating-log4shell-and-other-log4j-related-vulnerabilities, https://attack.mitre.org/techniques/T1190/.
+- 분류 결과를 xdr/known-cve/result.json에 만들려면 저장소 루트에서 npm run xdr:run -- known-cve를 실행합니다.
+- 실제 대응 모듈의 fixture 시뮬레이션과 짧은 기간 차단 규칙 생성을 확인하려면 node xdr/known-cve/respond.mjs를 실행합니다. 이 명령은 공유 xdr/brute-force/deny-rules.json에 xdr-known-cve- 접두사의 15분 제한 규칙을 추가하고, URL·헤더·payload 원문 없이 xdr/alerts.log에 알림/차단 메타데이터를 남깁니다.
+- src/xdr-ztna-gate.mjs는 기존 brute-force와 web-injection 검사를 유지하고 known-cve 검사를 추가합니다. 매칭되는 활성 XDR 차단 규칙이 없으면 원래 src/decider.mjs가 계속 최종 ZTNA 정책 결정을 내립니다. src/decider.mjs의 규칙과 응답 계약은 바꾸지 않습니다.
