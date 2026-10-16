@@ -401,3 +401,9 @@ npm.cmd run bundle
 - 탐지기 카드는 학생 코드 `src/detect.mjs`에 전달한 가상 GET 사건의 실제 출력입니다. `propose_revocation`은 권한 회수가 아니라 회수 제안입니다.
 - 기기 수와 회수·복구 기록은 운영실 상태 API가 조회한 실제 DB 행과 조회 시각을 근거로 표시합니다. 정책 미리보기는 복구 버전과 범위의 요약만 보여주고 비밀 정책 값이나 메모 본문을 표시하지 않습니다.
 - 현재 DB에는 과거 판정·탐지 이벤트 이력이 저장되지 않고, 설정에 있는 심판 접수 주소도 41종 시험 결과 조회 API가 아닙니다. 그러므로 해당 이력은 **조회 불가/미확인** 상태로 표시되어야 하며, 임의의 수치나 통과 결과로 대체하지 않습니다.
+
+## XDR 보너스 실습: 알려지지 않은 지속성 항목
+
+- `xdr/persistence/decide.mjs`는 가상 파일 무결성, 서비스, 시작 항목, 예약 작업 경보를 분류합니다. 명확한 복합 증거만 차단 후보로 삼고, 단발·불완전한 근거는 알림으로만 분류하며 기준 목록의 정상 이벤트는 기록합니다.
+- `npm run xdr:run -- persistence`로 24건의 fixture 분류를 만들고, `node xdr/persistence/respond.mjs`로 차단·알림 로그와 15분 제한 격리 규칙을 가상 실행할 수 있습니다. 이 fixture는 실제 운영 단말 로그가 아닙니다.
+- `src/xdr-ztna-gate.mjs`는 기존 brute-force, web-injection, known-CVE 확인에 persistence 확인을 추가합니다. 기존 `src/decider.mjs`는 변경하지 않았으며, XDR 규칙이 일치하지 않으면 기존 정책 판정을 사용합니다.

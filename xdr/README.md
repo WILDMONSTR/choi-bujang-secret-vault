@@ -58,3 +58,11 @@ node scripts/xdr-run.mjs brute-force
 - 분류 결과를 xdr/known-cve/result.json에 만들려면 저장소 루트에서 npm run xdr:run -- known-cve를 실행합니다.
 - 실제 대응 모듈의 fixture 시뮬레이션과 짧은 기간 차단 규칙 생성을 확인하려면 node xdr/known-cve/respond.mjs를 실행합니다. 이 명령은 공유 xdr/brute-force/deny-rules.json에 xdr-known-cve- 접두사의 15분 제한 규칙을 추가하고, URL·헤더·payload 원문 없이 xdr/alerts.log에 알림/차단 메타데이터를 남깁니다.
 - src/xdr-ztna-gate.mjs는 기존 brute-force와 web-injection 검사를 유지하고 known-cve 검사를 추가합니다. 매칭되는 활성 XDR 차단 규칙이 없으면 원래 src/decider.mjs가 계속 최종 ZTNA 정책 결정을 내립니다. src/decider.mjs의 규칙과 응답 계약은 바꾸지 않습니다.
+
+## persistence: 파일 무결성·서비스·예약 작업 지속성 방어
+
+- `xdr/fixtures/persistence.json`은 24건의 가상 경보이며 실제 PC 이벤트가 아닙니다. `xdr/persistence/decide.mjs`는 심판이 단독으로 불러도 실행되도록 import나 파일 입출력 없이 동작합니다.
+- 기준 목록에 없는 시작 항목, 임시 경로와 연결된 서명 없는 서비스, 반복된 원격 서비스 등록, 무결성이 바뀐 서명 없는 실행 파일, 임의 이름 예약 작업 등 명확한 복합 증거에만 `block`을 반환합니다. 단발성 변경이나 서명 상태 미확인은 `alert`, 명시된 정상 업데이트·서명된 기존 서비스·읽기 전용 열거는 `record`입니다.
+- 패턴 기준: MITRE ATT&CK T1543 https://attack.mitre.org/techniques/T1543/ 및 T1053 https://attack.mitre.org/techniques/T1053/.
+- 분류 결과 생성: `npm run xdr:run -- persistence`. 대응 시뮬레이션과 15분 제한 격리 규칙/안전한 로그 작성: `node xdr/persistence/respond.mjs`.
+- 대응기는 공유 `xdr/brute-force/deny-rules.json`에 `xdr-persistence-` 접두사의 만료 규칙을 추가합니다. `src/xdr-ztna-gate.mjs`가 신뢰된 엔진이 제공한 출발지 주소의 활성 규칙을 확인한 뒤, 일치 규칙이 없으면 원래 `src/decider.mjs`를 그대로 호출합니다. 경로·사용자명·해시·명령행 원문은 로그에 쓰지 않습니다.

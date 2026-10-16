@@ -1,0 +1,150 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "persistence",
+  "references": [
+    {
+      "id": "T1543",
+      "name": "Create or Modify System Process",
+      "url": "https://attack.mitre.org/techniques/T1543/",
+      "rationale": "서비스·시스템 프로세스 생성 또는 변경으로 재실행·지속성을 확보하는 행위"
+    },
+    {
+      "id": "T1053",
+      "name": "Scheduled Task/Job",
+      "url": "https://attack.mitre.org/techniques/T1053/",
+      "rationale": "예약 작업을 이용해 시작 시 또는 반복 일정에 프로그램을 실행하는 행위"
+    }
+  ],
+  "clearPatterns": [
+    {
+      "id": "new_unsigned_service_in_temp",
+      "action": "block",
+      "conditions": [
+        "new service",
+        "unsigned executable",
+        "temporary path",
+        "rule level >= 10",
+        "trusted source address",
+        "T1543 or T1053"
+      ]
+    },
+    {
+      "id": "unseen_task_in_temp_off_hours",
+      "action": "block",
+      "conditions": [
+        "unfamiliar scheduled task",
+        "temporary executable",
+        "off-hours execution",
+        "rule level >= 10",
+        "source address",
+        "T1053"
+      ]
+    },
+    {
+      "id": "unknown_startup_entry",
+      "action": "block",
+      "conditions": [
+        "startup folder entry absent from normal baseline",
+        "rule level >= 10",
+        "source address",
+        "T1543 or T1053"
+      ]
+    },
+    {
+      "id": "repeated_unsigned_service_registration",
+      "action": "block",
+      "conditions": [
+        "remote source",
+        "unsigned service registration",
+        "count >= 3",
+        "rule level >= 10",
+        "source address",
+        "T1543"
+      ]
+    },
+    {
+      "id": "random_task_with_temp_executable",
+      "action": "block",
+      "conditions": [
+        "random task name",
+        "temporary executable",
+        "rule level >= 10",
+        "source address",
+        "T1053"
+      ]
+    },
+    {
+      "id": "unsigned_service_binary_changed",
+      "action": "block",
+      "conditions": [
+        "file integrity changed",
+        "service executable unsigned",
+        "rule level >= 10",
+        "source address",
+        "T1543"
+      ]
+    },
+    {
+      "id": "multiple_persistence_methods_same_temp_binary",
+      "action": "block",
+      "conditions": [
+        "startup entry",
+        "scheduled task",
+        "same temporary executable",
+        "rule level >= 10",
+        "source address",
+        "T1543 or T1053"
+      ]
+    },
+    {
+      "id": "unknown_service_survives_reboot",
+      "action": "block",
+      "conditions": [
+        "service missing from baseline",
+        "survives reboot",
+        "temporary path or rule level >= 10",
+        "source address",
+        "T1543"
+      ]
+    }
+  ],
+  "alertOnly": {
+    "action": "alert",
+    "examples": [
+      "unsigned state unknown",
+      "single startup modification without execution",
+      "temporary file alone",
+      "service restarted once without changed binary",
+      "scheduled task at class hours"
+    ]
+  },
+  "normalBaseline": [
+    {
+      "path": "C:\\lab\\class-tool\\signed-service.exe",
+      "reason": "서명된 기존 수업 도구 서비스"
+    },
+    {
+      "path": "C:\\lab\\copy-notes.cmd",
+      "reason": "기준 목록에 있는 기존 자료 복사 작업"
+    },
+    {
+      "description": "운영체제 업데이트 예약이 평소 시각에 그대로",
+      "reason": "정상 예약 업데이트"
+    },
+    {
+      "description": "정의 업데이트가 평소 저장소에서 끝났",
+      "reason": "정상 보안 정의 업데이트"
+    },
+    {
+      "description": "시작 프로그램 목록을 읽기만 했",
+      "reason": "읽기 전용 목록 조회"
+    }
+  ],
+  "thresholds": {
+    "blockMinimumConfidence": 0.85,
+    "alertMinimumConfidence": 0.5,
+    "blockMinimumRuleLevel": 10,
+    "repeatedRegistrationMinimum": 3,
+    "denyRuleTtlMinutes": 15
+  }
+}
