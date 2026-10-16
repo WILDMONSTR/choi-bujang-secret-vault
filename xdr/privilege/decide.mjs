@@ -85,7 +85,10 @@ export function decide(alert) {
   );
   const suspiciousSession = hasSessionElevation(alert)
     || /권한 상승 창|elevation prompt|권한으로 바뀌|권한 상승이/i.test(description);
-  const explicitlyNonAdminGroup = Boolean(oneLine(alert?.data?.group)) && !isAdminGroup(alert)\n    && /관리자 그룹은 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?/i.test(description);\n  const suspiciousPattern = !explicitlyNonAdminGroup\n    && /관리자.{0,18}(?:그룹|권한)|권한.{0,18}(?:상승|변경)|administrator group|privilege escalation/i.test(description);
+  const explicitlyNonAdminGroup = Boolean(oneLine(alert?.data?.group)) && !isAdminGroup(alert)
+    && /관리자 그룹은 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?/i.test(description);
+  const suspiciousPattern = !explicitlyNonAdminGroup
+    && /관리자.{0,18}(?:그룹|권한)|권한.{0,18}(?:상승|변경)|administrator group|privilege escalation/i.test(description);
   const hasClearRiskSignal = suspiciousGroupChange || suspiciousCommand || suspiciousSession || suspiciousPattern;
 
   if (hasClearRiskSignal) {
