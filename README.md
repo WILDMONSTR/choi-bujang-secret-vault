@@ -239,11 +239,11 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 
 ## 9단계: 도플갱어를 찾고 권한을 거둡니다
 
-- \`src/detect.mjs\`는 \`docs/DETECT_EVENTS.md\`에 정한 \`at\`, \`method\`, \`identity.sub\` 세 값만 탐지 계약으로 사용합니다. 네트워크나 기기 ID가 없어도 유효한 사건입니다.
-- 같은 \`identity.sub\`의 \`GET\` 사건이 어느 이동 10분 구간에서든 120건을 초과할 때만 회수 제안을 반환합니다. 정확히 120건은 제안하지 않으며, 서로 다른 사용자의 사건은 합산하지 않습니다.
-- 제안 결과는 정확히 \`{ action: "propose_revocation", reasonCode: "burst_read", subject: "..." }\`이고, 나머지 결과는 정확히 \`{ action: "observe" }\`입니다.
+- `src/detect.mjs`는 `docs/DETECT_EVENTS.md`에 정한 `at`, `method`, `identity.sub` 세 값만 탐지 계약으로 사용합니다. 네트워크나 기기 ID가 없어도 유효한 사건입니다.
+- 같은 `identity.sub`의 `GET` 사건이 어느 이동 10분 구간에서든 120건을 초과할 때만 회수 제안을 반환합니다. 정확히 120건은 제안하지 않으며, 서로 다른 사용자의 사건은 합산하지 않습니다.
+- 제안 결과는 정확히 `{ action: "propose_revocation", reasonCode: "burst_read", subject: "..." }`이고, 나머지 결과는 정확히 `{ action: "observe" }`입니다.
 - 이 탐지기는 제안 결과만 반환하며 실제 회수 API나 권한 변경을 수행하지 않습니다. 탐지 결과가 기존 허용·거부 판정을 대체하지 않습니다.
-- 로컬 시험은 \`npm run detect:test\`입니다. 테스트 통과는 실제 회수나 심판 합격 증거가 아닙니다.
+- 로컬 시험은 `npm run detect:test`입니다. 테스트 통과는 실제 회수나 심판 합격 증거가 아닙니다.
 
 ## 10단계: 백업에서 자료실을 되살립니다
 
@@ -407,3 +407,10 @@ npm.cmd run bundle
 - `xdr/persistence/decide.mjs`는 가상 파일 무결성, 서비스, 시작 항목, 예약 작업 경보를 분류합니다. 명확한 복합 증거만 차단 후보로 삼고, 단발·불완전한 근거는 알림으로만 분류하며 기준 목록의 정상 이벤트는 기록합니다.
 - `npm run xdr:run -- persistence`로 24건의 fixture 분류를 만들고, `node xdr/persistence/respond.mjs`로 차단·알림 로그와 15분 제한 격리 규칙을 가상 실행할 수 있습니다. 이 fixture는 실제 운영 단말 로그가 아닙니다.
 - `src/xdr-ztna-gate.mjs`는 기존 brute-force, web-injection, known-CVE 확인에 persistence 확인을 추가합니다. 기존 `src/decider.mjs`는 변경하지 않았으며, XDR 규칙이 일치하지 않으면 기존 정책 판정을 사용합니다.
+
+
+## XDR 보너스 실습: 권한 상승·계정 세션 거부
+
+- `xdr/privilege/decide.mjs`는 관리자 그룹 변경과 관리자 명령 사용을 판정합니다. 단일 사건만으로 근거가 모자라면 알림만 남기고, `xdr/privilege/respond.mjs`가 동일한 신뢰 계정·출발지의 5분 이내 사건을 상관분석합니다.
+- 실행: `npm.cmd run xdr:run -- privilege`, `node xdr/privilege/respond.mjs`, `npm.cmd run privilege:test`.
+- 명확한 사건에만 인증된 `subjectId` 기준 15분 ZTNA 거부 규칙을 생성합니다. `src/decider.mjs`는 변경하지 않습니다. 가상 fixture 검사와 로컬 거부 규칙은 실제 Windows 로그 수집이나 IdP 전역 토큰 폐기가 아닙니다.

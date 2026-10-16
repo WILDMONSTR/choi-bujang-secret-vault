@@ -66,3 +66,12 @@ node scripts/xdr-run.mjs brute-force
 - 패턴 기준: MITRE ATT&CK T1543 https://attack.mitre.org/techniques/T1543/ 및 T1053 https://attack.mitre.org/techniques/T1053/.
 - 분류 결과 생성: `npm run xdr:run -- persistence`. 대응 시뮬레이션과 15분 제한 격리 규칙/안전한 로그 작성: `node xdr/persistence/respond.mjs`.
 - 대응기는 공유 `xdr/brute-force/deny-rules.json`에 `xdr-persistence-` 접두사의 만료 규칙을 추가합니다. `src/xdr-ztna-gate.mjs`가 신뢰된 엔진이 제공한 출발지 주소의 활성 규칙을 확인한 뒤, 일치 규칙이 없으면 원래 `src/decider.mjs`를 그대로 호출합니다. 경로·사용자명·해시·명령행 원문은 로그에 쓰지 않습니다.
+
+
+## privilege: 갑작스러운 관리자 권한 상승·세션 거부
+
+- `xdr/fixtures/privilege.json`의 26건은 가상 경보입니다. 테스트용 `identity.subjectId`는 신뢰된 디렉터리에서 정규화해 들어온다는 전제의 가상 계정 ID이며, 실제 사용자 디렉터리나 운영 로그가 아닙니다.
+- `xdr/privilege/decide.mjs`는 단일 경보를 판정합니다. 관리자 그룹 변화와 관리자 명령의 직접 결합, 높은 위험도, 출발지, MITRE 기법, 신뢰된 계정 ID가 함께 있어야 `block` 후보로 분류합니다. 단독 변경·낯선 출발지 명령·취소/실패는 `alert`, 평범한 로그인·읽기 조회·비관리자 그룹 변경은 `record`입니다.
+- `node xdr/privilege/respond.mjs`는 같은 정규 계정 ID·출발지·계정명인 사건에서 5분 안의 관리자 그룹 추가와 관리자 명령을 함께 확인합니다. 명확한 사건은 `xdr/privilege/session-rules.json`에 계정 ID 기준 15분 거부 규칙으로 기록하고, 알림 로그에는 사용자명 등 원문을 남기지 않습니다.
+- `src/xdr-ztna-gate.mjs`는 인증된 `request.subjectId`에 해당하는 활성 privilege 규칙을 먼저 확인합니다. 일치하면 해당 계정의 이후 ZTNA 요청을 거부하고, 일치하지 않으면 기존 XDR 확인과 원래 `src/decider.mjs` 정책 판정을 계속합니다. 원래 판정기 규칙은 바꾸지 않습니다.
+- 로컬 검사: `npm run xdr:run -- privilege`, `npm run privilege:test`. 세션 규칙은 fixture 기반 시뮬레이션이며, 실제 IdP 토큰 폐기 API를 직접 호출하지 않습니다. 실제 서비스에 연결하려면 신뢰된 ID 매핑과 세션 폐기 어댑터가 별도로 필요합니다.

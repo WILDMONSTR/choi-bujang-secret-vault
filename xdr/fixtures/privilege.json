@@ -19,6 +19,10 @@
         "srcip": "203.0.113.11",
         "srcuser": "user01",
         "group": "administrators"
+      },
+      "identity": {
+        "subjectId": "acct-user01",
+        "source": "trusted-directory"
       }
     },
     {
@@ -38,6 +42,10 @@
       "data": {
         "srcip": "203.0.113.11",
         "srcuser": "user01"
+      },
+      "identity": {
+        "subjectId": "acct-user01",
+        "source": "trusted-directory"
       }
     },
     {
@@ -56,6 +64,10 @@
       "data": {
         "srcip": "198.51.100.11",
         "srcuser": "user02"
+      },
+      "identity": {
+        "subjectId": "acct-user02",
+        "source": "trusted-directory"
       }
     },
     {
@@ -75,6 +87,10 @@
         "srcip": "192.0.2.11",
         "srcuser": "user03",
         "group": "administrators"
+      },
+      "identity": {
+        "subjectId": "acct-user03",
+        "source": "trusted-directory"
       }
     },
     {
@@ -95,6 +111,10 @@
         "srcuser": "user04",
         "count": "4",
         "group": "administrators"
+      },
+      "identity": {
+        "subjectId": "acct-user04",
+        "source": "trusted-directory"
       }
     },
     {
@@ -113,6 +133,10 @@
       "data": {
         "srcip": "198.51.100.17",
         "srcuser": "user05"
+      },
+      "identity": {
+        "subjectId": "acct-user05",
+        "source": "trusted-directory"
       }
     },
     {
@@ -133,6 +157,10 @@
         "srcip": "192.0.2.17",
         "srcuser": "user06",
         "group": "administrators"
+      },
+      "identity": {
+        "subjectId": "acct-user06",
+        "source": "trusted-directory"
       }
     },
     {
@@ -151,6 +179,10 @@
       "data": {
         "srcip": "203.0.113.27",
         "srcuser": "user07"
+      },
+      "identity": {
+        "subjectId": "acct-user07",
+        "source": "trusted-directory"
       }
     },
     {
@@ -171,6 +203,10 @@
         "srcuser": "user08",
         "group": "administrators",
         "count": "2"
+      },
+      "identity": {
+        "subjectId": "acct-user08",
+        "source": "trusted-directory"
       }
     },
     {
@@ -189,6 +225,10 @@
       "data": {
         "srcip": "192.0.2.54",
         "srcuser": "user01"
+      },
+      "identity": {
+        "subjectId": "acct-user01",
+        "source": "trusted-directory"
       }
     },
     {
@@ -208,6 +248,10 @@
         "srcip": "198.51.100.54",
         "srcuser": "user02",
         "group": "project-week3"
+      },
+      "identity": {
+        "subjectId": "acct-user02",
+        "source": "trusted-directory"
       }
     },
     {
@@ -226,6 +270,10 @@
       "data": {
         "srcip": "203.0.113.54",
         "srcuser": "user03"
+      },
+      "identity": {
+        "subjectId": "acct-user03",
+        "source": "trusted-directory"
       }
     },
     {
@@ -244,6 +292,10 @@
       "data": {
         "srcip": "192.0.2.55",
         "srcuser": "user04"
+      },
+      "identity": {
+        "subjectId": "acct-user04",
+        "source": "trusted-directory"
       }
     },
     {
@@ -262,6 +314,10 @@
       "data": {
         "srcip": "198.51.100.55",
         "srcuser": "user05"
+      },
+      "identity": {
+        "subjectId": "acct-user05",
+        "source": "trusted-directory"
       }
     },
     {
@@ -281,6 +337,10 @@
         "srcip": "203.0.113.55",
         "srcuser": "user06",
         "group": "lab-notes"
+      },
+      "identity": {
+        "subjectId": "acct-user06",
+        "source": "trusted-directory"
       }
     },
     {
@@ -299,6 +359,10 @@
       "data": {
         "srcip": "192.0.2.56",
         "srcuser": "user07"
+      },
+      "identity": {
+        "subjectId": "acct-user07",
+        "source": "trusted-directory"
       }
     },
     {
@@ -318,6 +382,10 @@
         "srcip": "198.51.100.56",
         "srcuser": "user08",
         "group": "class-readers"
+      },
+      "identity": {
+        "subjectId": "acct-user08",
+        "source": "trusted-directory"
       }
     },
     {
@@ -334,6 +402,10 @@
       "data": {
         "srcip": "192.0.2.76",
         "srcuser": "user01"
+      },
+      "identity": {
+        "subjectId": "acct-user01",
+        "source": "trusted-directory"
       }
     },
     {
@@ -350,6 +422,10 @@
       "data": {
         "srcip": "192.0.2.76",
         "srcuser": "user01"
+      },
+      "identity": {
+        "subjectId": "acct-user01",
+        "source": "trusted-directory"
       }
     },
     {
@@ -366,6 +442,10 @@
       "data": {
         "srcip": "198.51.100.76",
         "srcuser": "user02"
+      },
+      "identity": {
+        "subjectId": "acct-user02",
+        "source": "trusted-directory"
       }
     },
     {
@@ -382,6 +462,10 @@
       "data": {
         "srcip": "192.0.2.10",
         "srcuser": "admin01"
+      },
+      "identity": {
+        "subjectId": "acct-admin01",
+        "source": "trusted-directory"
       }
     },
     {
@@ -398,6 +482,10 @@
       "data": {
         "srcip": "192.0.2.10",
         "srcuser": "admin01"
+      },
+      "identity": {
+        "subjectId": "acct-admin01",
+        "source": "trusted-directory"
       }
     },
     {
@@ -414,6 +502,10 @@
       "data": {
         "srcip": "203.0.113.76",
         "srcuser": "user03"
+      },
+      "identity": {
+        "subjectId": "acct-user03",
+        "source": "trusted-directory"
       }
     },
     {
@@ -430,6 +522,10 @@
       "data": {
         "srcip": "203.0.113.76",
         "srcuser": "user04"
+      },
+      "identity": {
+        "subjectId": "acct-user04",
+        "source": "trusted-directory"
       }
     },
     {
@@ -446,6 +542,10 @@
       "data": {
         "srcip": "198.51.100.10",
         "srcuser": "svc-lab"
+      },
+      "identity": {
+        "subjectId": "acct-svc-lab",
+        "source": "trusted-directory"
       }
     },
     {
@@ -462,6 +562,10 @@
       "data": {
         "srcip": "192.0.2.77",
         "srcuser": "user05"
+      },
+      "identity": {
+        "subjectId": "acct-user05",
+        "source": "trusted-directory"
       }
     }
   ]
