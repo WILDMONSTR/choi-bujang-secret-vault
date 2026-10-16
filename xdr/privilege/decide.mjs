@@ -161,11 +161,14 @@ export function decide(alert) {
   if (adminCommand && (atNewAddress || otherAccountCommand || failedAdminCommand)) {
     return output("unfamiliar_admin_command", 0.68);
   }
+  // 다수 계정 추가·관리자 재추가는 일반 그룹 추가보다 먼저 분류합니다.
+  if (addedSeveralAccounts || repeatedAdminReadd) {
+    return output("ambiguous_privilege_activity", 0.68);
+  }
   if (groupAddition) {
     return output("admin_group_addition", 0.68);
   }
-  if (addedSeveralAccounts || repeatedAdminReadd || sessionElevationAtNewAddress
-      || cancelledElevation || elevationWithoutCommand || failedAdminCommand
+  if (sessionElevationAtNewAddress || cancelledElevation || elevationWithoutCommand || failedAdminCommand
       || /관리자.{0,18}(?:그룹|권한)|권한.{0,18}(?:상승|변경)|administrator group|privilege escalation/i.test(description)) {
     return output("ambiguous_privilege_activity", 0.68);
   }
