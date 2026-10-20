@@ -127,7 +127,7 @@ export function decide(alert) {
   const adminCommand = hasAdminCommand(alert);
   // block은 복합 문구만으로 확정하지 않고 계정·출발지·규칙 수준·MITRE 근거를 모두 요구합니다.
   const trustedAccount = Boolean(oneLine(alert?.identity?.subjectId))
-    && /^(?:trusted-directory|trusted-directory|trusted)$/i.test(oneLine(alert?.identity?.source));
+    && /^(?:trusted-directory|trusted)$/i.test(oneLine(alert?.identity?.source));
   const validSource = Boolean(oneLine(alert?.data?.srcip)) && Boolean(oneLine(alert?.data?.srcuser));
   const hasMitreEvidence = Array.isArray(alert?.rule?.mitre)
     && alert.rule.mitre.some((technique) => PATTERN_SPEC.attackTechniques.includes(oneLine(technique)));
@@ -173,10 +173,10 @@ export function decide(alert) {
     return output("unfamiliar_session_elevation", strongEvidence ? 0.96 : 0.68);
   }
   if (adminCommand && otherAccountCommand) {
-    return output("unfamiliar_admin_command", strongEvidence ? 0.96 : 0.68);
+    return output("unfamiliar_admin_command", 0.68);
   }
   if (repeatedAdminReadd) {
-    return output("repeated_admin_group_readdition", strongEvidence ? 0.96 : 0.68);
+    return output("repeated_admin_group_readdition", 0.68);
   }
   if (offHours && (atNewAddress || adminCommand)) {
     return output("off_hours_privilege_use", 0.72);
