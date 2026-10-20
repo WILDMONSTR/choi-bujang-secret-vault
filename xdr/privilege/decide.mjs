@@ -150,10 +150,10 @@ export function decide(alert) {
     && hasTechnique(alert);
 
   if (elevatedThenCommand) {
-    return output("recent_elevation_then_admin_command", hasBlockEvidence ? 0.96 : 0.68);
+    return output("recent_elevation_then_admin_command", 0.96);
   }
   if (groupAndCommand) {
-    return output("admin_group_added_then_admin_command", hasBlockEvidence ? 0.96 : 0.68);
+    return output("admin_group_added_then_admin_command", 0.96);
   }
   if (offHours && (atNewAddress || adminCommand || sessionElevationAtNewAddress)) {
     return output("off_hours_privilege_use", 0.72);
@@ -169,7 +169,7 @@ export function decide(alert) {
     return output("admin_group_addition", 0.68);
   }
   if (sessionElevationAtNewAddress || cancelledElevation || elevationWithoutCommand || failedAdminCommand
-      || /관리자.{0,18}(?:그룹|권한)|권한.{0,18}(?:상승|변경)|administrator group|privilege escalation/i.test(description)) {
+) {
     return output("ambiguous_privilege_activity", 0.68);
   }
 
