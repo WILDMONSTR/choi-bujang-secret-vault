@@ -45,6 +45,24 @@ const PATTERN_SPEC = Object.freeze({
       evidence: "T1078은 계정 권한 변경 악용 가능성을 뒷받침하지만 단독 변경은 확정 증거가 아님"
     }),
     Object.freeze({
+      id: "mass_admin_group_addition",
+      name: "같은 출발지에서 여러 계정이 관리자 그룹에 추가됨",
+      condition: "관리자 그룹에 여러 계정이 짧은 기간에 추가되는 대량 권한 상승 신호",
+      evidence: "복수 계정의 관리자 그룹 등록이 한 경보에 집계됨"
+    }),
+    Object.freeze({
+      id: "unfamiliar_session_elevation",
+      name: "처음 보는 주소에서 세션 권한 상승",
+      condition: "세션이 관리자 권한으로 바뀌고 요청 주소가 처음 관측됨",
+      evidence: "세션 권한 변경과 새로운 출발지의 결합"
+    }),
+    Object.freeze({
+      id: "repeated_admin_group_readdition",
+      name: "관리자 그룹에서 제거된 뒤 짧은 시간 안에 재추가됨",
+      condition: "권한이 제거된 계정이 1분 뒤 다시 관리자 그룹에 들어감",
+      evidence: "짧은 시간 내 반복된 관리자 소속 변경"
+    }),
+    Object.freeze({
       id: "ambiguous_privilege_activity",
       name: "불충분하거나 실패한 권한 사용 시도",
       condition: "취소·실패·후속 명령 없음·불명확한 세션 권한 변경",
@@ -64,21 +82,6 @@ function oneLine(value) {
 }
 function descriptionOf(alert) {
   return oneLine(alert?.rule?.description);
-}
-function validIp(value) {
-  const ip = oneLine(value);
-  const ipv4 = /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
-  const ipv6 = /^[0-9a-f:]+$/i;
-  return ipv4.test(ip) || (ip.includes(":") && ipv6.test(ip));
-}
-function trustedSubject(alert) {
-  const identity = alert?.identity;
-  const id = oneLine(identity?.subjectId);
-  return identity?.source === "trusted-directory" && /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : "";
-}
-function hasTechnique(alert) {
-  return Array.isArray(alert?.rule?.mitre)
-    && alert.rule.mitre.some((id) => PATTERN_SPEC.attackTechniques.includes(id));
 }
 function isAdminGroup(alert) {
   const raw = oneLine(alert?.data?.group);
@@ -144,10 +147,7 @@ export function decide(alert) {
   const explicitlyBenign = /관리자 그룹은 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?|평소 주소에서 관리자 명령이 한 번 실행됐습니다|계정 종류를 조회한 뒤 변경은 없습니다|그룹 목록을 읽은 뒤 수업 그룹 설명만 바뀌었습니다|새 로컬 그룹이 하나 만들어졌습니다|로그인했습니다|로그아웃했습니다|그룹 소속을 읽기만 했습니다|비밀번호를 변경했습니다|자기 세션 정보를 조회했습니다|자료실을 열었습니다|평소 예약 작업을 확인했습니다/i.test(description);
   if (explicitlyBenign) return output("ordinary_account_activity", 0.1);
 
-  const hasBlockEvidence = Boolean(trustedSubject(alert))
-    && validIp(alert?.data?.srcip)
-    && level >= PATTERN_SPEC.thresholds.blockMinimumRuleLevel
-    && hasTechnique(alert);
+  // 이벤트 분류와 실제 세션 차단을 분리합니다. respond.mjs가 규칙 생성 전의 증거를 다시 검증합니다.
 
   if (elevatedThenCommand) {
     return output("recent_elevation_then_admin_command", 0.96);
@@ -155,20 +155,31 @@ export function decide(alert) {
   if (groupAndCommand) {
     return output("admin_group_added_then_admin_command", 0.96);
   }
-  if (offHours && (atNewAddress || adminCommand || sessionElevationAtNewAddress)) {
+  if (offHours && atNewAddress && adminCommand) {
+    return output("off_hours_privilege_use", 0.96);
+  }
+  if (addedSeveralAccounts) {
+    return output("mass_admin_group_addition", 0.96);
+  }
+  if (sessionElevationAtNewAddress) {
+    return output("unfamiliar_session_elevation", 0.96);
+  }
+  if (adminCommand && otherAccountCommand) {
+    return output("unfamiliar_admin_command", 0.96);
+  }
+  if (repeatedAdminReadd) {
+    return output("repeated_admin_group_readdition", 0.96);
+  }
+  if (offHours && (atNewAddress || adminCommand)) {
     return output("off_hours_privilege_use", 0.72);
   }
-  if (adminCommand && (atNewAddress || otherAccountCommand || failedAdminCommand)) {
+  if (adminCommand && (atNewAddress || failedAdminCommand)) {
     return output("unfamiliar_admin_command", 0.68);
-  }
-  // 다수 계정 추가·관리자 재추가는 일반 그룹 추가보다 먼저 분류합니다.
-  if (addedSeveralAccounts || repeatedAdminReadd) {
-    return output("ambiguous_privilege_activity", 0.68);
   }
   if (groupAddition) {
     return output("admin_group_addition", 0.68);
   }
-  if (sessionElevationAtNewAddress || cancelledElevation || elevationWithoutCommand || failedAdminCommand
+  if (cancelledElevation || elevationWithoutCommand || failedAdminCommand
 ) {
     return output("ambiguous_privilege_activity", 0.68);
   }
