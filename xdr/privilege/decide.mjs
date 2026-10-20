@@ -125,6 +125,14 @@ export function decide(alert) {
   const level = Number(alert?.rule?.level) || 0;
   const groupAddition = hasAdminGroupAddition(alert);
   const adminCommand = hasAdminCommand(alert);
+  // block은 복합 문구만으로 확정하지 않고 계정·출발지·규칙 수준·MITRE 근거를 모두 요구합니다.
+  const trustedAccount = Boolean(oneLine(alert?.identity?.subjectId))
+    && /^(?:trusted-directory|trusted-directory|trusted)$/i.test(oneLine(alert?.identity?.source));
+  const validSource = Boolean(oneLine(alert?.data?.srcip)) && Boolean(oneLine(alert?.data?.srcuser));
+  const hasMitreEvidence = Array.isArray(alert?.rule?.mitre)
+    && alert.rule.mitre.some((technique) => PATTERN_SPEC.attackTechniques.includes(oneLine(technique)));
+  const strongEvidence = trustedAccount && validSource
+    && level >= PATTERN_SPEC.thresholds.blockMinimumRuleLevel && hasMitreEvidence;
   const atNewAddress = /처음 보는 주소|주소는 처음 봅니다|처음 봅니다|낯선 주소|원격 주소|first.seen address|new address|remote address/i.test(description);
   const offHours = /수업 시간 밖|업무처럼 보이지 않는 시각|비정상 시간|off.hours|outside class hours/i.test(description);
   const elevatedThenCommand = hasRecentElevation(alert) && adminCommand;
@@ -150,25 +158,25 @@ export function decide(alert) {
   // 이벤트 분류와 실제 세션 차단을 분리합니다. respond.mjs가 규칙 생성 전의 증거를 다시 검증합니다.
 
   if (elevatedThenCommand) {
-    return output("recent_elevation_then_admin_command", 0.96);
+    return output("recent_elevation_then_admin_command", strongEvidence ? 0.96 : 0.68);
   }
   if (groupAndCommand) {
-    return output("admin_group_added_then_admin_command", 0.96);
+    return output("admin_group_added_then_admin_command", strongEvidence ? 0.96 : 0.68);
   }
   if (offHours && atNewAddress && adminCommand) {
-    return output("off_hours_privilege_use", 0.96);
+    return output("off_hours_privilege_use", strongEvidence ? 0.96 : 0.72);
   }
   if (addedSeveralAccounts) {
-    return output("mass_admin_group_addition", 0.96);
+    return output("mass_admin_group_addition", strongEvidence ? 0.96 : 0.68);
   }
   if (sessionElevationAtNewAddress) {
-    return output("unfamiliar_session_elevation", 0.96);
+    return output("unfamiliar_session_elevation", strongEvidence ? 0.96 : 0.68);
   }
   if (adminCommand && otherAccountCommand) {
-    return output("unfamiliar_admin_command", 0.96);
+    return output("unfamiliar_admin_command", strongEvidence ? 0.96 : 0.68);
   }
   if (repeatedAdminReadd) {
-    return output("repeated_admin_group_readdition", 0.96);
+    return output("repeated_admin_group_readdition", strongEvidence ? 0.96 : 0.68);
   }
   if (offHours && (atNewAddress || adminCommand)) {
     return output("off_hours_privilege_use", 0.72);
