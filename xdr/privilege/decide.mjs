@@ -164,7 +164,7 @@ export function decide(alert) {
     return output("admin_group_added_then_admin_command", strongEvidence ? 0.96 : 0.68);
   }
   if (offHours && atNewAddress && adminCommand) {
-    return output("off_hours_privilege_use", strongEvidence ? 0.96 : 0.72);
+    return output("off_hours_privilege_use", 0.72);
   }
   if (addedSeveralAccounts) {
     return output("mass_admin_group_addition", strongEvidence ? 0.96 : 0.68);
