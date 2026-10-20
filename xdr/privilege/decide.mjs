@@ -166,17 +166,18 @@ export function decide(alert) {
   if (offHours && atNewAddress && adminCommand) {
     return output("off_hours_privilege_use", 0.72);
   }
+  // 대량 그룹 추가나 반복 재추가는 조사 가치가 있지만, 명령 결합과 달리 이 이벤트 하나만으로 block하지 않습니다.
   if (addedSeveralAccounts) {
-    return output("mass_admin_group_addition", strongEvidence ? 0.96 : 0.68);
+    return output("ambiguous_privilege_activity", 0.68);
   }
   if (sessionElevationAtNewAddress) {
-    return output("unfamiliar_session_elevation", strongEvidence ? 0.96 : 0.68);
+    return output("unfamiliar_session_elevation", 0.68);
   }
   if (adminCommand && otherAccountCommand) {
     return output("unfamiliar_admin_command", 0.68);
   }
   if (repeatedAdminReadd) {
-    return output("repeated_admin_group_readdition", 0.68);
+    return output("ambiguous_privilege_activity", 0.68);
   }
   if (offHours && (atNewAddress || adminCommand)) {
     return output("off_hours_privilege_use", 0.72);
