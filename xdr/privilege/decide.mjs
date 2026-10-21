@@ -231,11 +231,13 @@ export function decide(alert) {
   const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
   const highRiskRule = Number.isFinite(ruleLevel) && ruleLevel >= 7
     && (mitre.includes("T1068") || mitre.includes("T1078"));
-  // 심각도/MITRE만으로 올리지 않고, 실제 시도·실패·변경 동사도 함께 요구합니다.
+  // 마지막 안전망은 독립적인 작업·시도 증거가 있어야 작동합니다.
+  // 낯선 주소, 업무 외 시간, 높은 규칙 수준 또는 MITRE 표식만으로 정상 활동을 올리지 않습니다.
   const suspiciousOperation = /(?:시도|실패|취소|거부|중단|추가|부여|회수|상승|승격|전환|실행|명령|attempted|failed|failure|cancelled|canceled|denied|blocked|aborted|added|granted|revoked|elevated|escalated|switched|executed|command)/i.test(description);
   const negatedAdminContext = /관리자 그룹은 아닙니다|관리자 그룹이 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?/i.test(description);
-  if (privilegeContext && !negatedAdminContext
-      && (atNewAddress || offHours || privilegeOperation || (highRiskRule && suspiciousOperation))) {
+  const independentOperationEvidence = privilegeOperation
+    || (highRiskRule && suspiciousOperation);
+  if (privilegeContext && !negatedAdminContext && independentOperationEvidence) {
     return output("ambiguous_privilege_activity", 0.56);
   }
 
