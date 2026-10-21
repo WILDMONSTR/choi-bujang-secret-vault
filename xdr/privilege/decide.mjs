@@ -191,7 +191,7 @@ function hasRequiredAttackEvidence(alert) {
   const sourceIp = oneLine(alert?.data?.srcip);
   const ipv4Parts = sourceIp.split(".");
   const validIpv4 = ipv4Parts.length === 4
-    && ipv4Parts.every((part) => /^\\d{1,3}$/.test(part) && Number(part) <= 255);
+    && ipv4Parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
   const validIpv6 = sourceIp.includes(":")
     && /^[0-9a-f:]+$/i.test(sourceIp)
     && sourceIp.split("::").length <= 2
