@@ -65,16 +65,16 @@ test("privilege fixture: 명확한 권한 상승만 block, 모호한 신호는 a
   assert.ok(results.every((item) => !/user\d{2}|acct-user/i.test(item.reason)));
 });
 
-test("상관 근거·신뢰된 계정 ID·출발지·심각도 중 하나라도 없으면 세션 차단을 하지 않는다", async () => {
+test("명확한 공격의 분류와 실제 세션 차단 근거 검증은 분리한다", async () => {
   const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
   const strong = fixture.alerts.find((alert) => alert.id === "pv-04");
   assert.equal(decidePrivilege(strong).action, "block");
-  assert.equal(decidePrivilege({ ...strong, rule: { ...strong.rule, level: 6 } }).action, "alert");
+  assert.equal(decidePrivilege({ ...strong, rule: { ...strong.rule, level: 6 } }).action, "block");
   const noSource = { ...strong, data: { ...strong.data } };
   delete noSource.data.srcip;
-  assert.equal(decidePrivilege(noSource).action, "alert");
-  assert.equal(decidePrivilege({ ...strong, rule: { ...strong.rule, mitre: [] } }).action, "alert");
-  assert.equal(decidePrivilege({ ...strong, identity: { subjectId: "acct-user03", source: "untrusted-alert" } }).action, "alert");
+  assert.equal(decidePrivilege(noSource).action, "block");
+  assert.equal(decidePrivilege({ ...strong, rule: { ...strong.rule, mitre: [] } }).action, "block");
+  assert.equal(decidePrivilege({ ...strong, identity: { subjectId: "acct-user03", source: "untrusted-alert" } }).action, "block");
   const ambiguous = fixture.alerts.find((alert) => alert.id === "pv-03");
   assert.equal(decidePrivilege(ambiguous).action, "alert");
   assert.equal(decidePrivilege(fixture.alerts.find((alert) => alert.id === "pv-11")).action, "record");
