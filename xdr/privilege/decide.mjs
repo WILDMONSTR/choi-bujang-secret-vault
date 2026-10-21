@@ -33,9 +33,9 @@ const PATTERN_SPEC = Object.freeze({
     }),
     Object.freeze({
       id: "off_hours_privilege_use",
-      name: "업무 시간 밖 권한 사용",
-      condition: "업무 시간 밖 권한 신호와 낯선 관리자 명령 등이 함께 나타남",
-      evidence: "T1078의 계정 악용·T1068의 권한 상승 맥락에 부합할 수 있으나 시간대만으로 확정하지 않음"
+      name: "업무 외 시간·낯선 출발지의 관리자 명령",
+      condition: "업무 외 시간, 낯선 출발지, 실제 관리자 명령이 한 경보에 함께 나타나는 경우 확신도 0.90으로 block한다. 시간대나 낯선 주소만으로는 block하지 않고 alert로 분류한다.",
+      evidence: "T1078 계정 악용과 T1068 권한 상승 관련 신호가 시간대·출발지 이상 및 실제 관리자 명령과 결합된 경우에만 강한 복합 근거로 본다."
     }),
     Object.freeze({
       id: "admin_group_addition",
