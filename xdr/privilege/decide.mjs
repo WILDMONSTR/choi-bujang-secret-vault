@@ -142,7 +142,7 @@ export function decide(alert) {
   const groupAddition = hasAdminGroupAddition(alert);
   const adminCommand = hasAdminCommand(alert);
   // 판정은 패턴 신호로 수행합니다. 실제 세션 거부 전의 신뢰도·근거 검증은 respond.mjs가 별도로 수행합니다.
-  const atNewAddress = /처음 보는 주소|주소는 처음 봅니다|처음 봅니다|낯선 주소|원격 주소|미확인 (?:주소|IP)|새로운 출발지|처음 관측(?:된)? (?:주소|IP)|first[ -]?seen address|new(?:ly observed)? (?:source )?(?:address|IP)|remote address|unfamiliar (?:source|IP)|unknown (?:source|IP|address)|unrecognized (?:source|IP|address)|previously unseen (?:source|address)/i.test(description);
+  const atNewAddress = /처음 보는 주소|주소는 처음 봅니다|처음 봅니다|낯선 주소미확인 (?:주소|IP)|새로운 출발지|처음 관측(?:된)? (?:주소|IP)|first[ -]?seen address|new(?:ly observed)? (?:source )?(?:address|IP)unfamiliar (?:source|IP)|unknown (?:source|IP|address)|unrecognized (?:source|IP|address)|previously unseen (?:source|address)/i.test(description);
   const offHours = /수업 시간 밖|업무 시간 밖|업무 외 시간|야간|심야|업무처럼 보이지 않는 시각|비정상 시간|근무 시간 외|off[ -]?hours|outside (?:class|working|business) hours|after hours|during the night|at night/i.test(description);
   const elevatedThenCommand = hasRecentElevation(alert) && adminCommand;
   const groupAndCommand = groupAddition && adminCommand;
