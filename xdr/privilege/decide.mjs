@@ -224,12 +224,9 @@ export function decide(alert) {
     return output("unfamiliar_admin_command", 0.68);
   }
   if (groupAddition) {
-    // 단독 그룹 추가만으로는 알림을 만들지 않습니다. 낯선 출발지·대량 추가·반복 재추가 등
-    // 독립적인 이상 정황이 있을 때만 조사 대상으로 남깁니다.
-    if (atNewAddress || addedSeveralAccounts || repeatedAdminReadd || (offHours && adminCommand)) {
-      return output("admin_group_addition", 0.68);
-    }
-    return output("ordinary_account_activity", 0.1);
+    // 관리자 그룹 추가만으로 공격 확정(block)까지 하지는 않지만,
+    // 권한 변경 시도는 불완전한 의심 이벤트로 남겨 반드시 alert로 분류합니다.
+    return output("admin_group_addition", 0.68);
   }
   // 마지막 안전망은 "관리자/권한"이라는 단어 자체가 아니라 실제 변경·시도·위험 문맥을 요구합니다.
   // 따라서 평소 주소의 관리자 로그인, 로그아웃, 조회만으로 alert를 만들지 않습니다.
