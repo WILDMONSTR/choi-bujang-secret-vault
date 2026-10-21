@@ -226,4 +226,3 @@ export function decide(alert) {
 
   return output("ordinary_account_activity", 0.1);
 }
-}
