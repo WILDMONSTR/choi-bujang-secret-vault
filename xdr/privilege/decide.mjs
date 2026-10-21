@@ -5,7 +5,6 @@ const PATTERN_SPEC = Object.freeze({
   thresholds: Object.freeze({
     blockMinimumConfidence: 0.85,
     alertMinimumConfidence: 0.5,
-    blockMinimumRuleLevel: 10
   }),
   patterns: Object.freeze([
     Object.freeze({
@@ -104,7 +103,6 @@ function output(patternId, confidence) {
 
 export function decide(alert) {
   const description = descriptionOf(alert);
-  const level = Number(alert?.rule?.level) || 0;
   const groupAddition = hasAdminGroupAddition(alert);
   const adminCommand = hasAdminCommand(alert);
   // 분류는 경보 설명의 패턴 일치로 판단합니다. 실제 세션 거부 전 검증은 respond.mjs가 별도로 수행합니다.
