@@ -213,7 +213,9 @@ export function decide(alert) {
   if (repeatedAdminReadd) {
     return output("ambiguous_privilege_activity", 0.68);
   }
-  if (offHours && (atNewAddress || adminCommand)) {
+  // 시간대·주소 단서만 있는 로그인/조회는 알림으로 올리지 않습니다.
+  // 업무 외 시간의 실제 관리자 명령이 확인될 때만 이 패턴을 적용합니다.
+  if (offHours && adminCommand) {
     return output("off_hours_privilege_use", 0.72);
   }
   if (adminCommand && atNewAddress) {
