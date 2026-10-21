@@ -177,6 +177,14 @@ export function decide(alert) {
     return output("ordinary_account_activity", 0.1);
   }
 
+  // 부정된 그룹 추가 주장을 성공 증거로 쓰지 않습니다. 별도 위험 정황이 없으면 정상 기록으로 둡니다.
+  const negatedGroupClaim = /(?:관리자 그룹|administrators?|admins?|admin group).{0,32}(?:아닙니다|아니며|추가되지 않았|추가되지 않음|was not added|were not added|not added|not a member)|(?:not|never) added to (?:the )?(?:administrators?|admins?|admin group)|not in (?:the )?(?:administrators?|admins?)/i.test(description);
+  if (negatedGroupClaim && !atNewAddress && !offHours && !otherAccountCommand
+      && !failedAdminCommand && !cancelledElevation && !elevationWithoutCommand
+      && !elevatedThenCommand && !groupAddition) {
+    return output("ordinary_account_activity", 0.1);
+  }
+
   // 이벤트 분류와 실제 세션 차단을 분리합니다. respond.mjs가 규칙 생성 전의 증거를 다시 검증합니다.
 
   // 실패·취소·후속 명령 없음은 성공한 공격으로 보지 않으므로 복합 패턴보다 먼저 처리합니다.
