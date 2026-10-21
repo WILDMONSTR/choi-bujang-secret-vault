@@ -235,17 +235,10 @@ export function decide(alert) {
   const privilegeContext = isAdminGroup(alert)
     || /관리자|권한 상승|권한 변경|관리자 권한|administrator|\\badmin\\b|admin group|privilege|privileged|elevated|permission|\\brole\\b|sudoers?|wheel/i.test(description);
   const privilegeOperation = /(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|역할 변경|역할 부여|권한이 변경|권한이 부여|권한이 회수|admin(?:istrator)? group|admin(?:istrator)? privileges?|admin rights|privilege (?:escalation|elevation|change|grant|revocation)|permission (?:change|grant|revocation)|role (?:change|grant|assignment|revocation)|privileged session).{0,40}(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화|added|changed|modified|granted|revoked|removed|executed|attempted|failed|cancelled|canceled|denied|aborted|elevated|switched|assigned)|(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화|added|changed|modified|granted|revoked|removed|executed|attempted|failed|cancelled|canceled|denied|aborted|elevated|switched|assigned).{0,40}(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|역할 변경|역할 부여|admin(?:istrator)? group|admin(?:istrator)? privileges?|admin rights|privilege (?:escalation|elevation|change|grant|revocation)|permission (?:change|grant|revocation)|role (?:change|grant|assignment|revocation)|privileged session)|(?:관리자|권한|administrator|admin|privilege|permission|role).{0,32}(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious|failed|cancelled|canceled|denied|blocked|attempted|unusual)|(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious|failed|cancelled|canceled|denied|blocked|attempted|unusual).{0,32}(?:관리자|권한|administrator|admin|privilege|permission|role)/i.test(description);
-  const ruleLevel = Number(alert?.rule?.level);
-  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
-  const highRiskRule = Number.isFinite(ruleLevel) && ruleLevel >= 7
-    && (mitre.includes("T1068") || mitre.includes("T1078"));
-  // 마지막 안전망은 독립적인 작업·시도 증거가 있어야 작동합니다.
-  // 낯선 주소, 업무 외 시간, 높은 규칙 수준 또는 MITRE 표식만으로 정상 활동을 올리지 않습니다.
-  const suspiciousOperation = /(?:시도|실패|취소|거부|중단|추가|부여|회수|상승|승격|전환|실행|명령|attempted|failed|failure|cancelled|canceled|denied|blocked|aborted|added|granted|revoked|elevated|escalated|switched|executed|command)/i.test(description);
+  // 마지막 안전망은 실제 권한 작업을 설명하는 동사가 명시된 경우에만 alert로 올립니다.
+  // 규칙 수준·MITRE 표식과 일반 동작 단어의 조합만으로는 정상 이벤트를 승격하지 않습니다.
   const negatedAdminContext = /관리자 그룹은 아닙니다|관리자 그룹이 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?/i.test(description);
-  const independentOperationEvidence = privilegeOperation
-    || (highRiskRule && suspiciousOperation);
-  if (privilegeContext && !negatedAdminContext && independentOperationEvidence) {
+  if (privilegeContext && !negatedAdminContext && privilegeOperation) {
     return output("ambiguous_privilege_activity", 0.56);
   }
 
