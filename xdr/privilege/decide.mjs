@@ -84,7 +84,7 @@ function isAdminGroup(alert) {
       || /(?:^|[\\\\/])(?:administrators?|admins?)$/i.test(raw)
       || /^S-1-5-32-544$/i.test(raw);
   }
-  return /관리자 그룹|관리자 권한 그룹|administrator group|admin group|domain admins?|enterprise admins?|sudoers?|wheel group/i.test(description);
+  return /관리자 그룹|관리자 권한 그룹|administrators? group|admins? group|admin(?:istrator)?s? group|domain admins?|enterprise admins?|members? of (?:the )?(?:administrators?|admins?)|(?:administrators?|admins?) membership|sudoers?|wheel group/i.test(description);
 }
 function hasAdminGroupAddition(alert) {
   const description = descriptionOf(alert);
