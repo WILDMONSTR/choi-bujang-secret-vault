@@ -9,66 +9,66 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "recent_elevation_then_admin_command",
       name: "권한 상승 직후 관리자 명령",
-      condition: "같은 경보 설명에 방금 관리자 권한을 얻은 정황과 관리자 명령 실행이 함께 나타남",
+      condition: "같은 경보에 방금 관리자 권한을 얻은 정황과 관리자 명령 실행이 함께 있어야 한다. 유효 IPv4 주소·규칙 수준 10 이상·T1068/T1078 근거까지 있으면 block 확신도, 없으면 alert 확신도로 낮춘다. identity 필드는 원본 fixture에서 요구하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.96,
-      evidence: "MITRE ATT&CK T1068은 권한 상승 악용을 설명하며, 명령 실행이 바로 뒤따르면 단순한 권한 변경보다 위험도가 높다."
+      evidence: "T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다.",
     }),
     Object.freeze({
       id: "admin_group_added_then_admin_command",
       name: "관리자 그룹 추가와 관리자 명령",
-      condition: "같은 경보에서 관리자 그룹 추가와 관리자 명령 실행이 함께 나타남",
+      condition: "같은 경보에서 성공한 관리자 그룹 추가와 관리자 명령 실행이 함께 있어야 한다. 유효 IPv4 주소·규칙 수준 10 이상·T1068/T1078 근거가 모두 있을 때만 block 확신도로 판단하며, identity 필드는 원본 fixture에서 요구하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.96,
-      evidence: "MITRE ATT&CK T1078의 정상 계정 악용 맥락과 T1068의 권한 상승 맥락이 행위 결합으로 뒷받침된다."
+      evidence: "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다.",
     }),
     Object.freeze({
       id: "recent_group_change_then_admin_command",
       name: "5분 내 관리자 그룹 변경과 관리자 명령",
-      condition: "응답 단계에서 동일 계정·동일 출발지의 그룹 추가와 관리자 명령이 5분 내 함께 확인됨",
+      condition: "응답 단계에서 동일한 정규화 계정·동일 출발지의 관리자 그룹 변경과 관리자 명령 경보가 5분 안에 함께 나타나고, 두 경보의 규칙 수준·MITRE 근거가 유효할 때 거부 규칙 후보로 결합한다.",
       action: "confidence_threshold",
       confidence: 0.97,
-      evidence: "T1078의 계정 악용 가능성과 T1068의 권한 상승 관련 행위가 시간상 연결된다."
+      evidence: "T1078은 유효 계정 악용 맥락을, T1068은 권한 상승 결과인 관리자 명령의 악용 가능성을 뒷받침한다.",
     }),
     Object.freeze({
       id: "unfamiliar_admin_command",
       name: "낯선 주소 또는 다른 계정의 관리자 명령",
-      condition: "처음 보는 출발지 주소 또는 다른 계정의 권한으로 관리자 명령이 실행되지만 명확한 복합 공격 증거는 부족함",
+      condition: "처음 보는 주소 또는 다른 계정 권한에서 관리자 명령이 나타나지만, 같은 경보의 명확한 권한 상승·그룹 추가 결합 증거가 없으면 alert로 분류한다.",
       action: "confidence_threshold",
       confidence: 0.68,
-      evidence: "MITRE ATT&CK T1078은 정상 계정이 비정상적으로 사용되는 상황을 설명한다."
+      evidence: "T1078은 정상 계정의 비정상적 사용이 계정 악용 가능성을 나타낼 수 있음을 설명한다.",
     }),
     Object.freeze({
       id: "off_hours_privilege_use",
       name: "업무 시간 밖 권한 사용",
-      condition: "업무 시간 밖에 관리자 명령이나 권한 사용이 보이지만 명확한 권한 상승·그룹 추가 결합은 없음",
+      condition: "업무 시간 밖 관리자 명령이나 권한 사용은 조사 대상이지만, 명확한 관리자 그룹 추가와 명령 결합이 없으면 alert로 분류한다. 시간대만으로 block하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.72,
-      evidence: "T1078 및 T1068의 악용 맥락에 부합할 수 있으나 시간 정보만으로 공격을 확정할 수 없다."
+      evidence: "T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다.",
     }),
     Object.freeze({
       id: "admin_group_addition",
       name: "단독 관리자 그룹 추가",
-      condition: "관리자 그룹 추가는 있지만 같은 경보에 관리자 명령이 함께 나타나지 않음",
+      condition: "관리자 그룹 추가가 보이지만 같은 경보에 관리자 명령이 함께 없거나 결합 증거가 불충분하면 알림으로 남긴다.",
       action: "confidence_threshold",
       confidence: 0.68,
-      evidence: "T1078은 계정 권한 변경의 악용 가능성을 뒷받침하지만 단독 추가만으로 공격을 확정하지 않는다."
+      evidence: "T1078은 계정 권한 변경이 유효 계정 악용과 연결될 수 있음을 뒷받침하지만 단독 그룹 변경만으로 악용을 확정하지 않는다.",
     }),
     Object.freeze({
       id: "ambiguous_privilege_activity",
       name: "불충분하거나 실패한 권한 사용 시도",
-      condition: "취소·실패·후속 명령 없음·대량 추가·반복 재추가·낯선 세션 권한 변경 등 의심 정황은 있으나 성공한 복합 공격은 확인되지 않음",
+      condition: "권한 상승 창 취소, 명령 없는 권한 상승, 실패한 관리자 명령, 낯선 세션 권한 변경처럼 조사 가치가 있지만 명확한 복합 공격으로 확정되지 않은 활동은 알림으로 분류한다.",
       action: "confidence_threshold",
       confidence: 0.68,
-      evidence: "T1068과 관련될 수 있으나 실패·취소 또는 불완전한 정황만으로 성공한 권한 상승이라고 단정할 근거가 부족하다."
+      evidence: "T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다.",
     }),
     Object.freeze({
       id: "ordinary_account_activity",
       name: "정상 계정·그룹 활동",
-      condition: "정상 로그인·로그아웃·읽기 전용 조회·비관리자 그룹 활동 또는 위험 신호가 결합되지 않은 활동",
+      condition: "로그인·로그아웃·읽기 전용 조회·비관리자 그룹 활동·평소 주소의 정상 관리자 사용처럼 권한 악용을 뒷받침하는 결합 신호가 없으면 기록만 한다.",
       action: "confidence_threshold",
       confidence: 0.1,
-      evidence: "T1068/T1078의 악용 행위가 구체적으로 나타나지 않아 차단 근거가 없다."
+      evidence: "경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다.",
     })
   ])
 });
