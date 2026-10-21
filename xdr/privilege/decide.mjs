@@ -181,6 +181,32 @@ function output(patternId, confidence, reasonOverride) {
   };
 }
 
+function hasRequiredAttackEvidence(alert) {
+  const identity = alert?.identity;
+  const accountKnown = identity === undefined || identity === null
+    ? Boolean(oneLine(alert?.data?.srcuser))
+    : identity.source === "trusted-directory"
+      && /^[A-Za-z0-9._:-]{1,128}$/.test(oneLine(identity.subjectId));
+
+  const sourceIp = oneLine(alert?.data?.srcip);
+  const ipv4Parts = sourceIp.split(".");
+  const validIpv4 = ipv4Parts.length === 4
+    && ipv4Parts.every((part) => /^\\d{1,3}$/.test(part) && Number(part) <= 255);
+  const validIpv6 = sourceIp.includes(":")
+    && /^[0-9a-f:]+$/i.test(sourceIp)
+    && sourceIp.split("::").length <= 2
+    && sourceIp.split(":").length <= 8;
+  const ruleLevel = Number(alert?.rule?.level);
+  const mitre = alert?.rule?.mitre;
+
+  return accountKnown
+    && (validIpv4 || validIpv6)
+    && Number.isFinite(ruleLevel)
+    && ruleLevel >= 10
+    && Array.isArray(mitre)
+    && mitre.some((id) => id === "T1068" || id === "T1078");
+}
+
 export function decide(alert) {
   const description = descriptionOf(alert);
   const groupAddition = hasAdminGroupAddition(alert);
@@ -209,14 +235,23 @@ export function decide(alert) {
   const unusualAdminCommand = adminCommand && unfamiliarAddress;
   const explicitNormal = isExplicitlyBenign(description, alert);
 
-  // 성공한 복합 공격은 출발지·규칙 수준·MITRE·identity 메타데이터와 무관하게 차단합니다.
-  if (elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
-  if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
+  // 복합 공격도 계정·유효 출발지·높은 규칙 수준·MITRE 근거가 모두 있어야 차단합니다.
+  const requiredAttackEvidence = hasRequiredAttackEvidence(alert);
+  if (elevatedThenCommand) {
+    return requiredAttackEvidence
+      ? output("recent_elevation_then_admin_command", 0.96)
+      : output("ambiguous_privilege_activity", 0.68);
+  }
+  if (groupAndCommand) {
+    return requiredAttackEvidence
+      ? output("admin_group_added_then_admin_command", 0.96)
+      : output("ambiguous_privilege_activity", 0.68);
+  }
 
-  // 한 경보만 보더라도 충분히 강한 개별 행위는 차단합니다.
-  if (!failedAttempt && bulkAdminGroupAddition) return output("admin_group_addition", 0.90, "bulk_admin_group_addition: 대량 관리자 그룹 추가 — 한 경보에서 여러 계정이 관리자 그룹에 추가된 정황은 대규모 권한 변경 신호다.");
-  if (!failedAttempt && otherAccountCommand) return output("unfamiliar_admin_command", 0.90);
-  if (!failedAttempt && offHours && unfamiliarAddress && adminCommand) return output("off_hours_privilege_use", 0.90, "off_hours_unfamiliar_admin_command: 업무 시간 밖 낯선 주소의 관리자 명령 — 시간대·출발지·관리자 명령이 함께 관측되어 단독 시간 신호보다 강하다.");
+  // 대량 추가·짧은 시간 안의 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
+  if (!failedAttempt && (bulkAdminGroupAddition || repeatedAdminReadd)) {
+    return output("ambiguous_privilege_activity", 0.68);
+  }
 
   // 실패·취소·후속 명령 없는 시도는 성공한 공격으로 보지 않고 알림만 남깁니다.
   if (failedAttempt || noFollowupCommand) return output("ambiguous_privilege_activity", 0.68);
