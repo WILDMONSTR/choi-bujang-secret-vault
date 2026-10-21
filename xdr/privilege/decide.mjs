@@ -104,7 +104,11 @@ function hasAdminCommand(alert) {
   const explicit = /관리자 명령|권한 명령|관리자 권한.{0,24}명령|권한 상승.{0,24}명령|admin(?:istrator)? command|privileged command|elevated command|command.{0,24}(?:admin|elevat|privileg)|(?:sudo|runas)\s+(?:-\w+\s+)?[\w.-]+/i.test(description);
   if (explicit) return true;
   const genericCommand = /명령.{0,20}(?:실행|수행|입력|호출)|(?:실행|수행|호출).{0,20}명령|(?:execute|executed|run|ran|invoke|invoked).{0,24}command|command.{0,24}(?:executed|run|invoked)/i.test(description);
-  const privilegeContext = /관리자|권한 상승|권한 변경|권한이 높|administrator|admin group|privileg|elevat|sudo|runas/i.test(description);
+  // fixture는 관리자 그룹을 data.group에도 저장하므로, 설명 문구에 관리자라는 단어가
+  // 없어도 실제 그룹 필드나 명시적 권한 상승 신호를 명령 문맥으로 사용합니다.
+  const privilegeContext = /관리자|권한 상승|권한 변경|권한이 높|administrator|admin group|privileg|elevat|sudo|runas/i.test(description)
+    || isAdminGroup(alert)
+    || hasRecentElevation(alert);
   return genericCommand && privilegeContext;
 }
 function hasRecentElevation(alert) {
@@ -206,10 +210,20 @@ export function decide(alert) {
   if (groupAddition) {
     return output("admin_group_addition", 0.68);
   }
-  // 알 수 없는 관리자/권한 활동은 정상이라고 단정하지 않고 alert로 남깁니다.
-  if (/관리자|권한 상승|권한 변경|관리자 권한|administrator|\badmin\b|admin group|privilege escalation|privileged|elevated|sudoers?|wheel/i.test(description)) {
+  // 마지막 안전망은 "관리자/권한"이라는 단어 자체가 아니라 실제 변경·시도·위험 문맥을 요구합니다.
+  // 따라서 평소 주소의 관리자 로그인, 로그아웃, 조회만으로 alert를 만들지 않습니다.
+  const privilegeContext = isAdminGroup(alert)
+    || /관리자|권한 상승|권한 변경|관리자 권한|administrator|\badmin\b|admin group|privilege|privileged|elevated|sudoers?|wheel/i.test(description);
+  const privilegeOperation = /(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|관리자로 승격|admin(?:istrator)? group|admin(?:istrator)? privileges?|privilege escalation|privilege elevation|privileged session).{0,40}(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화|added|changed|granted|removed|executed|attempted|failed|cancelled|canceled|denied|aborted|elevated|switched)|(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화).{0,40}(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|관리자로 승격|admin(?:istrator)? group|admin(?:istrator)? privileges?|privilege escalation|privilege elevation|privileged session)|(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious).{0,32}(?:관리자|권한|administrator|admin|privilege)|(?:관리자|권한|administrator|admin|privilege).{0,32}(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious)/i.test(description);
+  const ruleLevel = Number(alert?.rule?.level);
+  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
+  const hasRiskContext = atNewAddress || offHours
+    || ((Number.isFinite(ruleLevel) && ruleLevel >= 7)
+      && (mitre.includes("T1068") || mitre.includes("T1078")));
+  if (privilegeContext && (atNewAddress || offHours || (privilegeOperation && hasRiskContext))) {
     return output("ambiguous_privilege_activity", 0.56);
   }
 
   return output("ordinary_account_activity", 0.1);
+}
 }
