@@ -127,7 +127,7 @@ function hasStrongBlockEvidence(alert) {
   const srcip = oneLine(alert?.data?.srcip);
   const octets = srcip.split(".");
   const validIpv4 = octets.length === 4
-    && octets.every((octet) => /^\\d{1,3}$/.test(octet) && Number(octet) >= 0 && Number(octet) <= 255);
+    && octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) >= 0 && Number(octet) <= 255);
   const ruleLevel = Number(alert?.rule?.level);
   const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
   return Boolean(subjectId)
