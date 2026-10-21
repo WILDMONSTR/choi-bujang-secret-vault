@@ -199,8 +199,10 @@ export function decide(alert) {
   if (groupAndCommand) {
     return output("admin_group_added_then_admin_command", 0.96);
   }
+  // 낯선 출발지 + 업무 외 시간 + 실제 관리자 명령이 한 경보에 결합되면
+  // 단일한 시간대/주소 이상보다 강한 복합 신호이므로 block 임계치를 넘깁니다.
   if (offHours && atNewAddress && adminCommand) {
-    return output("off_hours_privilege_use", 0.72);
+    return output("off_hours_privilege_use", 0.90);
   }
   // 대량 그룹 추가나 반복 재추가는 조사 가치가 있지만, 명령 결합과 달리 이 이벤트 하나만으로 block하지 않습니다.
   if (addedSeveralAccounts) {
