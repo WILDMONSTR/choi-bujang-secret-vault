@@ -95,7 +95,8 @@ function isAdminGroup(alert) {
 }
 function hasAdminGroupAddition(alert) {
   const description = descriptionOf(alert);
-  if (/관리자 그룹.{0,24}(?:추가되지 않았|추가되지 않음|추가 안 됨|추가되지 않음|변경 없음|없습니다)|(?:not|never) added to (?:the )?(?:administrators?|admins?|admin group)|no (?:administrator|admin) group addition/i.test(description)) return false;
+  // 부정·실패·취소·미확인 표현은 성공한 그룹 추가 증거로 취급하지 않습니다.
+  if (/관리자 그룹.{0,32}(?:추가되지 않았|추가되지 않음|추가 안 됨|추가 실패|추가가 실패|추가를 취소|추가가 취소|변경 없음|없습니다|성공하지 않았|성공이 확인되지)|(?:not|never) added to (?:the )?(?:administrators?|admins?|admin group)|no (?:administrator|admin) group addition|failed to add.{0,24}(?:administrators?|admins?|admin group)|(?:administrators?|admins?|admin group).{0,24}(?:was not added|addition failed|failed to add|was cancelled|was canceled)/i.test(description)) return false;
   return isAdminGroup(alert)
     && /추가|들어가|가입|다시 관리자|재등록|멤버로|포함(?:되|시)|권한을 부여|관리자로 변경|added|joined|re-added|readded|granted.{0,24}(?:admin|administrator)|made.{0,16}(?:admin|administrator)|membership.{0,24}(?:change|added|grant)/i.test(description);
 }
@@ -112,7 +113,9 @@ function hasAdminCommand(alert) {
   return genericCommand && privilegeContext;
 }
 function hasRecentElevation(alert) {
-  return /방금 관리자가 된|새로 관리자가 된|관리자 권한을 얻|관리자 권한이 부여|관리자로 승격|권한 상승.{0,24}(?:성공|완료|됨)|just became an? administrator|newly elevated|elevated to (?:an? )?(?:admin|administrator)|granted (?:admin|administrator) privileges|privileges? escalat(?:ed|ion).{0,24}(?:success|complete)|became an? admin/i.test(descriptionOf(alert));
+  const description = descriptionOf(alert);
+  if (/권한 상승.{0,24}(?:성공하지 않았|성공이 확인되지|실패|취소|거부)|관리자 권한.{0,24}(?:얻지 못|부여되지 않았|부여 실패|취소)|(?:not successfully elevated|failed to gain admin(?:istrator)? privileges|admin(?:istrator)? privileges? (?:were not granted|grant failed|were denied)|elevation (?:failed|was cancelled|was canceled|was denied))/i.test(description)) return false;
+  return /방금 관리자가 된|새로 관리자가 된|관리자 권한을 얻|관리자 권한이 부여|관리자로 승격|권한 상승.{0,24}(?:성공|완료|됨)|권한 상승.{0,16}(?:직후|후 바로|후 곧바로)|(?:직후|후 바로|후 곧바로).{0,16}권한 상승|just became an? administrator|newly elevated|elevated to (?:an? )?(?:admin|administrator)|granted (?:admin|administrator) privileges|privileges? escalat(?:ed|ion).{0,24}(?:success|complete)|became an? admin|immediately after (?:privilege )?elevation/i.test(description);
 }
 function hasSessionElevation(alert) {
   return /세션.{0,32}(?:관리자 권한|권한 상승|관리자로).{0,18}(?:바뀌|변경|전환|승격|되었|됨)|(?:관리자 권한|권한 상승).{0,24}(?:세션|계정).{0,18}(?:바뀌|변경|전환|승격)|session.{0,32}(?:admin|administrator|elevated).{0,18}(?:changed|switched|elevated|granted)|(?:admin|administrator) privileges? (?:were )?granted to the session/i.test(descriptionOf(alert));
@@ -145,8 +148,9 @@ export function decide(alert) {
   const groupAndCommand = groupAddition && adminCommand;
   const otherAccountCommand = adminCommand
     && /다른 계정의 권한|다른 계정 권한|another account.?s privileges|under another account/i.test(description);
-  const failedAdminCommand = adminCommand
-    && /실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute/i.test(description);
+  const failureLanguage = /실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|was not added|grant failed|not successfully/i.test(description);
+  const failedAdminCommand = (adminCommand || groupAddition || hasRecentElevation(alert))
+    && failureLanguage;
   const cancelledAttempt = /(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation).{0,40}(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied)|(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied).{0,40}(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation)/i.test(description);
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command|command did not follow)|(?:명령.{0,12}(?:없|않|미실행)|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command).{0,48}(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation)/i.test(description);
   const eventCount = Number(alert?.data?.count);
