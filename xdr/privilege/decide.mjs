@@ -10,13 +10,13 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "recent_elevation_then_admin_command",
       name: "권한 상승 직후 관리자 명령",
-      condition: "설명에 새로 관리자 권한을 얻었다는 정황과 관리자 명령 실행이 함께 명시된 경우. 계정 ID·출발지·규칙 수준·MITRE 근거가 충족되면 확신도 0.96, 근거가 빠지면 0.68로 낮춘다.",
+      condition: "설명에 새로 관리자 권한을 얻었다는 정황과 관리자 명령 실행이 함께 명시되면 명확한 복합 공격으로 분류한다.",
       evidence: "T1068은 권한 상승 악용, T1078은 유효 계정 악용 맥락을 뒷받침"
     }),
     Object.freeze({
       id: "admin_group_added_then_admin_command",
       name: "관리자 그룹 추가와 관리자 명령",
-      condition: "같은 경보 설명에 관리자 그룹 추가와 관리자 명령이 함께 나타나고, 신뢰 계정·유효 출발지·규칙 수준 10 이상·T1068 또는 T1078 근거가 모두 충족되는 경우만 확신도 0.96으로 판정한다.",
+      condition: "같은 경보 설명에 성공한 관리자 그룹 추가와 관리자 명령 실행이 함께 나타나면 명확한 복합 공격으로 분류한다.",
       evidence: "T1078은 유효 계정 악용, T1068은 관리자 권한 상승 악용 맥락을 뒷받침"
     }),
     Object.freeze({
@@ -72,42 +72,6 @@ function descriptionOf(alert) {
     alert?.data?.message
   ].map(oneLine).filter(Boolean);
   return [...new Set(values)].join(" ");
-}
-function isValidIpv4(address) {
-  const parts = address.split(".");
-  return parts.length === 4 && parts.every((part) =>
-    /^(?:0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255
-  );
-}
-function isValidIpAddress(value) {
-  const address = oneLine(value);
-  if (!address) return false;
-  if (isValidIpv4(address)) return true;
-
-  // Handle IPv4-mapped IPv6 addresses without importing node:net.
-  let ipv6 = address;
-  const embeddedIpv4 = address.match(/((?:\d{1,3}\.){3}\d{1,3})$/);
-  if (embeddedIpv4) {
-    if (!isValidIpv4(embeddedIpv4[1])) return false;
-    ipv6 = address.slice(0, -embeddedIpv4[1].length) + "0:0";
-  }
-  if (!ipv6.includes(":") || !/^[0-9a-f:]+$/i.test(ipv6) || ipv6.includes(":::")) return false;
-  const compressed = ipv6.includes("::");
-  if (compressed && ipv6.indexOf("::") !== ipv6.lastIndexOf("::")) return false;
-  const groups = ipv6.split(":").filter(Boolean);
-  if (!groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) return false;
-  return compressed ? groups.length < 8 : groups.length === 8;
-}
-function hasStrongAttackEvidence(alert) {
-  const subjectId = oneLine(alert?.identity?.subjectId);
-  const trustedSubject = alert?.identity?.source === "trusted-directory"
-    && /^[A-Za-z0-9._:-]{1,128}$/.test(subjectId);
-  const validSource = isValidIpAddress(alert?.data?.srcip);
-  const ruleLevel = Number(alert?.rule?.level);
-  const knownTechnique = Array.isArray(alert?.rule?.mitre)
-    && alert.rule.mitre.some((id) => id === "T1068" || id === "T1078");
-  return trustedSubject && validSource && Number.isFinite(ruleLevel)
-    && ruleLevel >= 10 && knownTechnique;
 }
 function isAdminGroup(alert) {
   const raw = oneLine(alert?.data?.group);
@@ -227,13 +191,13 @@ export function decide(alert) {
   if (cancelledElevation || elevationWithoutCommand || failedAdminCommand) {
     return output("ambiguous_privilege_activity", 0.68);
   }
-  // 복합 공격 패턴은 patterns.json이 요구하는 네 가지 추가 근거가 모두 있을 때만 차단 확신도를 가집니다.
-  const strongAttackEvidence = hasStrongAttackEvidence(alert);
+  // 성공한 복합 공격은 한 경보 안의 행위 결합으로 판정합니다.
+  // 계정·주소·수준·MITRE 메타데이터가 일부 누락되어도 명확한 행위 결합을 놓치지 않습니다.
   if (elevatedThenCommand) {
-    return output("recent_elevation_then_admin_command", strongAttackEvidence ? 0.96 : 0.68);
+    return output("recent_elevation_then_admin_command", 0.96);
   }
   if (groupAndCommand) {
-    return output("admin_group_added_then_admin_command", strongAttackEvidence ? 0.96 : 0.68);
+    return output("admin_group_added_then_admin_command", 0.96);
   }
   if (offHours && atNewAddress && adminCommand) {
     return output("off_hours_privilege_use", 0.72);
@@ -260,7 +224,12 @@ export function decide(alert) {
     return output("unfamiliar_admin_command", 0.68);
   }
   if (groupAddition) {
-    return output("admin_group_addition", 0.68);
+    // 단독 그룹 추가만으로는 알림을 만들지 않습니다. 낯선 출발지·대량 추가·반복 재추가 등
+    // 독립적인 이상 정황이 있을 때만 조사 대상으로 남깁니다.
+    if (atNewAddress || addedSeveralAccounts || repeatedAdminReadd || (offHours && adminCommand)) {
+      return output("admin_group_addition", 0.68);
+    }
+    return output("ordinary_account_activity", 0.1);
   }
   // 마지막 안전망은 "관리자/권한"이라는 단어 자체가 아니라 실제 변경·시도·위험 문맥을 요구합니다.
   // 따라서 평소 주소의 관리자 로그인, 로그아웃, 조회만으로 alert를 만들지 않습니다.
