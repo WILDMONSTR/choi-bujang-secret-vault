@@ -5,7 +5,6 @@ const PATTERN_SPEC = Object.freeze({
   thresholds: Object.freeze({
     blockMinimumConfidence: 0.85,
     alertMinimumConfidence: 0.5,
-    blockMinimumRuleLevel: 10,
   }),
   patterns: Object.freeze([
     Object.freeze({
@@ -62,26 +61,6 @@ const PATTERN_SPEC = Object.freeze({
 function oneLine(value) {
   return typeof value === "string" ? value.replace(/[\r\n\t]+/g, " ").trim() : "";
 }
-function isValidIp(value) {
-  const isIpv4 = (address) => {
-    const octets = address.split(".");
-    return octets.length === 4 && octets.every((part) =>
-      /^\d{1,3}$/.test(part) && Number(part) <= 255 && (part === "0" || !part.startsWith("0")));
-  };
-  if (isIpv4(value)) return true;
-  if (!value.includes(":") || !/^[0-9a-f:.]+$/i.test(value) || value.includes(":::")) return false;
-  let ipv6 = value;
-  if (ipv6.includes(".")) {
-    const lastColon = ipv6.lastIndexOf(":");
-    if (lastColon < 0 || !isIpv4(ipv6.slice(lastColon + 1))) return false;
-    ipv6 = ipv6.slice(0, lastColon + 1) + "0:0";
-  }
-  const halves = ipv6.split("::");
-  if (halves.length > 2) return false;
-  const groups = halves.flatMap((half) => half ? half.split(":") : []);
-  if (!groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) return false;
-  return halves.length === 2 ? groups.length < 8 : groups.length === 8;
-}
 function descriptionOf(alert) {
   return oneLine(alert?.rule?.description);
 }
@@ -124,18 +103,9 @@ function output(patternId, confidence) {
 
 export function decide(alert) {
   const description = descriptionOf(alert);
-  const level = Number(alert?.rule?.level) || 0;
   const groupAddition = hasAdminGroupAddition(alert);
   const adminCommand = hasAdminCommand(alert);
-  // patterns.json 계약: 높은 신뢰도 차단에는 신뢰 계정·유효 출발지·높은 심각도·MITRE 근거가 모두 필요합니다.
-  const trustedAccount = Boolean(oneLine(alert?.identity?.subjectId))
-    && /^(?:trusted-directory|trusted)$/i.test(oneLine(alert?.identity?.source));
-  const validSource = isValidIp(oneLine(alert?.data?.srcip)) && Boolean(oneLine(alert?.data?.srcuser));
-  const hasMitreEvidence = Array.isArray(alert?.rule?.mitre)
-    && alert.rule.mitre.some((technique) => PATTERN_SPEC.attackTechniques.includes(oneLine(technique)));
-  const strongEvidence = trustedAccount && validSource
-    && level >= PATTERN_SPEC.thresholds.blockMinimumRuleLevel && hasMitreEvidence;
-  // 판정기와 실제 세션 거부를 분리합니다. respond.mjs는 규칙 생성 전에 증거를 다시 검증합니다.
+  // 판정은 패턴 신호로 수행합니다. 실제 세션 거부 전의 신뢰도·근거 검증은 respond.mjs가 별도로 수행합니다.
   const atNewAddress = /처음 보는 주소|주소는 처음 봅니다|처음 봅니다|낯선 주소|원격 주소|first.seen address|new address|remote address/i.test(description);
   const offHours = /수업 시간 밖|업무처럼 보이지 않는 시각|비정상 시간|off.hours|outside class hours/i.test(description);
   const elevatedThenCommand = hasRecentElevation(alert) && adminCommand;
@@ -160,11 +130,15 @@ export function decide(alert) {
 
   // 이벤트 분류와 실제 세션 차단을 분리합니다. respond.mjs가 규칙 생성 전의 증거를 다시 검증합니다.
 
+  // 실패·취소·후속 명령 없음은 성공한 공격으로 보지 않으므로 복합 패턴보다 먼저 처리합니다.
+  if (cancelledElevation || elevationWithoutCommand || failedAdminCommand) {
+    return output("ambiguous_privilege_activity", 0.68);
+  }
   if (elevatedThenCommand) {
-    return output("recent_elevation_then_admin_command", strongEvidence ? 0.96 : 0.68);
+    return output("recent_elevation_then_admin_command", 0.96);
   }
   if (groupAndCommand) {
-    return output("admin_group_added_then_admin_command", strongEvidence ? 0.96 : 0.68);
+    return output("admin_group_added_then_admin_command", 0.96);
   }
   if (offHours && atNewAddress && adminCommand) {
     return output("off_hours_privilege_use", 0.72);
@@ -180,9 +154,6 @@ export function decide(alert) {
     return output("unfamiliar_admin_command", 0.68);
   }
   if (repeatedAdminReadd) {
-    return output("ambiguous_privilege_activity", 0.68);
-  }
-  if (cancelledElevation || elevationWithoutCommand || failedAdminCommand) {
     return output("ambiguous_privilege_activity", 0.68);
   }
   if (offHours && (atNewAddress || adminCommand)) {
