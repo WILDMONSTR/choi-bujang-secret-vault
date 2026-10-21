@@ -10,13 +10,13 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "recent_elevation_then_admin_command",
       name: "권한 상승 직후 관리자 명령",
-      condition: "새 관리자 권한 획득 정황과 관리자 명령 실행이 함께 있으며, 신뢰된 subjectId·유효 IP·규칙 수준 10 이상·T1068/T1078 근거가 모두 있으면 0.96, 하나라도 빠지면 0.68",
+      condition: "설명에 새로 관리자 권한을 얻었다는 정황과 관리자 명령 실행이 함께 명시된 경우. 계정 ID·출발지·규칙 수준·MITRE 근거가 충족되면 확신도 0.96, 근거가 빠지면 0.68로 낮춘다.",
       evidence: "T1068은 권한 상승 악용, T1078은 유효 계정 악용 맥락을 뒷받침"
     }),
     Object.freeze({
       id: "admin_group_added_then_admin_command",
       name: "관리자 그룹 추가와 관리자 명령",
-      condition: "같은 경보에 관리자 그룹 추가와 관리자 명령 실행이 함께 있으며, 신뢰된 subjectId·유효 IP·규칙 수준 10 이상·T1068/T1078 근거가 모두 있으면 0.96, 하나라도 빠지면 0.68",
+      condition: "같은 경보 설명에 관리자 그룹 추가와 관리자 명령이 함께 나타나고, 신뢰 계정·유효 출발지·규칙 수준 10 이상·T1068 또는 T1078 근거가 모두 충족되는 경우만 확신도 0.96으로 판정한다.",
       evidence: "T1078은 유효 계정 악용, T1068은 관리자 권한 상승 악용 맥락을 뒷받침"
     }),
     Object.freeze({
