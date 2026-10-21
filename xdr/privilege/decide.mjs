@@ -1,53 +1,73 @@
 // 독립 심판용 순수 판정기입니다. import, 파일 입출력, 패키지 호출을 하지 않습니다.
 const PATTERN_SPEC = Object.freeze({
-  thresholds: Object.freeze({ block: 0.85, alert: 0.5 }),
+  attackTechniques: Object.freeze([
+    Object.freeze({ id: "T1068", name: "Exploitation for Privilege Escalation", source: "https://attack.mitre.org/techniques/T1068/" }),
+    Object.freeze({ id: "T1078", name: "Valid Accounts", source: "https://attack.mitre.org/techniques/T1078/" })
+  ]),
+  thresholds: Object.freeze({ blockMinimumConfidence: 0.85, alertMinimumConfidence: 0.5 }),
   patterns: Object.freeze([
     Object.freeze({
       id: "recent_elevation_then_admin_command",
       name: "권한 상승 직후 관리자 명령",
       condition: "같은 경보 설명에 방금 관리자 권한을 얻은 정황과 관리자 명령 실행이 함께 나타남",
+      action: "confidence_threshold",
+      confidence: 0.96,
       evidence: "MITRE ATT&CK T1068은 권한 상승 악용을 설명하며, 명령 실행이 바로 뒤따르면 단순한 권한 변경보다 위험도가 높다."
     }),
     Object.freeze({
       id: "admin_group_added_then_admin_command",
       name: "관리자 그룹 추가와 관리자 명령",
       condition: "같은 경보에서 관리자 그룹 추가와 관리자 명령 실행이 함께 나타남",
+      action: "confidence_threshold",
+      confidence: 0.96,
       evidence: "MITRE ATT&CK T1078의 정상 계정 악용 맥락과 T1068의 권한 상승 맥락이 행위 결합으로 뒷받침된다."
     }),
     Object.freeze({
       id: "recent_group_change_then_admin_command",
       name: "5분 내 관리자 그룹 변경과 관리자 명령",
       condition: "응답 단계에서 동일 계정·동일 출발지의 그룹 추가와 관리자 명령이 5분 내 함께 확인됨",
+      action: "confidence_threshold",
+      confidence: 0.97,
       evidence: "T1078의 계정 악용 가능성과 T1068의 권한 상승 관련 행위가 시간상 연결된다."
     }),
     Object.freeze({
       id: "unfamiliar_admin_command",
       name: "낯선 주소 또는 다른 계정의 관리자 명령",
       condition: "처음 보는 출발지 주소 또는 다른 계정의 권한으로 관리자 명령이 실행되지만 명확한 복합 공격 증거는 부족함",
+      action: "confidence_threshold",
+      confidence: 0.68,
       evidence: "MITRE ATT&CK T1078은 정상 계정이 비정상적으로 사용되는 상황을 설명한다."
     }),
     Object.freeze({
       id: "off_hours_privilege_use",
       name: "업무 시간 밖 권한 사용",
       condition: "업무 시간 밖에 관리자 명령이나 권한 사용이 보이지만 명확한 권한 상승·그룹 추가 결합은 없음",
+      action: "confidence_threshold",
+      confidence: 0.72,
       evidence: "T1078 및 T1068의 악용 맥락에 부합할 수 있으나 시간 정보만으로 공격을 확정할 수 없다."
     }),
     Object.freeze({
       id: "admin_group_addition",
       name: "단독 관리자 그룹 추가",
       condition: "관리자 그룹 추가는 있지만 같은 경보에 관리자 명령이 함께 나타나지 않음",
+      action: "confidence_threshold",
+      confidence: 0.68,
       evidence: "T1078은 계정 권한 변경의 악용 가능성을 뒷받침하지만 단독 추가만으로 공격을 확정하지 않는다."
     }),
     Object.freeze({
       id: "ambiguous_privilege_activity",
       name: "불충분하거나 실패한 권한 사용 시도",
       condition: "취소·실패·후속 명령 없음·대량 추가·반복 재추가·낯선 세션 권한 변경 등 의심 정황은 있으나 성공한 복합 공격은 확인되지 않음",
+      action: "confidence_threshold",
+      confidence: 0.68,
       evidence: "T1068과 관련될 수 있으나 실패·취소 또는 불완전한 정황만으로 성공한 권한 상승이라고 단정할 근거가 부족하다."
     }),
     Object.freeze({
       id: "ordinary_account_activity",
       name: "정상 계정·그룹 활동",
       condition: "정상 로그인·로그아웃·읽기 전용 조회·비관리자 그룹 활동 또는 위험 신호가 결합되지 않은 활동",
+      action: "confidence_threshold",
+      confidence: 0.1,
       evidence: "T1068/T1078의 악용 행위가 구체적으로 나타나지 않아 차단 근거가 없다."
     })
   ])
@@ -138,9 +158,9 @@ function patternById(id) {
 
 function output(patternId, confidence) {
   const pattern = patternById(patternId);
-  const action = confidence >= PATTERN_SPEC.thresholds.block
+  const action = confidence >= PATTERN_SPEC.thresholds.blockMinimumConfidence
     ? "block"
-    : confidence >= PATTERN_SPEC.thresholds.alert
+    : confidence >= PATTERN_SPEC.thresholds.alertMinimumConfidence
       ? "alert"
       : "record";
   return {
