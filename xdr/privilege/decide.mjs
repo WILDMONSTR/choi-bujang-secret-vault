@@ -219,7 +219,11 @@ export function decide(alert) {
   const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
   const highRiskRule = Number.isFinite(ruleLevel) && ruleLevel >= 7
     && (mitre.includes("T1068") || mitre.includes("T1078"));
-  if (privilegeContext && (atNewAddress || offHours || privilegeOperation || highRiskRule)) {
+  // 심각도/MITRE만으로 올리지 않고, 실제 시도·실패·변경 동사도 함께 요구합니다.
+  const suspiciousOperation = /(?:시도|실패|취소|거부|중단|추가|부여|회수|상승|승격|전환|실행|명령|attempted|failed|failure|cancelled|canceled|denied|blocked|aborted|added|granted|revoked|elevated|escalated|switched|executed|command)/i.test(description);
+  const negatedAdminContext = /관리자 그룹은 아닙니다|관리자 그룹이 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?/i.test(description);
+  if (privilegeContext && !negatedAdminContext
+      && (atNewAddress || offHours || privilegeOperation || (highRiskRule && suspiciousOperation))) {
     return output("ambiguous_privilege_activity", 0.56);
   }
 
