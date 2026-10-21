@@ -213,14 +213,13 @@ export function decide(alert) {
   // 마지막 안전망은 "관리자/권한"이라는 단어 자체가 아니라 실제 변경·시도·위험 문맥을 요구합니다.
   // 따라서 평소 주소의 관리자 로그인, 로그아웃, 조회만으로 alert를 만들지 않습니다.
   const privilegeContext = isAdminGroup(alert)
-    || /관리자|권한 상승|권한 변경|관리자 권한|administrator|\badmin\b|admin group|privilege|privileged|elevated|sudoers?|wheel/i.test(description);
-  const privilegeOperation = /(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|관리자로 승격|admin(?:istrator)? group|admin(?:istrator)? privileges?|privilege escalation|privilege elevation|privileged session).{0,40}(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화|added|changed|granted|removed|executed|attempted|failed|cancelled|canceled|denied|aborted|elevated|switched)|(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화).{0,40}(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|관리자로 승격|admin(?:istrator)? group|admin(?:istrator)? privileges?|privilege escalation|privilege elevation|privileged session)|(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious).{0,32}(?:관리자|권한|administrator|admin|privilege)|(?:관리자|권한|administrator|admin|privilege).{0,32}(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious)/i.test(description);
+    || /관리자|권한 상승|권한 변경|관리자 권한|administrator|\\badmin\\b|admin group|privilege|privileged|elevated|permission|\\brole\\b|sudoers?|wheel/i.test(description);
+  const privilegeOperation = /(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|역할 변경|역할 부여|권한이 변경|권한이 부여|권한이 회수|admin(?:istrator)? group|admin(?:istrator)? privileges?|admin rights|privilege (?:escalation|elevation|change|grant|revocation)|permission (?:change|grant|revocation)|role (?:change|grant|assignment|revocation)|privileged session).{0,40}(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화|added|changed|modified|granted|revoked|removed|executed|attempted|failed|cancelled|canceled|denied|aborted|elevated|switched|assigned)|(?:추가|변경|부여|회수|실행|시도|실패|취소|거부|중단|승격|전환|활성화|added|changed|modified|granted|revoked|removed|executed|attempted|failed|cancelled|canceled|denied|aborted|elevated|switched|assigned).{0,40}(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|역할 변경|역할 부여|admin(?:istrator)? group|admin(?:istrator)? privileges?|admin rights|privilege (?:escalation|elevation|change|grant|revocation)|permission (?:change|grant|revocation)|role (?:change|grant|assignment|revocation)|privileged session)|(?:관리자|권한|administrator|admin|privilege|permission|role).{0,32}(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious|failed|cancelled|canceled|denied|blocked|attempted|unusual)|(?:비정상|예상하지 못한|의심스러운|abnormal|unexpected|suspicious|failed|cancelled|canceled|denied|blocked|attempted|unusual).{0,32}(?:관리자|권한|administrator|admin|privilege|permission|role)/i.test(description);
   const ruleLevel = Number(alert?.rule?.level);
   const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
-  const hasRiskContext = atNewAddress || offHours
-    || ((Number.isFinite(ruleLevel) && ruleLevel >= 7)
-      && (mitre.includes("T1068") || mitre.includes("T1078")));
-  if (privilegeContext && (atNewAddress || offHours || (privilegeOperation && hasRiskContext))) {
+  const highRiskRule = Number.isFinite(ruleLevel) && ruleLevel >= 7
+    && (mitre.includes("T1068") || mitre.includes("T1078"));
+  if (privilegeContext && (atNewAddress || offHours || privilegeOperation || highRiskRule)) {
     return output("ambiguous_privilege_activity", 0.56);
   }
 
