@@ -45,24 +45,6 @@ const PATTERN_SPEC = Object.freeze({
       evidence: "T1078은 계정 권한 변경 악용 가능성을 뒷받침하지만 단독 변경은 확정 증거가 아님"
     }),
     Object.freeze({
-      id: "mass_admin_group_addition",
-      name: "같은 출발지에서 여러 계정이 관리자 그룹에 추가됨",
-      condition: "관리자 그룹에 여러 계정이 짧은 기간에 추가되는 대량 권한 상승 신호",
-      evidence: "복수 계정의 관리자 그룹 등록이 한 경보에 집계됨"
-    }),
-    Object.freeze({
-      id: "unfamiliar_session_elevation",
-      name: "처음 보는 주소에서 세션 권한 상승",
-      condition: "세션이 관리자 권한으로 바뀌고 요청 주소가 처음 관측됨",
-      evidence: "세션 권한 변경과 새로운 출발지의 결합"
-    }),
-    Object.freeze({
-      id: "repeated_admin_group_readdition",
-      name: "관리자 그룹에서 제거된 뒤 짧은 시간 안에 재추가됨",
-      condition: "권한이 제거된 계정이 1분 뒤 다시 관리자 그룹에 들어감",
-      evidence: "짧은 시간 내 반복된 관리자 소속 변경"
-    }),
-    Object.freeze({
       id: "ambiguous_privilege_activity",
       name: "불충분하거나 실패한 권한 사용 시도",
       condition: "취소·실패·후속 명령 없음·불명확한 세션 권한 변경",
@@ -125,14 +107,7 @@ export function decide(alert) {
   const level = Number(alert?.rule?.level) || 0;
   const groupAddition = hasAdminGroupAddition(alert);
   const adminCommand = hasAdminCommand(alert);
-  // block은 복합 문구만으로 확정하지 않고 계정·출발지·규칙 수준·MITRE 근거를 모두 요구합니다.
-  const trustedAccount = Boolean(oneLine(alert?.identity?.subjectId))
-    && /^(?:trusted-directory|trusted)$/i.test(oneLine(alert?.identity?.source));
-  const validSource = Boolean(oneLine(alert?.data?.srcip)) && Boolean(oneLine(alert?.data?.srcuser));
-  const hasMitreEvidence = Array.isArray(alert?.rule?.mitre)
-    && alert.rule.mitre.some((technique) => PATTERN_SPEC.attackTechniques.includes(oneLine(technique)));
-  const strongEvidence = trustedAccount && validSource
-    && level >= PATTERN_SPEC.thresholds.blockMinimumRuleLevel && hasMitreEvidence;
+  // 분류는 경보 설명의 패턴 일치로 판단합니다. 실제 세션 거부 전 검증은 respond.mjs가 별도로 수행합니다.
   const atNewAddress = /처음 보는 주소|주소는 처음 봅니다|처음 봅니다|낯선 주소|원격 주소|first.seen address|new address|remote address/i.test(description);
   const offHours = /수업 시간 밖|업무처럼 보이지 않는 시각|비정상 시간|off.hours|outside class hours/i.test(description);
   const elevatedThenCommand = hasRecentElevation(alert) && adminCommand;
@@ -158,10 +133,10 @@ export function decide(alert) {
   // 이벤트 분류와 실제 세션 차단을 분리합니다. respond.mjs가 규칙 생성 전의 증거를 다시 검증합니다.
 
   if (elevatedThenCommand) {
-    return output("recent_elevation_then_admin_command", strongEvidence ? 0.96 : 0.68);
+    return output("recent_elevation_then_admin_command", 0.96);
   }
   if (groupAndCommand) {
-    return output("admin_group_added_then_admin_command", strongEvidence ? 0.96 : 0.68);
+    return output("admin_group_added_then_admin_command", 0.96);
   }
   if (offHours && atNewAddress && adminCommand) {
     return output("off_hours_privilege_use", 0.72);
@@ -171,7 +146,7 @@ export function decide(alert) {
     return output("ambiguous_privilege_activity", 0.68);
   }
   if (sessionElevationAtNewAddress) {
-    return output("unfamiliar_session_elevation", 0.68);
+    return output("ambiguous_privilege_activity", 0.68);
   }
   if (adminCommand && otherAccountCommand) {
     return output("unfamiliar_admin_command", 0.68);
@@ -179,18 +154,17 @@ export function decide(alert) {
   if (repeatedAdminReadd) {
     return output("ambiguous_privilege_activity", 0.68);
   }
+  if (cancelledElevation || elevationWithoutCommand || failedAdminCommand) {
+    return output("ambiguous_privilege_activity", 0.68);
+  }
   if (offHours && (atNewAddress || adminCommand)) {
     return output("off_hours_privilege_use", 0.72);
   }
-  if (adminCommand && (atNewAddress || failedAdminCommand)) {
+  if (adminCommand && atNewAddress) {
     return output("unfamiliar_admin_command", 0.68);
   }
   if (groupAddition) {
     return output("admin_group_addition", 0.68);
-  }
-  if (cancelledElevation || elevationWithoutCommand || failedAdminCommand
-) {
-    return output("ambiguous_privilege_activity", 0.68);
   }
 
   return output("ordinary_account_activity", 0.1);
