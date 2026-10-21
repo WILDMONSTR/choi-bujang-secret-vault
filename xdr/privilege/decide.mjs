@@ -159,10 +159,13 @@ export function decide(alert) {
     || /권한 상승.{0,35}(?:명령은 없습니다|명령 없이|이어지지 않|no command|without a command)|privilege escalation.{0,35}without.{0,12}command/i.test(description);
 
   // 명시적인 정상 대조 경보를 먼저 처리해 관리자 관련 단어만으로 올려 잡지 않습니다.
-  const explicitlyBenign = /관리자 그룹은 아닙니다|관리자 그룹이 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?|평소 주소에서 관리자 명령이 한 번 실행됐습니다|정상 주소에서 관리자 명령|계정 종류를 조회한 뒤 변경은 없습니다|그룹 목록을 읽은 뒤 수업 그룹 설명만 바뀌었습니다|새 로컬 그룹이 하나 만들어졌습니다|로그인했습니다|로그아웃했습니다|그룹 소속을 읽기만 했습니다|비밀번호를 변경했습니다|자기 세션 정보를 조회했습니다|자료실을 열었습니다|평소 예약 작업을 확인했습니다|routine (?:login|logout|task check|scheduled task)|read.only (?:query|enumeration)|no (?:privilege|permission|group) change/i.test(description);
+  const explicitlyBenign = /관리자 그룹은 아닙니다|관리자 그룹이 아닙니다|not an? admin(?:istrator)? group|not in (?:the )?administrators?|평소 주소에서 관리자 명령이 한 번 실행됐습니다|정상 주소에서 관리자 명령|계정 종류를 조회한 뒤 변경은 없습니다|그룹 목록을 읽은 뒤 수업 그룹 설명만 바뀌었습니다|새 로컬 그룹이 하나 만들어졌습니다|로그인했습니다|로그아웃했습니다|그룹 소속을 읽기만 했습니다|비밀번호를 변경했습니다|자기 세션 정보를 조회했습니다|자료실을 열었습니다|평소 예약 작업을 확인했습니다|routine (?:login|logout|task check|scheduled task)|read.only (?:query|enumeration)|no (?:privilege|permission|group) changes?|(?:usual|regular|known|trusted) address.{0,36}(?:admin(?:istrator)? command|login|logon|sign.?in)|(?:admin(?:istrator)? command).{0,36}(?:usual|regular|known|trusted) address|(?:logged|signed) (?:in|out) from (?:a )?(?:usual|regular|known|trusted) address/i.test(description);
   const hasFailureOrAmbiguity = failedAdminCommand || cancelledElevation || elevationWithoutCommand
     || addedSeveralAccounts || repeatedAdminReadd || sessionElevationAtNewAddress;
-  if (explicitlyBenign && !hasFailureOrAmbiguity && !elevatedThenCommand && !groupAndCommand) {
+  if (explicitlyBenign && !hasFailureOrAmbiguity && !elevatedThenCommand && !groupAndCommand
+      && !groupAddition && !otherAccountCommand
+      && !(atNewAddress && adminCommand)
+      && !(offHours && (atNewAddress || adminCommand))) {
     return output("ordinary_account_activity", 0.1);
   }
 
@@ -204,7 +207,7 @@ export function decide(alert) {
     return output("admin_group_addition", 0.68);
   }
   // 알 수 없는 관리자/권한 활동은 정상이라고 단정하지 않고 alert로 남깁니다.
-  if (/관리자|권한 상승|권한 변경|관리자 권한|administrator|admin group|privilege escalation|privileged|elevated|sudoers?|wheel/i.test(description)) {
+  if (/관리자|권한 상승|권한 변경|관리자 권한|administrator|\badmin\b|admin group|privilege escalation|privileged|elevated|sudoers?|wheel/i.test(description)) {
     return output("ambiguous_privilege_activity", 0.56);
   }
 
