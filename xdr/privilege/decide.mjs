@@ -148,7 +148,7 @@ export function decide(alert) {
   const groupAndCommand = groupAddition && adminCommand;
   const otherAccountCommand = adminCommand
     && /다른 계정의 권한|다른 계정 권한|another account.?s privileges|under another account/i.test(description);
-  const failureLanguage = /실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|was not added|grant failed|not successfully/i.test(description);
+  const failureLanguage = /실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|grant failed|not successfully/i.test(description);
   const failedAdminCommand = (adminCommand || groupAddition || hasRecentElevation(alert))
     && failureLanguage;
   const cancelledAttempt = /(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation).{0,40}(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied)|(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied).{0,40}(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation)/i.test(description);
