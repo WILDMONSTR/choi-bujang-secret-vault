@@ -10,14 +10,14 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "recent_elevation_then_admin_command",
       name: "권한 상승 직후 관리자 명령",
-      condition: "설명에 새로 관리자 권한을 얻었다는 정황과 관리자 명령 실행이 함께 명시되면 명확한 복합 공격으로 분류한다.",
-      evidence: "T1068은 권한 상승 악용, T1078은 유효 계정 악용 맥락을 뒷받침"
+      condition: "권한 상승 직후 관리자 명령이 함께 나타나고 신뢰 계정·subjectId·유효 IPv4 출발지·규칙 수준 10 이상·T1068/T1078 근거가 모두 있으면 0.96, 일부 근거가 빠지면 0.68로 alert한다.",
+      evidence: "행위의 결합과 계정·출발지·규칙 수준·MITRE 근거가 함께 있을 때만 높은 확신도로 분류한다."
     }),
     Object.freeze({
       id: "admin_group_added_then_admin_command",
       name: "관리자 그룹 추가와 관리자 명령",
-      condition: "같은 경보 설명에 성공한 관리자 그룹 추가와 관리자 명령 실행이 함께 나타나면 명확한 복합 공격으로 분류한다.",
-      evidence: "T1078은 유효 계정 악용, T1068은 관리자 권한 상승 악용 맥락을 뒷받침"
+      condition: "같은 경보에서 성공한 관리자 그룹 추가와 관리자 명령이 함께 나타나고 신뢰 계정·subjectId·유효 IPv4 출발지·규칙 수준 10 이상·T1068/T1078 근거가 모두 있으면 0.96, 근거가 빠지면 0.68로 alert한다.",
+      evidence: "T1078은 유효 계정 악용, T1068은 권한 상승 맥락을 뒷받침한다. 행위 결합 외에도 신뢰 가능한 출처 메타데이터를 요구한다."
     }),
     Object.freeze({
       id: "recent_group_change_then_admin_command",
@@ -33,9 +33,9 @@ const PATTERN_SPEC = Object.freeze({
     }),
     Object.freeze({
       id: "off_hours_privilege_use",
-      name: "업무 외 시간·낯선 출발지의 관리자 명령",
-      condition: "업무 외 시간, 낯선 출발지, 실제 관리자 명령이 한 경보에 함께 나타나는 경우 확신도 0.90으로 block한다. 시간대나 낯선 주소만으로는 block하지 않고 alert로 분류한다.",
-      evidence: "T1078 계정 악용과 T1068 권한 상승 관련 신호가 시간대·출발지 이상 및 실제 관리자 명령과 결합된 경우에만 강한 복합 근거로 본다."
+      name: "업무 시간 밖 권한 사용",
+      condition: "업무 외 시간과 관리자 명령 또는 낯선 관리자 사용 신호가 함께 있으면 0.72로 alert한다. 시간대·주소 단서만으로는 block하지 않는다.",
+      evidence: "T1078 계정 악용·T1068 권한 상승 맥락에 부합할 수 있지만, 명확한 권한 상승/관리자 그룹 추가와 명령 결합이 없으면 공격 확정으로 보지 않는다."
     }),
     Object.freeze({
       id: "admin_group_addition",
@@ -120,6 +120,23 @@ function hasRecentElevation(alert) {
 function hasSessionElevation(alert) {
   return /세션.{0,32}(?:관리자 권한|권한 상승|관리자로).{0,18}(?:바뀌|변경|전환|승격|되었|됨)|(?:관리자 권한|권한 상승).{0,24}(?:세션|계정).{0,18}(?:바뀌|변경|전환|승격)|session.{0,32}(?:admin|administrator|elevated).{0,18}(?:changed|switched|elevated|granted)|(?:admin|administrator) privileges? (?:were )?granted to the session/i.test(descriptionOf(alert));
 }
+
+function hasStrongBlockEvidence(alert) {
+  const subjectId = oneLine(alert?.identity?.subjectId);
+  const identitySource = oneLine(alert?.identity?.source);
+  const srcip = oneLine(alert?.data?.srcip);
+  const octets = srcip.split(".");
+  const validIpv4 = octets.length === 4
+    && octets.every((octet) => /^\\d{1,3}$/.test(octet) && Number(octet) >= 0 && Number(octet) <= 255);
+  const ruleLevel = Number(alert?.rule?.level);
+  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
+  return Boolean(subjectId)
+    && identitySource === "trusted-directory"
+    && validIpv4
+    && Number.isFinite(ruleLevel)
+    && ruleLevel >= 10
+    && (mitre.includes("T1068") || mitre.includes("T1078"));
+}
 function patternById(id) {
   return PATTERN_SPEC.patterns.find((pattern) => pattern.id === id) ?? PATTERN_SPEC.patterns[PATTERN_SPEC.patterns.length - 1];
 }
@@ -191,18 +208,17 @@ export function decide(alert) {
   if (cancelledElevation || elevationWithoutCommand || failedAdminCommand) {
     return output("ambiguous_privilege_activity", 0.68);
   }
-  // 성공한 복합 공격은 한 경보 안의 행위 결합으로 판정합니다.
-  // 계정·주소·수준·MITRE 메타데이터가 일부 누락되어도 명확한 행위 결합을 놓치지 않습니다.
+  // 명확한 행위 결합은 계정·주소·수준·MITRE 메타데이터까지 검증해 block합니다.
+  // 메타데이터가 빠지거나 신뢰할 수 없으면 같은 행위가 있어도 alert에 머뭅니다.
   if (elevatedThenCommand) {
-    return output("recent_elevation_then_admin_command", 0.96);
+    return output("recent_elevation_then_admin_command", hasStrongBlockEvidence(alert) ? 0.96 : 0.68);
   }
   if (groupAndCommand) {
-    return output("admin_group_added_then_admin_command", 0.96);
+    return output("admin_group_added_then_admin_command", hasStrongBlockEvidence(alert) ? 0.96 : 0.68);
   }
-  // 낯선 출발지 + 업무 외 시간 + 실제 관리자 명령이 한 경보에 결합되면
-  // 단일한 시간대/주소 이상보다 강한 복합 신호이므로 block 임계치를 넘깁니다.
-  if (offHours && atNewAddress && adminCommand) {
-    return output("off_hours_privilege_use", 0.90);
+  // 업무 외 시간이나 낯선 주소의 관리자 명령은 의심 신호지만 단독으로 공격 확정하지 않습니다.
+  if (offHours && adminCommand) {
+    return output("off_hours_privilege_use", 0.72);
   }
   // 대량 그룹 추가나 반복 재추가는 조사 가치가 있지만, 명령 결합과 달리 이 이벤트 하나만으로 block하지 않습니다.
   if (addedSeveralAccounts) {
@@ -217,11 +233,7 @@ export function decide(alert) {
   if (repeatedAdminReadd) {
     return output("ambiguous_privilege_activity", 0.68);
   }
-  // 시간대·주소 단서만 있는 로그인/조회는 알림으로 올리지 않습니다.
-  // 업무 외 시간의 실제 관리자 명령이 확인될 때만 이 패턴을 적용합니다.
-  if (offHours && adminCommand) {
-    return output("off_hours_privilege_use", 0.72);
-  }
+  // 주소 이상만 결합된 관리자 명령은 공격 확정이 아닌 알림으로 남깁니다.
   if (adminCommand && atNewAddress) {
     return output("unfamiliar_admin_command", 0.68);
   }
