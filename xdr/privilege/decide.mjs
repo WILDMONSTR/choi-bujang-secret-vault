@@ -80,8 +80,15 @@ function isAdminGroup(alert) {
     return false;
   }
   if (raw) {
-    return /^(?:(?:domain|enterprise|builtin[\\/ ]*) )?(?:administrators?|admins?)(?:[\\s_-]+group)?$|^(?:sudo|sudoers?|wheel|root|superusers?|관리자|관리자그룹)$/i.test(raw)
-      || /(?:^|[\\\\/])(?:administrators?|admins?)$/i.test(raw)
+    const normalized = raw
+      .replaceAll("\\", " ")
+      .replaceAll("/", " ")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    return /^(?:(?:domain|enterprise|builtin)\s+)?(?:administrators?|admins?)(?:\s+group)?$/.test(normalized)
+      || /^(?:sudo|sudoers|wheel|root|superusers|관리자|관리자그룹)$/.test(normalized)
       || /^S-1-5-32-544$/i.test(raw);
   }
   return /관리자 그룹|관리자 권한 그룹|administrators? group|admins? group|admin(?:istrator)?s? group|domain admins?|enterprise admins?|members? of (?:the )?(?:administrators?|admins?)|(?:administrators?|admins?) membership|sudoers?|wheel group/i.test(description);
@@ -94,7 +101,7 @@ function hasAdminGroupAddition(alert) {
 }
 function hasAdminCommand(alert) {
   const description = descriptionOf(alert);
-  const explicit = /관리자 명령|권한 명령|관리자 권한.{0,24}명령|권한 상승.{0,24}명령|admin(?:istrator)? command|privileged command|elevated command|command.{0,24}(?:admin|elevat|privileg)|(?:sudo|runas)\\s+(?:-\\w+\\s+)?[\\w.-]+/i.test(description);
+  const explicit = /관리자 명령|권한 명령|관리자 권한.{0,24}명령|권한 상승.{0,24}명령|admin(?:istrator)? command|privileged command|elevated command|command.{0,24}(?:admin|elevat|privileg)|(?:sudo|runas)\s+(?:-\w+\s+)?[\w.-]+/i.test(description);
   if (explicit) return true;
   const genericCommand = /명령.{0,20}(?:실행|수행|입력|호출)|(?:실행|수행|호출).{0,20}명령|(?:execute|executed|run|ran|invoke|invoked).{0,24}command|command.{0,24}(?:executed|run|invoked)/i.test(description);
   const privilegeContext = /관리자|권한 상승|권한 변경|권한이 높|administrator|admin group|privileg|elevat|sudo|runas/i.test(description);
