@@ -78,14 +78,31 @@ function oneLine(value) {
 }
 
 function descriptionOf(alert) {
-  return [
+  const descriptiveFields = [
     alert?.rule?.description,
     alert?.description,
     alert?.message,
     alert?.rule?.message,
     alert?.full_log,
     alert?.data?.message
-  ].map(oneLine).filter(Boolean).join(" ");
+  ].map(oneLine);
+
+  // 설명문 외에도 개별 경보에 실린 구조화 이벤트 필드를 읽습니다.
+  // 다른 경보, 응답기 결과, 외부 판정 규칙에는 의존하지 않습니다.
+  const structuredFields = [
+    alert?.action,
+    alert?.operation,
+    alert?.event,
+    alert?.data?.action,
+    alert?.data?.operation,
+    alert?.data?.event,
+    alert?.data?.event_name,
+    alert?.data?.command,
+    alert?.data?.command_line,
+    alert?.data?.process
+  ].map((value) => oneLine(value).replace(/[_-]+/g, " "));
+
+  return [...descriptiveFields, ...structuredFields].filter(Boolean).join(" ");
 }
 
 function isAdminGroup(alert) {
@@ -136,12 +153,17 @@ function isUnfamiliarAddress(description) {
   return /처음 보는 주소|주소는 처음 봅니다|처음 봅니다|낯선 주소|미확인 (?:주소|IP)|새로운 출발지|처음 관측(?:된)? (?:주소|IP)|first[ -]?seen address|new(?:ly observed)? (?:source )?(?:address|IP)|unfamiliar (?:source|IP)|unknown (?:source|IP|address)|unrecognized (?:source|IP|address)|previously unseen (?:source|address)/i.test(description);
 }
 
+function isRemoteAddress(description) {
+  return /원격\s*(?:접속\s*)?주소|외부\s*(?:출발지|주소)|외부에서 접속|remote (?:source )?address|external (?:source )?address|from an external address/i.test(description);
+}
+
 function hasOtherAccountCommand(description, adminCommand) {
   return adminCommand && /다른 계정의 권한|다른 계정 권한|another account.?s privileges|under another account|using another account.?s credentials|on behalf of another account/i.test(description);
 }
 
 function hasFailedOrCancelledPrivilegeAttempt(description, signalsPrivilege) {
-  const failure = /실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|grant failed|not successfully/i.test(description);
+  // 경보 어디에나 있는 실패 단어가 아니라, 권한 작업과 가까이 연결된 실패만 사용합니다.
+  const failure = /(?:관리자 그룹|관리자 권한|권한 상승|권한 명령|관리자 명령|권한 변경|권한 부여|관리자로 승격|administrator group|admin group|admin(?:istrator)? privileges?|privileged command|privilege escalation|privilege elevation|privilege change).{0,64}(?:실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|grant failed|not successfully)|(?:실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|grant failed|not successfully).{0,64}(?:관리자 그룹|관리자 권한|권한 상승|권한 명령|관리자 명령|권한 변경|권한 부여|관리자로 승격|administrator group|admin group|admin(?:istrator)? privileges?|privileged command|privilege escalation|privilege elevation|privilege change)/i.test(description);
   const cancelled = /(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation).{0,40}(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied)|(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied).{0,40}(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation)|권한 상승 창.{0,20}(?:취소|거부)|elevation prompt.{0,20}(?:cancelled|canceled|denied)/i.test(description);
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command)|(?:명령.{0,12}(?:없|않|미실행)|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command).{0,48}(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation)/i.test(description);
   return (signalsPrivilege && failure) || cancelled || noFollowupCommand;
@@ -210,6 +232,10 @@ export function decide(alert) {
     && mitre.some((id) => id === "T1078" || id === "T1068");
   const repeatedAdminReadd = groupAddition
     && /빠진 계정.{0,30}1분 뒤.{0,20}다시 관리자로|removed.{0,30}one minute later.{0,20}re.added|removed from (?:the )?(?:administrators?|admins?).{0,48}(?:added|re.added) back/i.test(description);
+  const remoteHighRiskAdminAddition = groupAddition
+    && isRemoteAddress(description)
+    && Number.isFinite(ruleLevel) && ruleLevel >= 11
+    && mitre.some((id) => id === "T1078" || id === "T1068");
   const elevatedSessionFromNewAddress = sessionElevation && unfamiliarAddress;
   const unusualAdminCommand = adminCommand && unfamiliarAddress;
   const explicitNormal = isExplicitlyBenign(description, alert);
@@ -230,6 +256,16 @@ export function decide(alert) {
 
   // 명확한 정상 활동은 약한 단독 신호보다 먼저 기록합니다.
   if (explicitNormal) return output("ordinary_account_activity", 0.10);
+
+  // 원격 주소에서 고위험 관리자 그룹 추가가 발생하면 관리자 명령과의 동시 기록을
+  // 필수 조건으로 두지 않습니다. 실패·취소·재추가 신호는 앞선 분기에서 제외합니다.
+  if (!failedAttempt && !repeatedAdminReadd && remoteHighRiskAdminAddition) {
+    return output(
+      "admin_group_addition",
+      0.90,
+      "high_risk_remote_admin_group_addition: 원격 주소에서 고위험 관리자 그룹 추가가 확인되었습니다."
+    );
+  }
 
   // 권한 상승 세션만 확인된 경우에는 명령 등 추가 증거가 없으므로 alert입니다.
   if (elevatedSessionFromNewAddress) return output("ambiguous_privilege_activity", 0.68);
