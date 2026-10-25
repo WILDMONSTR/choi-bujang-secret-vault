@@ -229,8 +229,9 @@ export function decide(alert) {
   if (elevatedSessionFromNewAddress) return output("ambiguous_privilege_activity", 0.68);
 
   // 업무 시간 외의 권한 사용은 명령·변경 행위가 없어도 약한 조사 신호로 알립니다.
-  if (offHours && (adminCommand || groupAddition || sessionElevation || recentElevation || privilegeOperation
-      || /관리자|권한|administrator|admin|privilege|permission|role|sudo/i.test(description))) {
+  // 업무 외 시간이라는 표현이나 권한 관련 단어만으로 알림을 만들지 않습니다.
+  // 실제 관리자 명령·그룹 변경·권한 상승 신호가 함께 있을 때만 조사 알림으로 분류합니다.
+  if (offHours && (adminCommand || groupAddition || sessionElevation || recentElevation || privilegeOperation)) {
     return output("off_hours_privilege_use", 0.72);
   }
   if (repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
