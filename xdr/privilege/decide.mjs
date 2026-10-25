@@ -240,14 +240,14 @@ export function decide(alert) {
   // 동일 경보의 관리자 그룹·계정 수·규칙 수준·MITRE 필드가 모두 고위험 조건이면 차단합니다.
   if (!failedAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
 
+  // 명확한 정상 활동은 약한 단독 신호보다 먼저 기록합니다.
+  if (explicitNormal) return output("ordinary_account_activity", 0.10);
+
   // 짧은 시간 안의 관리자 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
   if (!failedAttempt && repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
 
   // 실패·취소·후속 명령 없는 시도는 성공한 공격으로 보지 않고 알림만 남깁니다.
   if (failedAttempt || noFollowupCommand) return output("ambiguous_privilege_activity", 0.68);
-
-  // 명확한 정상 활동은 약한 단독 신호보다 먼저 기록합니다.
-  if (explicitNormal) return output("ordinary_account_activity", 0.10);
 
   // 권한 상승 세션만 확인된 경우에는 명령 등 추가 증거가 없으므로 alert입니다.
   if (elevatedSessionFromNewAddress) return output("ambiguous_privilege_activity", 0.68);
