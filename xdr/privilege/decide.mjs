@@ -181,32 +181,6 @@ function output(patternId, confidence, reasonOverride) {
   };
 }
 
-function hasRequiredAttackEvidence(alert) {
-  const identity = alert?.identity;
-  const accountKnown = identity === undefined || identity === null
-    ? Boolean(oneLine(alert?.data?.srcuser))
-    : identity.source === "trusted-directory"
-      && /^[A-Za-z0-9._:-]{1,128}$/.test(oneLine(identity.subjectId));
-
-  const sourceIp = oneLine(alert?.data?.srcip);
-  const ipv4Parts = sourceIp.split(".");
-  const validIpv4 = ipv4Parts.length === 4
-    && ipv4Parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
-  const validIpv6 = sourceIp.includes(":")
-    && /^[0-9a-f:]+$/i.test(sourceIp)
-    && sourceIp.split("::").length <= 2
-    && sourceIp.split(":").length <= 8;
-  const ruleLevel = Number(alert?.rule?.level);
-  const mitre = alert?.rule?.mitre;
-
-  return accountKnown
-    && (validIpv4 || validIpv6)
-    && Number.isFinite(ruleLevel)
-    && ruleLevel >= 10
-    && Array.isArray(mitre)
-    && mitre.some((id) => id === "T1068" || id === "T1078");
-}
-
 export function decide(alert) {
   const description = descriptionOf(alert);
   const groupAddition = hasAdminGroupAddition(alert);
@@ -235,18 +209,10 @@ export function decide(alert) {
   const unusualAdminCommand = adminCommand && unfamiliarAddress;
   const explicitNormal = isExplicitlyBenign(description, alert);
 
-  // 복합 공격도 계정·유효 출발지·높은 규칙 수준·MITRE 근거가 모두 있어야 차단합니다.
-  const requiredAttackEvidence = hasRequiredAttackEvidence(alert);
-  if (elevatedThenCommand) {
-    return requiredAttackEvidence
-      ? output("recent_elevation_then_admin_command", 0.96)
-      : output("ambiguous_privilege_activity", 0.68);
-  }
-  if (groupAndCommand) {
-    return requiredAttackEvidence
-      ? output("admin_group_added_then_admin_command", 0.96)
-      : output("ambiguous_privilege_activity", 0.68);
-  }
+  // 성공한 권한 상승·관리자 명령 또는 관리자 그룹 추가·관리자 명령이
+  // 같은 경보에서 명확히 결합되면, 보조 메타데이터 누락만으로 alert로 낮추지 않습니다.
+  if (elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
+  if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
 
   // 대량 추가·짧은 시간 안의 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
   if (!failedAttempt && (bulkAdminGroupAddition || repeatedAdminReadd)) {
