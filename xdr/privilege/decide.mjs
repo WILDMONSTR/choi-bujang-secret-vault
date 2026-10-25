@@ -47,6 +47,14 @@ const PATTERN_SPEC = Object.freeze({
       evidence: "T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다.",
     }),
     Object.freeze({
+      id: "bulk_admin_group_addition",
+      name: "단일 고위험 경보의 대량 관리자 그룹 추가",
+      condition: "한 경보의 data.group이 관리자 그룹이고 data.count가 3 이상이며 rule.level이 10 이상이고 MITRE에 T1078 또는 T1068이 있으면, 실패·취소가 아닌 대량 권한 부여를 block한다. 다른 경보의 신호는 결합하지 않는다.",
+      action: "confidence_threshold",
+      confidence: 0.90,
+      evidence: "단일 경보의 관리자 그룹 대상, 다수 계정 수, 높은 규칙 수준, 관련 MITRE 기법이 함께 있어 대량 권한 부여 위험을 뒷받침한다.",
+    }),
+    Object.freeze({
       id: "admin_group_addition",
       name: "단독 관리자 그룹 추가",
       condition: "관리자 그룹 추가가 보이지만 같은 경보에 관리자 명령이 함께 없거나 결합 증거가 불충분하면 알림으로 남긴다.",
@@ -198,6 +206,14 @@ export function decide(alert) {
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command)/i.test(description);
   const elevatedThenCommand = recentElevation && adminCommand && !failedAttempt && !noFollowupCommand;
   const groupAndCommand = groupAddition && adminCommand && !failedAttempt;
+  // 대량 관리자 그룹 추가는 각 경보의 실제 필드만 사용해 판단합니다.
+  const eventCount = Number(alert?.data?.count);
+  const ruleLevel = Number(alert?.rule?.level);
+  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
+  const bulkAdminGroupAddition = groupAddition
+    && Number.isFinite(eventCount) && eventCount >= 3
+    && Number.isFinite(ruleLevel) && ruleLevel >= 10
+    && mitre.some((id) => id === "T1078" || id === "T1068");
   const eventCount = Number(alert?.data?.count);
   const bulkAdminGroupAddition = groupAddition && (
     (Number.isFinite(eventCount) && eventCount >= 3)
@@ -213,6 +229,9 @@ export function decide(alert) {
   // 같은 경보에서 명확히 결합되면, 보조 메타데이터 누락만으로 alert로 낮추지 않습니다.
   if (elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
   if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
+
+  // 한 경보 자체에 대량 관리자 권한 부여의 독립적인 고위험 근거가 있을 때만 차단합니다.
+  if (!failedAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
 
   // 대량 추가·짧은 시간 안의 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
   if (!failedAttempt && (bulkAdminGroupAddition || repeatedAdminReadd)) {
