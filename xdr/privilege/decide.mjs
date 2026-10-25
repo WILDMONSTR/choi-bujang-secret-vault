@@ -33,7 +33,7 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "off_hours_privilege_use",
       name: "업무 시간 밖 권한 사용",
-      condition: "업무 시간 밖 관리자 명령이나 권한 사용은 조사 대상이지만, 명확한 관리자 그룹 추가와 명령 결합이 없으면 alert로 분류한다. 시간대만으로 block하지 않는다.",
+      condition: "업무 시간 밖이라는 맥락이나 포괄적인 권한 작업 신호만으로 alert하지 않는다. 업무 외 시간에 실제 관리자 명령·관리자 그룹 추가·세션 권한 상승처럼 구체적 행위가 동반되면 alert로 분류하며, 시간대만으로 block하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.72,
       evidence: "T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다.",
@@ -179,6 +179,11 @@ function isPrivilegeOperationSignal(description, alert) {
   return /(?:관리자 그룹|관리자 권한 그룹|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|administrator group|admin group|administrator privileges|admin privileges|privilege escalation|privilege elevation|privilege change|permission grant|role assignment|sudoers? membership|wheel group).{0,48}(?:추가|변경|부여|회수|승격|전환|시도|실패|취소|거부|중단|added|changed|granted|revoked|elevated|switched|attempted|failed|cancelled|canceled|denied|aborted|executed|assigned|modified)|(?:추가|변경|부여|회수|승격|전환|시도|실패|취소|거부|중단|added|changed|granted|revoked|elevated|switched|attempted|failed|cancelled|canceled|denied|aborted|executed|assigned|modified).{0,48}(?:관리자 그룹|관리자 권한 그룹|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|administrator group|admin group|administrator privileges|admin privileges|privilege escalation|privilege elevation|privilege change|permission grant|role assignment|sudoers? membership|wheel group)/i.test(description);
 }
 
+function hasExplicitPrivilegeAttempt(description) {
+  const privilege = "(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|권한 회수|관리자 명령|administrator group|admin group|admin(?:istrator)? privileges?|privileged command|privilege escalation|privilege elevation|privilege change|permission grant|role assignment|sudoers? membership|wheel group)";
+  const attempt = "(?:시도(?:했|함|됨|되었습니다)?|요청(?:했|함|됨|했습니다)?|요구(?:했|함|됨)?|attempt(?:ed|ing)?|requested|tried)";
+  return new RegExp(`${privilege}.{0,48}${attempt}|${attempt}.{0,48}${privilege}`, "i").test(description);
+}
 
 function patternById(id) {
   return PATTERN_SPEC.patterns.find((pattern) => pattern.id === id)
@@ -210,13 +215,14 @@ export function decide(alert) {
   const unfamiliarAddress = isUnfamiliarAddress(description);
   const otherAccountCommand = hasOtherAccountCommand(description, adminCommand);
   const privilegeOperation = isPrivilegeOperationSignal(description, alert);
+  const explicitPrivilegeAttempt = hasExplicitPrivilegeAttempt(description);
   const failedAttempt = hasFailedOrCancelledPrivilegeAttempt(
     description,
     groupAddition || adminCommand || recentElevation || sessionElevation || privilegeOperation
   );
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command)/i.test(description);
-  const elevatedThenCommand = recentElevation && adminCommand && !failedAttempt && !noFollowupCommand;
-  const groupAndCommand = groupAddition && adminCommand && !failedAttempt;
+  const elevatedThenCommand = recentElevation && adminCommand && !failedAttempt && !noFollowupCommand && !explicitPrivilegeAttempt;
+  const groupAndCommand = groupAddition && adminCommand && !failedAttempt && !explicitPrivilegeAttempt;
   // 대량 관리자 그룹 추가는 이 경보의 data.group/count, rule.level, rule.mitre만으로 판정합니다.
   // 조건을 모두 충족하면 다른 경보와의 상관분석 없이 차단합니다.
   const eventCount = Number(alert?.data?.count);
@@ -238,10 +244,13 @@ export function decide(alert) {
   if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
 
   // 동일 경보의 관리자 그룹·계정 수·규칙 수준·MITRE 필드가 모두 고위험 조건이면 차단합니다.
-  if (!failedAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
+  if (!failedAttempt && !explicitPrivilegeAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
 
   // 명확한 정상 활동은 약한 단독 신호보다 먼저 기록합니다.
   if (explicitNormal) return output("ordinary_account_activity", 0.10);
+
+  // 명시적으로 시도·요청만 확인되고 성공 여부가 불명확하면 차단하지 않고 알림으로 남깁니다.
+  if (explicitPrivilegeAttempt) return output("ambiguous_privilege_activity", 0.68);
 
   // 짧은 시간 안의 관리자 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
   if (!failedAttempt && repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
@@ -252,16 +261,16 @@ export function decide(alert) {
   // 권한 상승 세션만 확인된 경우에는 명령 등 추가 증거가 없으므로 alert입니다.
   if (elevatedSessionFromNewAddress) return output("ambiguous_privilege_activity", 0.68);
 
-  // 업무 시간 외의 권한 사용은 명령·변경 행위가 없어도 약한 조사 신호로 알립니다.
-  // 업무 외 시간이라는 표현이나 권한 관련 단어만으로 알림을 만들지 않습니다.
-  // 실제 관리자 명령·그룹 변경·권한 상승 신호가 함께 있을 때만 조사 알림으로 분류합니다.
-  if (offHours && (adminCommand || groupAddition || sessionElevation || recentElevation || privilegeOperation)) {
+  // 업무 외 시간은 보조 맥락일 뿐입니다. 시간대 + 포괄적인 privilegeOperation만으로는 alert하지 않습니다.
+  // 실제 관리자 명령·그룹 추가·세션/권한 상승 같은 구체적 행위가 함께 있을 때만 시간대 기반 알림을 냅니다.
+  if (offHours && (adminCommand || groupAddition || sessionElevation || recentElevation)) {
     return output("off_hours_privilege_use", 0.72);
   }
   if (repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
   if (unusualAdminCommand || otherAccountCommand) return output("unfamiliar_admin_command", 0.68);
   // 단독 관리자 그룹 추가는 아래 전용 분기에서 admin_group_addition으로 분류합니다.
-  if (sessionElevation || recentElevation || (privilegeOperation && !groupAddition)) return output("ambiguous_privilege_activity", 0.68);
+  // 넓은 privilegeOperation 신호만으로는 alert하지 않고, 낯선 주소라는 독립된 정황이 있을 때 조사합니다.
+  if (sessionElevation || recentElevation || (privilegeOperation && unfamiliarAddress)) return output("ambiguous_privilege_activity", 0.68);
   if (groupAddition) return output("admin_group_addition", 0.68);
 
   return output("ordinary_account_activity", 0.10);
