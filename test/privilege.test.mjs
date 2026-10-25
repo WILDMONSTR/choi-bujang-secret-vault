@@ -17,7 +17,7 @@ const EXPECTED_ACTIONS = Object.freeze({
   "pv-02": "block",
   "pv-03": "alert",
   "pv-04": "block",
-  "pv-05": "alert",
+  "pv-05": "block",
   "pv-06": "alert",
   "pv-07": "block",
   "pv-08": "alert",
@@ -50,17 +50,17 @@ test("privilege fixture: 명확한 권한 상승만 block, 모호한 신호는 a
   assert.equal(fixture.moduleKey, "privilege");
   const results = fixture.alerts.map((alert) => ({ alertId: alert.id, ...decidePrivilege(alert) }));
   const counts = results.reduce((out, item) => { out[item.action] += 1; return out; }, { block: 0, alert: 0, record: 0 });
-  assert.deepEqual(counts, { block: 3, alert: 9, record: 14 });
+  assert.deepEqual(counts, { block: 4, alert: 8, record: 14 });
   assert.deepEqual(Object.keys(EXPECTED_ACTIONS).sort(), fixture.alerts.map((alert) => alert.id).sort());
   assert.deepEqual(results.map(({ alertId, action }) => [alertId, action]),
     fixture.alerts.map((alert) => [alert.id, EXPECTED_ACTIONS[alert.id]]));
   assert.deepEqual(results.filter((item) => item.action === "block").map((item) => item.alertId), BLOCK_IDS);
   assert.deepEqual(results.filter((item) => item.action === "alert").map((item) => item.alertId), ALERT_IDS);
   assert.deepEqual(results.filter((item) => item.action === "record").map((item) => item.alertId), RECORD_IDS);
-  // 이 두 경보는 일반 관리자 그룹 추가 분기보다 먼저 애매한 활동 분기로 분류돼야 합니다.
-  for (const alertId of ["pv-05", "pv-09"]) {
-    assert.match(results.find((item) => item.alertId === alertId).reason, /^ambiguous_privilege_activity:/u);
-  }
+  // 대량 관리자 그룹 추가는 필드 근거가 충분해 차단하고, 짧은 시간 안의 재추가는 알림으로 남깁니다.
+  assert.match(results.find((item) => item.alertId === "pv-05").reason, /^bulk_admin_group_addition:/u);
+  assert.equal(results.find((item) => item.alertId === "pv-05").confidence, 0.90);
+  assert.match(results.find((item) => item.alertId === "pv-09").reason, /^ambiguous_privilege_activity:/u);
   assert.ok(results.every((item) => item.confidence >= 0 && item.confidence <= 1 && typeof item.reason === "string"));
   assert.ok(results.every((item) => !/user\d{2}|acct-user/i.test(item.reason)));
 });
@@ -117,12 +117,12 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
     });
     assert.equal(exitCode, 0, stderr);
     assert.match(stdout, /privilege 시험 경보: 26건/u);
-    assert.match(stdout, /판정: block 3, alert 9, record 14/u);
-    assert.match(stdout, /계정 세션 거부 규칙 생성\/갱신: 3건/u);
+    assert.match(stdout, /판정: block 4, alert 8, record 14/u);
+    assert.match(stdout, /계정 세션 거부 규칙 생성\/갱신: 4건/u);
 
     const ruleData = JSON.parse(await readFile(join(temp, "xdr", "privilege", "session-rules.json"), "utf8"));
     assert.equal(ruleData.schema, "aleph.xdr.session-deny.v1");
-    assert.equal(ruleData.rules.length, 3);
+    assert.equal(ruleData.rules.length, 4);
     const user01Rule = ruleData.rules.find((rule) => rule.subjectId === "acct-user01");
     assert.ok(user01Rule);
     assert.deepEqual(user01Rule.evidenceAlertIds, ["pv-01", "pv-02"]);
@@ -134,9 +134,9 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
     assert.doesNotMatch(log, /user\d{2}|acct-user\d{2}/i);
     const appendedLogLines = log.trim().split(/\r?\n/u).slice(1);
     const parsed = appendedLogLines.map((line) => JSON.parse(line));
-    assert.equal(appendedLogLines.length, 15);
+    assert.equal(appendedLogLines.length, 16);
     const alertRows = parsed.filter((row) => row.action === "alert" && typeof row.alertId === "string");
-    assert.equal(alertRows.length, 9);
+    assert.equal(alertRows.length, 8);
     assert.deepEqual(alertRows.map((row) => row.alertId).sort(), [...ALERT_IDS].sort());
     assert.ok(parsed.some((row) => row.action === "block" && row.alertIds?.includes("pv-01") && row.alertIds?.includes("pv-02")));
     assert.ok(parsed.every((row) => row.moduleKey === "privilege"));
