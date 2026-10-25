@@ -269,7 +269,8 @@ export function decide(alert) {
   }
   if (repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
   if (unusualAdminCommand || otherAccountCommand) return output("unfamiliar_admin_command", 0.68);
-  if (sessionElevation || recentElevation || privilegeOperation) return output("ambiguous_privilege_activity", 0.68);
+  // 단독 관리자 그룹 추가는 아래 전용 분기에서 admin_group_addition으로 분류합니다.
+  if (sessionElevation || recentElevation || (privilegeOperation && !groupAddition)) return output("ambiguous_privilege_activity", 0.68);
   if (groupAddition) return output("admin_group_addition", 0.68);
 
   return output("ordinary_account_activity", 0.10);
