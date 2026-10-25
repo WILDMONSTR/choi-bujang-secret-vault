@@ -181,7 +181,7 @@ function isPrivilegeOperationSignal(description, alert) {
 
 function hasExplicitPrivilegeAttempt(description) {
   const privilege = "(?:관리자 그룹|관리자 권한|권한 상승|권한 변경|권한 부여|권한 회수|관리자 명령|administrator group|admin group|admin(?:istrator)? privileges?|privileged command|privilege escalation|privilege elevation|privilege change|permission grant|role assignment|sudoers? membership|wheel group)";
-  const attempt = "(?:시도(?:했|함|됨|되었습니다)?|요청(?:했|함|됨|했습니다)?|요구(?:했|함|됨)?|attempt(?:ed|ing)?|requested|tried)";
+  const attempt = "(?:시도(?:했|함|됨|했습니다|되었습니다)?|attempt(?:ed|ing)?|tried)";
   return new RegExp(`${privilege}.{0,48}${attempt}|${attempt}.{0,48}${privilege}`, "i").test(description);
 }
 
