@@ -47,6 +47,14 @@ const PATTERN_SPEC = Object.freeze({
       evidence: "T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다.",
     }),
     Object.freeze({
+      id: "bulk_admin_group_addition",
+      name: "단일 경보의 대량 관리자 그룹 추가",
+      condition: "같은 경보의 data.group이 관리자 그룹이고 data.count가 3 이상이며 rule.level이 10 이상이고 MITRE에 T1078 또는 T1068이 있을 때, 실패·취소가 아닌 대량 관리자 권한 부여를 block한다. 별도 경보 신호는 결합하지 않는다.",
+      action: "confidence_threshold",
+      confidence: 0.90,
+      evidence: "관리자 그룹 대상, 세 계정 이상의 변경 수, 고위험 규칙 수준, 관련 MITRE 기법이 동일 경보에 함께 있다.",
+    }),
+    Object.freeze({
       id: "admin_group_addition",
       name: "단독 관리자 그룹 추가",
       condition: "관리자 그룹 추가가 보이지만 같은 경보에 관리자 명령이 함께 없거나 결합 증거가 불충분하면 알림으로 남긴다.",
@@ -218,10 +226,11 @@ export function decide(alert) {
   if (elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
   if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
 
-  // 대량 추가·짧은 시간 안의 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
-  if (!failedAttempt && (bulkAdminGroupAddition || repeatedAdminReadd)) {
-    return output("ambiguous_privilege_activity", 0.68);
-  }
+  // 동일 경보의 관리자 그룹·계정 수·규칙 수준·MITRE 필드가 모두 고위험 조건이면 차단합니다.
+  if (!failedAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
+
+  // 짧은 시간 안의 관리자 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
+  if (!failedAttempt && repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
 
   // 실패·취소·후속 명령 없는 시도는 성공한 공격으로 보지 않고 알림만 남깁니다.
   if (failedAttempt || noFollowupCommand) return output("ambiguous_privilege_activity", 0.68);
