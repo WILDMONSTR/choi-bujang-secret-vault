@@ -23,14 +23,6 @@ const PATTERN_SPEC = Object.freeze({
       evidence: "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다.",
     }),
     Object.freeze({
-      id: "recent_group_change_then_admin_command",
-      name: "5분 내 관리자 그룹 변경과 관리자 명령",
-      condition: "응답 단계에서 동일한 정규화 계정·동일 출발지의 관리자 그룹 변경과 관리자 명령 경보가 5분 안에 함께 나타나고, 두 경보의 규칙 수준·MITRE 근거가 유효할 때 거부 규칙 후보로 결합한다.",
-      action: "confidence_threshold",
-      confidence: 0.97,
-      evidence: "T1078은 유효 계정 악용 맥락을, T1068은 권한 상승 결과인 관리자 명령의 악용 가능성을 뒷받침한다.",
-    }),
-    Object.freeze({
       id: "unfamiliar_admin_command",
       name: "낯선 주소 또는 다른 계정의 관리자 명령",
       condition: "처음 보는 주소 또는 다른 계정 권한에서 관리자 명령이 나타나지만, 같은 경보의 명확한 권한 상승·그룹 추가 결합 증거가 없으면 alert로 분류한다.",
@@ -189,6 +181,7 @@ function output(patternId, confidence, reasonOverride) {
   };
 }
 
+// 한 번에 전달된 단일 경보만 평가하며, 다른 경보나 respond.mjs 결과를 읽지 않습니다.
 export function decide(alert) {
   const description = descriptionOf(alert);
   const groupAddition = hasAdminGroupAddition(alert);
@@ -206,8 +199,8 @@ export function decide(alert) {
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command)/i.test(description);
   const elevatedThenCommand = recentElevation && adminCommand && !failedAttempt && !noFollowupCommand;
   const groupAndCommand = groupAddition && adminCommand && !failedAttempt;
-  // 대량 관리자 그룹 추가는 현재 경보의 실제 필드만으로 표시합니다.
-  // count·규칙 수준·MITRE 근거가 함께 있어도 관리자 명령 결합이 없으면 차단하지 않고 alert로 남깁니다.
+  // 대량 관리자 그룹 추가는 이 경보의 data.group/count, rule.level, rule.mitre만으로 판정합니다.
+  // 조건을 모두 충족하면 다른 경보와의 상관분석 없이 차단합니다.
   const eventCount = Number(alert?.data?.count);
   const ruleLevel = Number(alert?.rule?.level);
   const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
