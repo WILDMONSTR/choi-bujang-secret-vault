@@ -93,6 +93,11 @@ test("명확한 동일 경보 복합 공격은 보조 메타데이터 누락만�
   const ambiguous = fixture.alerts.find((alert) => alert.id === "pv-03");
   assert.equal(decidePrivilege(ambiguous).action, "alert");
   assert.equal(decidePrivilege(fixture.alerts.find((alert) => alert.id === "pv-11")).action, "record");
+  const benignFailure = {
+    ...fixture.alerts.find((alert) => alert.id === "pv-12"),
+    rule: { ...fixture.alerts.find((alert) => alert.id === "pv-12").rule, description: "평소 주소에서 관리자 명령이 실패했습니다." }
+  };
+  assert.equal(decidePrivilege(benignFailure).action, "alert");
 });
 
 test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석하고 계정별 15분 규칙을 쓴다", async () => {
@@ -127,6 +132,10 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
     assert.ok(user01Rule);
     assert.deepEqual(user01Rule.evidenceAlertIds, ["pv-01", "pv-02"]);
     assert.equal(Date.parse(user01Rule.expiresAt) - Date.parse(user01Rule.createdAt), 15 * 60 * 1000);
+    const user04Rule = ruleData.rules.find((rule) => rule.subjectId === "acct-user04");
+    assert.ok(user04Rule);
+    assert.deepEqual(user04Rule.evidenceAlertIds, ["pv-05"]);
+    assert.equal(user04Rule.evidencePattern, "bulk_admin_group_addition");
     assert.ok(ruleData.rules.every((rule) => rule.id.startsWith("xdr-privilege-")));
 
     const log = await readFile(join(temp, "xdr", "alerts.log"), "utf8");
