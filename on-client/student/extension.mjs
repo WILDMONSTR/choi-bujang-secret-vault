@@ -298,6 +298,26 @@ function eventBuildDetail(event) {
   stateSection.appendChild(eventNode('h5', '상태(state)'));
   stateSection.appendChild(stateList);
   detail.appendChild(stateSection);
+
+  const supportedActions = Array.isArray(record.supportedActions)
+    ? record.supportedActions.filter(action => typeof action === 'string' && STATUS_SAFE_CODE.test(action))
+    : [];
+  if (supportedActions.length > 0) {
+    const actionSection = eventNode('section');
+    actionSection.appendChild(eventNode('h5', '지원되지 않는 조치'));
+    actionSection.appendChild(eventNode('p', '조치 실행 연결은 준비 중입니다. 아래 버튼은 비활성 안내이며 요청을 전송하지 않습니다.', 'muted'));
+    const actionList = eventNode('ul', undefined, 'plain-list');
+    for (const action of supportedActions) {
+      const item = eventNode('li');
+      const unsupportedButton = eventNode('button', action + ' 미지원');
+      unsupportedButton.type = 'button';
+      unsupportedButton.disabled = true;
+      item.appendChild(unsupportedButton);
+      actionList.appendChild(item);
+    }
+    actionSection.appendChild(actionList);
+    detail.appendChild(actionSection);
+  }
   return detail;
 }
 
