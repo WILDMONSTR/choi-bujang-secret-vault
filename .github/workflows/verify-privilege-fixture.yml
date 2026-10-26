@@ -1,0 +1,19 @@
+name: Verify privilege fixture classification
+on:
+  push:
+    branches:
+      - verify/privilege-fixture-20261026
+jobs:
+  xdr-privilege:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run requested command
+        run: npm run xdr:run -- privilege
+      - name: Print generated classification result
+        run: cat xdr/privilege/result.json
+      - name: Ensure source fixture was not changed by run
+        run: git diff --exit-code -- xdr/fixtures/privilege.json
