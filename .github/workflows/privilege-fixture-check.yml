@@ -1,0 +1,57 @@
+name: Temporary privilege fixture verification
+
+on:
+  push:
+    branches:
+      - fix/privilege-fixture-review-20261026
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify fixture-specific classification tests
+        run: npm run privilege:test
+      - name: Run the requested command
+        run: npm run xdr:run -- privilege
+      - name: Print and independently verify each fixture result
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const result = JSON.parse(fs.readFileSync('xdr/privilege/result.json', 'utf8'));
+          const expected = {
+            'pv-01':'alert','pv-02':'block','pv-03':'alert','pv-04':'block',
+            'pv-05':'block','pv-06':'alert','pv-07':'block','pv-08':'alert',
+            'pv-09':'alert','pv-10':'alert','pv-11':'record','pv-12':'record',
+            'pv-13':'record','pv-14':'alert','pv-15':'record','pv-16':'alert',
+            'pv-17':'record','pv-18':'record','pv-19':'record','pv-20':'record',
+            'pv-21':'record','pv-22':'record','pv-23':'record','pv-24':'record',
+            'pv-25':'record','pv-26':'record'
+          };
+          for (const row of result.decisions) {
+            console.log(row.alertId + '\t' + row.action + '\t' + row.confidence + '\t' + row.reason);
+          }
+          const mismatch = result.decisions.filter(row => expected[row.alertId] !== row.action);
+          console.log('COUNTS ' + JSON.stringify(result.counts));
+          if (result.decisions.length !== 26 || mismatch.length) {
+            throw new Error('Expected classifications mismatch: ' + JSON.stringify(mismatch));
+          }
+          if (JSON.stringify(result.counts) !== JSON.stringify({block:4,alert:8,record:14})) {
+            throw new Error('Unexpected action counts: ' + JSON.stringify(result.counts));
+          }
+          console.log('PASS: all 26 fixture decisions and counts match.');
+          NODE
