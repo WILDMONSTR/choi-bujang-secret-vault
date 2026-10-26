@@ -310,8 +310,8 @@ export function decide(alert) {
   if (repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
   if (unusualAdminCommand || otherAccountCommand) return output("unfamiliar_admin_command", 0.68);
   // 단독 관리자 그룹 추가는 아래 전용 분기에서 admin_group_addition으로 분류합니다.
-  // 넓은 privilegeOperation 신호만으로는 alert하지 않고, 낯선 주소라는 독립된 정황이 있을 때 조사합니다.
-  if (sessionElevation || recentElevation || (privilegeOperation && unfamiliarAddress)) return output("ambiguous_privilege_activity", 0.68);
+  // 구체적인 권한 행위 신호가 있지만 성공한 복합 공격으로 확정할 수 없으면 alert로 남깁니다.
+  if (sessionElevation || recentElevation || (privilegeOperation && !groupAddition)) return output("ambiguous_privilege_activity", 0.68);
   if (groupAddition) return output("admin_group_addition", 0.68);
 
   return output("ordinary_account_activity", 0.10);
