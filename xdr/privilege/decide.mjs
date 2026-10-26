@@ -29,18 +29,18 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "unfamiliar_admin_command",
       name: "낯선 주소 또는 다른 계정의 관리자 명령",
-      condition: "처음 보는 주소 또는 다른 계정 권한에서 관리자 명령이 나타나지만, 명확한 성공 복합 공격 신호가 없으면 alert로 분류한다.",
+      condition: "낯선 출발지 또는 다른 계정의 권한으로 관리자 명령이 성공적으로 실행되면 block한다. 명령 실행 결과나 권한 관계가 불확실하면 alert로 남긴다.",
       action: "confidence_threshold",
-      confidence: 0.68,
+      confidence: 0.90,
       evidence: "T1078은 정상 계정의 비정상적 사용이 계정 악용 가능성을 나타낼 수 있음을 설명한다.",
       confidenceRationale: "0.68은 의심 신호는 있으나 성공한 복합 공격이 확인되지 않은 경우의 로컬 alert 점수다.",
     }),
     Object.freeze({
       id: "off_hours_privilege_use",
       name: "업무 시간 밖 권한 사용",
-      condition: "업무 시간 밖이라는 맥락만으로 block하지 않는다. 다만 처음 보는 출발 주소에서 실제 관리자 명령이 실행되면 시간대·낯선 출발지·구체적 행위가 같은 경보에 결합된 것이므로 block한다. 시간대와 구체적 행위만 있고 낯선 주소 신호가 없으면 alert로 분류한다.",
+      condition: "업무·수업 시간 밖에 관리자 권한 행위가 확인되고 실제 관리자 명령이 성공적으로 실행되면 block한다. 시간대만 확인되거나 실행 여부가 불분명하면 alert로 남긴다.",
       action: "confidence_threshold",
-      confidence: 0.72,
+      confidence: 0.90,
       evidence: "T1078은 비정상적인 유효 계정 사용의 맥락을, T1068은 권한 상승 악용의 맥락을 뒷받침한다. ATT&CK은 이 조합의 숫자 확신도를 정하지 않으므로 0.96은 아래의 강한 3신호 조합에만 적용하는 로컬 점수다.",
       confidenceRationale: "0.72는 업무 외 시간과 구체적 권한 행위만 있는 경우의 alert 점수다. 업무 외 시간+처음 보는 주소+실제 관리자 명령이 모두 있으면 0.96으로 올린다.",
     }),
@@ -56,11 +56,11 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "admin_group_addition",
       name: "단독 관리자 그룹 추가",
-      condition: "관리자 그룹 추가가 보이지만 같은 경보에 관리자 명령이 함께 없거나 결합 증거가 불충분하면 알림으로 남긴다.",
+      condition: "관리자 그룹 추가가 성공적으로 확인되고 실패·취소·시도-only 정황이 없으면 block한다. 실패·취소·미확정 시도는 alert로 남긴다.",
       action: "confidence_threshold",
-      confidence: 0.68,
-      evidence: "T1078은 계정 권한 변경이 유효 계정 악용과 연결될 수 있음을 뒷받침하지만 단독 그룹 변경만으로 악용을 확정하지 않는다.",
-      confidenceRationale: "0.68은 단독 관리자 그룹 추가를 조사 알림으로 남기되, 명령 결합 없이 공격으로 확정하지 않는 로컬 점수다.",
+      confidence: 0.90,
+      evidence: "관리자 그룹 구성원 변경이 실제로 발생했다는 구체적인 이벤트 증거를 사용한다. 실패 여부와 시도-only 신호를 먼저 확인한다.",
+      confidenceRationale: "0.90은 관리자 그룹 추가가 확인됐고 실패·취소·시도 신호가 없을 때 사용하는 로컬 점수다.",
     }),
     Object.freeze({
       id: "ambiguous_privilege_activity",
@@ -317,18 +317,33 @@ export function decide(alert) {
     return output("bulk_admin_group_addition", 0.90);
   }
 
-  // 제거 후 재추가, 단독 관리자 그룹 추가, 불확실한 권한 상승은 조사 알림으로 남깁니다.
+  // 제거 후 재추가가 포함된 순환·불명확한 변경은 한 번의 성공적 추가로 간주하지 않습니다.
   if (groupCycle) return output("ambiguous_privilege_activity", 0.68);
-  if (groupAddition || groupRemoval) return output("admin_group_addition", 0.68);
-  if (sessionElevation || elevation) return output("ambiguous_privilege_activity", 0.68);
+
+  // 확인된 단독 관리자 그룹 추가도 명확한 권한 변경입니다. 실패·시도 신호는 위에서 alert로 분리됩니다.
+  if (groupAddition && !groupRemoval) return output("admin_group_addition", 0.90);
+  if (groupRemoval) return output("ambiguous_privilege_activity", 0.68);
+
+  // 관리자 명령이 낯선 주소 또는 다른 계정의 권한으로 실제 실행됐다면 명확한 공격 신호입니다.
+  if (adminCommand && commandSuccessful && (otherAccount || unfamiliarAddress)) {
+    return output("unfamiliar_admin_command", 0.90);
+  }
+
+  // 업무·수업 시간 밖의 관리자 명령 실행은 단순 시간대 신호가 아니라 구체적인 권한 행위입니다.
+  if (offHours && adminCommand && commandSuccessful) {
+    return output("off_hours_privilege_use", 0.90);
+  }
+
+  // 명령의 성공 여부나 출발지·계정 맥락이 불확실한 의심 행위는 block 대신 alert입니다.
   if (otherAccount || (adminCommand && unfamiliarAddress)) {
     return output("unfamiliar_admin_command", 0.68);
   }
   if (offHours && (adminCommand || isAdminGroupTarget || elevation || sessionElevation)) {
     return output("off_hours_privilege_use", 0.72);
   }
+  if (sessionElevation || elevation) return output("ambiguous_privilege_activity", 0.68);
 
-  // 관리자 명령 한 건만 있고 정상 맥락이나 공격 결합 신호가 없으면 차단하지 않습니다.
+  // 정상 주소에서 단독으로 실행된 일반 관리자 명령은 정상 대조 활동으로 기록합니다.
   if (adminCommand && !otherAccount && !unfamiliarAddress && !offHours) {
     return output("ordinary_account_activity", 0.10);
   }
