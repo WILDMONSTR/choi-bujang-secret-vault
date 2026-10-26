@@ -1,0 +1,52 @@
+name: Temporary privilege fixture check
+
+on:
+  push:
+    branches:
+      - fix/privilege-decide-per-alert
+
+permissions:
+  contents: read
+
+jobs:
+  privilege-fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Run requested privilege command
+        run: npm run xdr:run -- privilege
+      - name: Compare each alert ID and validate confidence thresholds
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const result = JSON.parse(readFileSync("xdr/privilege/result.json", "utf8"));
+          const fixture = JSON.parse(readFileSync("xdr/fixtures/privilege.json", "utf8"));
+          const expectedIds = fixture.alerts.map(({ id }) => id);
+          const actualIds = result.decisions.map(({ alertId }) => alertId);
+          if (JSON.stringify(expectedIds) !== JSON.stringify(actualIds)) {
+            throw new Error("Fixture IDs and result IDs/order do not match");
+          }
+          for (const item of result.decisions) {
+            const expectedAction = item.confidence >= 0.85 ? "block"
+              : item.confidence >= 0.5 ? "alert" : "record";
+            if (item.action !== expectedAction) {
+              throw new Error(`${item.alertId}: confidence ${item.confidence} conflicts with ${item.action}`);
+            }
+            console.log(`${item.alertId}\t${item.action}\t${item.confidence}\t${item.reason}`);
+          }
+          console.log("counts:", JSON.stringify(result.counts));
+          console.log(`verified ${actualIds.length} fixture IDs and 0.85/0.5 confidence thresholds`);
+          NODE
+      - name: Upload generated result for audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: privilege-fixture-result
+          path: xdr/privilege/result.json
+          if-no-files-found: error
