@@ -16,9 +16,9 @@
     },
     {
       "alertId": "pv-03",
-      "action": "alert",
-      "confidence": 0.72,
-      "reason": "off_hours_privilege_use: 업무 시간 밖 권한 사용 — T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다."
+      "action": "block",
+      "confidence": 0.96,
+      "reason": "off_hours_privilege_use: 업무 시간 밖 권한 사용 — T1078은 비정상적인 유효 계정 사용의 맥락을, T1068은 권한 상승 악용의 맥락을 뒷받침한다. ATT&CK은 이 조합의 숫자 확신도를 정하지 않으므로 0.96은 아래의 강한 3신호 조합에만 적용하는 로컬 점수다."
     },
     {
       "alertId": "pv-04",
@@ -30,7 +30,7 @@
       "alertId": "pv-05",
       "action": "block",
       "confidence": 0.9,
-      "reason": "bulk_admin_group_addition: 단일 경보의 대량 관리자 그룹 추가 — 관리자 그룹 대상, 세 계정 이상의 변경 수, 고위험 규칙 수준, 관련 MITRE 기법이 동일 경보에 함께 있다."
+      "reason": "bulk_admin_group_addition: 단일 경보의 대량 관리자 그룹 추가 — T1078은 유효 계정 악용 맥락만 뒷받침하며, 3계정 임계값은 외부 표준이 아니라 대량 변경과 단독 변경을 나누기 위한 명시적 로컬 휴리스틱이다. fixture pv-05의 count 4가 그 적용 예다."
     },
     {
       "alertId": "pv-06",
@@ -160,8 +160,8 @@
     }
   ],
   "counts": {
-    "block": 4,
-    "alert": 8,
+    "block": 5,
+    "alert": 7,
     "record": 14
   }
 }
