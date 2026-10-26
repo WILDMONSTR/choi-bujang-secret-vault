@@ -18,9 +18,47 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
   assert.equal(fixture.moduleKey, "privilege");
   assert.ok(fixture.alerts.length > 0);
 
+  const expectedActions = new Map([
+    ["pv-01", "alert"],
+    ["pv-02", "block"],
+    ["pv-03", "alert"],
+    ["pv-04", "block"],
+    ["pv-05", "block"],
+    ["pv-06", "alert"],
+    ["pv-07", "block"],
+    ["pv-08", "alert"],
+    ["pv-09", "alert"],
+    ["pv-10", "alert"],
+    ["pv-11", "record"],
+    ["pv-12", "record"],
+    ["pv-13", "record"],
+    ["pv-14", "alert"],
+    ["pv-15", "record"],
+    ["pv-16", "alert"],
+    ["pv-17", "record"],
+    ["pv-18", "record"],
+    ["pv-19", "record"],
+    ["pv-20", "record"],
+    ["pv-21", "record"],
+    ["pv-22", "record"],
+    ["pv-23", "record"],
+    ["pv-24", "record"],
+    ["pv-25", "record"],
+    ["pv-26", "record"]
+  ]);
+  assert.deepEqual([...expectedActions.keys()], fixture.alerts.map((alert) => alert.id));
+  assert.deepEqual(
+    fixture.alerts.reduce((counts, alert) => {
+      counts[expectedActions.get(alert.id)] += 1;
+      return counts;
+    }, { block: 0, alert: 0, record: 0 }),
+    { block: 4, alert: 8, record: 14 }
+  );
+
   for (const alert of fixture.alerts) {
     await t.test(alert.id, () => {
       const result = decidePrivilege(alert);
+      assert.equal(result.action, expectedActions.get(alert.id), `unexpected classification for ${alert.id}`);
       assert.ok(["block", "alert", "record"].includes(result.action));
       assert.ok(Number.isFinite(result.confidence) && result.confidence >= 0 && result.confidence <= 1);
       assert.equal(
