@@ -4,6 +4,8 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({ id: "T1068", name: "Exploitation for Privilege Escalation", source: "https://attack.mitre.org/techniques/T1068/" }),
     Object.freeze({ id: "T1078", name: "Valid Accounts", source: "https://attack.mitre.org/techniques/T1078/" })
   ]),
+  // 0.85/0.5 are the rubric's action cutoffs. Per-pattern scores below are local heuristic values,
+  // not numeric scores prescribed by MITRE ATT&CK; each score's operational rationale is recorded with its pattern.
   thresholds: Object.freeze({ blockMinimumConfidence: 0.85, alertMinimumConfidence: 0.5 }),
   patterns: Object.freeze([
     Object.freeze({
@@ -13,6 +15,7 @@ const PATTERN_SPEC = Object.freeze({
       action: "confidence_threshold",
       confidence: 0.96,
       evidence: "T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다.",
+      confidenceRationale: "0.96은 같은 경보에 성공한 권한 상승과 실제 관리자 명령이 함께 나타나는 강한 결합 신호에 부여한 로컬 점수다.",
     }),
     Object.freeze({
       id: "admin_group_added_then_admin_command",
@@ -21,30 +24,43 @@ const PATTERN_SPEC = Object.freeze({
       action: "confidence_threshold",
       confidence: 0.96,
       evidence: "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다.",
+      confidenceRationale: "0.96은 같은 경보에 성공한 관리자 그룹 추가와 실행된 관리자 명령이 함께 있는 경우에만 쓰는 로컬 점수다.",
     }),
     Object.freeze({
       id: "unfamiliar_admin_command",
       name: "낯선 주소 또는 다른 계정의 관리자 명령",
-      condition: "처음 보는 주소 또는 다른 계정 권한에서 관리자 명령이 나타나지만, 같은 경보의 명확한 권한 상승·그룹 추가 결합 증거가 없으면 alert로 분류한다.",
+      condition: "처음 보는 주소 또는 다른 계정 권한에서 관리자 명령이 나타나지만, 명확한 성공 복합 공격 신호가 없으면 alert로 분류한다.",
       action: "confidence_threshold",
       confidence: 0.68,
       evidence: "T1078은 정상 계정의 비정상적 사용이 계정 악용 가능성을 나타낼 수 있음을 설명한다.",
+      confidenceRationale: "0.68은 의심 신호는 있으나 성공한 복합 공격이 확인되지 않은 경우의 로컬 alert 점수다.",
     }),
     Object.freeze({
       id: "off_hours_privilege_use",
       name: "업무 시간 밖 권한 사용",
-      condition: "업무 시간 밖이라는 맥락이나 포괄적인 권한 작업 신호만으로 alert하지 않는다. 업무 외 시간에 실제 관리자 명령·관리자 그룹 추가·세션 권한 상승처럼 구체적 행위가 동반되면 alert로 분류하며, 시간대만으로 block하지 않는다.",
+      condition: "업무 시간 밖이라는 맥락만으로 block하지 않는다. 다만 처음 보는 출발 주소에서 실제 관리자 명령이 실행되면 시간대·낯선 출발지·구체적 행위가 같은 경보에 결합된 것이므로 block한다. 시간대와 구체적 행위만 있고 낯선 주소 신호가 없으면 alert로 분류한다.",
       action: "confidence_threshold",
       confidence: 0.72,
-      evidence: "T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다.",
+      evidence: "T1078은 비정상적인 유효 계정 사용의 맥락을, T1068은 권한 상승 악용의 맥락을 뒷받침한다. ATT&CK은 이 조합의 숫자 확신도를 정하지 않으므로 0.96은 아래의 강한 3신호 조합에만 적용하는 로컬 점수다.",
+      confidenceRationale: "0.72는 업무 외 시간과 구체적 권한 행위만 있는 경우의 alert 점수다. 업무 외 시간+처음 보는 주소+실제 관리자 명령이 모두 있으면 0.96으로 올린다.",
     }),
     Object.freeze({
       id: "bulk_admin_group_addition",
       name: "단일 경보의 대량 관리자 그룹 추가",
-      condition: "같은 경보의 data.group이 관리자 그룹이고 data.count가 3 이상이며 실패·취소 정황이 없으면 대량 권한 변경으로 block한다. 별도 경보의 상관분석이나 부가 메타데이터는 필요하지 않다.",
+      condition: "같은 경보의 data.group이 관리자 그룹이고 data.count가 3 이상이며 실패·취소 정황이 없으면 대량 권한 변경 후보로 block한다. count 3은 이 저장소의 로컬 운영 기준이며 MITRE가 정한 임계값이 아니다. 원본 fixture의 pv-05는 count 4이고, 단일·2계정 추가는 이 분기로 차단하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.90,
-      evidence: "관리자 그룹 대상, 세 계정 이상의 변경 수, 고위험 규칙 수준, 관련 MITRE 기법이 동일 경보에 함께 있다.",
+      evidence: "T1078은 유효 계정 악용 맥락만 뒷받침하며, 3계정 임계값은 외부 표준이 아니라 대량 변경과 단독 변경을 나누기 위한 명시적 로컬 휴리스틱이다. fixture pv-05의 count 4가 그 적용 예다.",
+      confidenceRationale: "0.90은 동일 경보에 관리자 그룹 대상과 3개 이상 계정 변경 수가 함께 있고 실패·취소 신호가 없을 때 쓰는 로컬 점수다.",
+    }),
+    Object.freeze({
+      id: "recent_group_change_then_admin_command",
+      name: "5분 내 관리자 그룹 변경과 관리자 명령",
+      condition: "respond 단계에서만 같은 정규화 계정·같은 출발지의 두 경보가 300초 안에 나타나는지 상관분석한다. decide(alert)는 경보 하나만 받으므로 이 패턴은 단일 경보의 판정이나 차단 분기로 사용하지 않는다.",
+      action: "confidence_threshold",
+      confidence: 0.97,
+      evidence: "T1078은 유효 계정 악용 맥락을, T1068은 권한 상승 결과인 관리자 명령의 악용 가능성을 뒷받침한다.",
+      confidenceRationale: "300초(5분)는 저장소 README/respond 정책에 정의된 로컬 상관분석 구간이며 MITRE가 정한 수치가 아니다. 0.97은 두 경보의 계정·출발지·시간·행위가 모두 일치할 때만 쓰는 respond 단계 점수다.",
     }),
     Object.freeze({
       id: "admin_group_addition",
@@ -53,6 +69,7 @@ const PATTERN_SPEC = Object.freeze({
       action: "confidence_threshold",
       confidence: 0.68,
       evidence: "T1078은 계정 권한 변경이 유효 계정 악용과 연결될 수 있음을 뒷받침하지만 단독 그룹 변경만으로 악용을 확정하지 않는다.",
+      confidenceRationale: "0.68은 단독 관리자 그룹 추가를 조사 알림으로 남기되, 명령 결합 없이 공격으로 확정하지 않는 로컬 점수다.",
     }),
     Object.freeze({
       id: "ambiguous_privilege_activity",
@@ -61,6 +78,7 @@ const PATTERN_SPEC = Object.freeze({
       action: "confidence_threshold",
       confidence: 0.68,
       evidence: "T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다.",
+      confidenceRationale: "0.68은 실패·취소·미실행 또는 결과가 불명확한 시도를 차단하지 않고 alert로 유지하기 위한 로컬 점수다.",
     }),
     Object.freeze({
       id: "ordinary_account_activity",
@@ -69,6 +87,7 @@ const PATTERN_SPEC = Object.freeze({
       action: "confidence_threshold",
       confidence: 0.1,
       evidence: "경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다.",
+      confidenceRationale: "0.10은 명시적으로 정상·읽기 전용·변경 없음인 대조 이벤트에 쓰는 로컬 기록 점수다.",
     })
   ])
 });
@@ -257,15 +276,7 @@ export function decide(alert) {
   const unusualAdminCommand = adminCommand && unfamiliarAddress;
   const explicitNormal = isExplicitlyBenign(description, alert);
 
-  // 심판은 경보 하나만 판정하므로, 동일 경보의 성공한 복합 행위 자체를 평가합니다.
-  if (elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
-  if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
-
-  // 같은 경보에서 세 계정 이상이 관리자 그룹에 추가된 명확한 변경도 차단합니다.
-  if (!failedAttempt && !explicitPrivilegeAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
-
-  // 명확한 공격 block 뒤에, 실패·취소·미실행·미확정 신호가 없는 정상 활동을 먼저 record로 분류합니다.
-  // 정상 문구가 있더라도 실패·취소 또는 미확정 시도가 함께 있으면 record로 덮어쓰지 않습니다.
+  // 명시적으로 정상이며 성공한 권한 변경 신호가 없는 대조 이벤트를 먼저 record로 고정합니다.
   if (explicitNormal
       && !failedAttempt
       && !noFollowupCommand
@@ -275,6 +286,19 @@ export function decide(alert) {
       && !recentElevation) {
     return output("ordinary_account_activity", 0.10);
   }
+
+  // 심판은 경보 하나만 판정하므로, 동일 경보의 성공한 복합 행위 자체를 평가합니다.
+  if (elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
+  if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
+
+  // 업무 외 시간 + 처음 보는 주소 + 실제 관리자 명령의 3신호가 같은 경보에 있으면 명확한 복합 공격입니다.
+  // 시간대만, 낯선 주소만, 또는 실패·취소된 명령만으로는 이 분기에서 차단하지 않습니다.
+  if (offHours && unfamiliarAddress && commandPerformed && !failedAttempt && !explicitPrivilegeAttempt) {
+    return output("off_hours_privilege_use", 0.96);
+  }
+
+  // 같은 경보에서 세 계정 이상이 관리자 그룹에 추가된 명확한 변경도 차단합니다.
+  if (!failedAttempt && !explicitPrivilegeAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
 
   // 정상 활동으로 확정되지 않은 실패·취소·미실행·미확정 시도는 alert로 남깁니다.
   if (failedAttempt || noFollowupCommand || explicitPrivilegeAttempt) {
