@@ -150,7 +150,7 @@ function hasSuccessfulAdminCommand(description) {
 function hasRecentElevation(alert) {
   const description = descriptionOf(alert);
   if (/권한 상승.{0,32}(?:성공하지 않았|실패|취소|거부)|관리자 권한.{0,32}(?:얻지 못|부여되지 않았|부여 실패|취소)|(?:not successfully elevated|failed to gain admin(?:istrator)? privileges|elevation (?:failed|was cancelled|was canceled|was denied))/i.test(description)) return false;
-  return /방금 관리자가 된|새로 관리자가 된|새 관리자(?:가 된| 권한을 얻)|관리자 권한을 얻|관리자 권한(?:이|을) 부여(?:받|되)|관리자로 승격|권한 상승.{0,32}(?:성공|완료|됨|성공적으로 실행)|(?:성공적으로|최근|방금|새로).{0,20}(?:권한 상승|관리자 권한 획득)|(?:관리자|권한) 권한.{0,20}(?:상승|승격).{0,16}(?:성공|완료|됨)|just became an? administrator|newly elevated|elevated to (?:an? )?(?:admin|administrator)|gained (?:admin|administrator|elevated) privileges|granted (?:admin|administrator) privileges|became an? admin|privilege escalation succeeded|successfully escalated privileges|account was elevated to (?:admin|administrator))/i.test(description);
+  return /방금 관리자가 된|새로 관리자가 된|새 관리자(?:가 된| 권한을 얻)|관리자 권한을 얻|관리자 권한(?:이|을) 부여(?:받|되)|관리자로 승격|권한 상승.{0,32}(?:성공|완료|됨|성공적으로 실행)|(?:성공적으로|최근|방금|새로).{0,20}(?:권한 상승|관리자 권한 획득)|(?:관리자|권한) 권한.{0,20}(?:상승|승격).{0,16}(?:성공|완료|됨)|just became an? administrator|newly elevated|elevated to (?:an? )?(?:admin|administrator)|gained (?:admin|administrator|elevated) privileges|granted (?:admin|administrator) privileges|became an? admin|privilege escalation succeeded|successfully escalated privileges|account was elevated to (?:admin|administrator)/i.test(description);
 }
 
 function hasSessionElevation(alert) {
@@ -200,7 +200,7 @@ function hasExplicitPrivilegeAttempt(description) {
 
   // 성공 여부가 분명한 동일 유형의 행위는 '미확정 시도'로 낮추지 않습니다.
   const groupSucceeded = /(?:관리자 그룹.{0,32}(?:추가됐|추가되었|추가되었습니다|추가됨|추가했습니다|들어가고|들어왔|가입했|편입됐|편입되었)|(?:added|re-added|readded|joined|became a member of|membership (?:was )?granted).{0,36}(?:the )?(?:administrators?|admins?)(?: group)?|(?:administrators?|admins?).{0,36}(?:was added|addition succeeded|membership granted))/i.test(description);
-  const elevationSucceeded = /(?:방금 관리자가 된|새로 관리자가 된|새 관리자(?:가 된| 권한을 얻)|관리자 권한을 얻|관리자 권한(?:이|을) 부여(?:받|되)|관리자로 승격|권한 상승.{0,32}(?:성공|완료|됨|성공적으로 실행)|(?:성공적으로|최근|방금|새로).{0,20}(?:권한 상승|관리자 권한 획득)|(?:관리자|권한) 권한.{0,20}(?:상승|승격).{0,16}(?:성공|완료|됨)|just became an? administrator|newly elevated|elevated to (?:an? )?(?:admin|administrator)|gained (?:admin|administrator|elevated) privileges|granted (?:admin|administrator) privileges|became an? admin|privilege escalation succeeded|successfully escalated privileges|account was elevated to (?:admin|administrator)/i.test(description);
+  const elevationSucceeded = /(?:방금 관리자가 된|새로 관리자가 된|새 관리자(?:가 된| 권한을 얻)|관리자 권한을 얻|관리자 권한(?:이|을) 부여(?:받|되)|관리자로 승격|권한 상승.{0,32}(?:성공|완료|됨|성공적으로 실행)|(?:성공적으로|최근|방금|새로).{0,20}(?:권한 상승|관리자 권한 획득)|(?:관리자|권한) 권한.{0,20}(?:상승|승격).{0,16}(?:성공|완료|됨)|just became an? administrator|newly elevated|elevated to (?:an? )?(?:admin|administrator)|gained (?:admin|administrator|elevated) privileges|granted (?:admin|administrator) privileges|became an? admin|privilege escalation succeeded|successfully escalated privileges|account was elevated to (?:admin|administrator))/i.test(description);
   const commandSucceeded = hasSuccessfulAdminCommand(description);
 
   return (groupAttempt && !groupSucceeded)
