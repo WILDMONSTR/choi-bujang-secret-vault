@@ -271,8 +271,7 @@ export function decide(alert) {
   const requiredBlockEvidence = hasRequiredBlockEvidence(alert);
   const elevatedThenCommand = recentElevation && commandPerformed && !failedAttempt && !explicitPrivilegeAttempt;
   const groupAndCommand = groupAddition && commandPerformed && !failedAttempt && !explicitPrivilegeAttempt;
-  // 대량 관리자 그룹 추가는 이 경보의 data.group/count, rule.level, rule.mitre만으로 판정합니다.
-  // 조건을 모두 충족하면 다른 경보와의 상관분석 없이 차단합니다.
+  // 대량 관리자 그룹 추가도 공통 차단 근거와 계정 수 조건을 모두 갖춰야 합니다.
   const eventCount = Number(alert?.data?.count);
   const bulkAdminGroupAddition = groupAddition
     && Number.isFinite(eventCount) && eventCount >= 3
