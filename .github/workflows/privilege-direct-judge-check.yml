@@ -1,0 +1,73 @@
+name: Temporary privilege direct-judge check
+
+on:
+  push:
+    branches:
+      - fix/privilege-decide-per-alert
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  privilege-direct-judge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Run existing privilege.test.mjs without treating its expectations as judge rules
+        id: existing-tests
+        continue-on-error: true
+        run: npm run privilege:test
+      - name: Execute decide.mjs directly once per original fixture alert
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          import { decide } from "./xdr/privilege/decide.mjs";
+          const fixture = JSON.parse(readFileSync("xdr/fixtures/privilege.json", "utf8"));
+          const counts = { block: 0, alert: 0, record: 0 };
+          for (const alert of fixture.alerts) {
+            const result = decide(alert);
+            if (!["block", "alert", "record"].includes(result.action)) {
+              throw new Error(alert.id + ": invalid action " + result.action);
+            }
+            if (!Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1) {
+              throw new Error(alert.id + ": invalid confidence");
+            }
+            const thresholdAction = result.confidence >= 0.85 ? "block"
+              : result.confidence >= 0.5 ? "alert" : "record";
+            if (result.action !== thresholdAction) {
+              throw new Error(alert.id + ": action/confidence threshold mismatch");
+            }
+            counts[result.action]++;
+            console.log(alert.id + "\t" + result.action + "\t" + result.confidence + "\t" + result.reason);
+          }
+          console.log("Direct per-alert totals:", JSON.stringify(counts));
+          console.log("Directly evaluated " + fixture.alerts.length + " original fixture alerts.");
+          NODE
+      - name: Run requested xdr command
+        run: npm run xdr:run -- privilege
+      - name: Verify generated result aligns with fixture by ID and confidence threshold
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const fixture = JSON.parse(readFileSync("xdr/fixtures/privilege.json", "utf8"));
+          const result = JSON.parse(readFileSync("xdr/privilege/result.json", "utf8"));
+          const expectedIds = fixture.alerts.map(alert => alert.id);
+          const actualIds = result.decisions.map(decision => decision.alertId);
+          if (JSON.stringify(expectedIds) !== JSON.stringify(actualIds)) throw new Error("Fixture/result IDs or order mismatch");
+          for (const d of result.decisions) {
+            const thresholdAction = d.confidence >= 0.85 ? "block" : d.confidence >= 0.5 ? "alert" : "record";
+            if (d.action !== thresholdAction) throw new Error(d.alertId + ": threshold mismatch");
+          }
+          console.log("Verified " + actualIds.length + " fixture IDs, order, and confidence thresholds.");
+          console.log("Counts generated from output:", JSON.stringify(result.counts));
+          NODE
