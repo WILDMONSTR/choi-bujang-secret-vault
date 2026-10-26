@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/privilege-decide-per-alert
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
