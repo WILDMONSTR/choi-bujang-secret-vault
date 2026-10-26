@@ -270,15 +270,21 @@ export function decide(alert) {
   // 동일 경보의 관리자 그룹·계정 수·규칙 수준·MITRE 필드가 모두 고위험 조건이면 차단합니다.
   if (!failedAttempt && !explicitPrivilegeAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
 
-  // 실패·취소·실행되지 않은 명령·성공 여부가 불명확한 시도는 정상 단서보다 먼저 alert로 남깁니다.
-  if (failedAttempt || noFollowupCommand || explicitPrivilegeAttempt) {
-    return output("ambiguous_privilege_activity", 0.68);
+  // 명확한 공격 block 뒤에, 실패·취소·미실행·미확정 신호가 없는 정상 활동을 먼저 record로 분류합니다.
+  // 정상 문구가 있더라도 실패·취소 또는 미확정 시도가 함께 있으면 record로 덮어쓰지 않습니다.
+  if (explicitNormal
+      && !failedAttempt
+      && !noFollowupCommand
+      && !explicitPrivilegeAttempt
+      && !groupAddition
+      && !sessionElevation
+      && !recentElevation) {
+    return output("ordinary_account_activity", 0.10);
   }
 
-  // 정상 주소/읽기 전용/변경 없음 같은 근거는 명확한 성공 공격 판정보다 우선하지 않지만,
-  // 실패·미확정 시도나 관리자 그룹/세션 권한 변경이 있는 경보를 record로 덮어쓰지 않습니다.
-  if (explicitNormal && !groupAddition && !sessionElevation && !recentElevation) {
-    return output("ordinary_account_activity", 0.10);
+  // 정상 활동으로 확정되지 않은 실패·취소·미실행·미확정 시도는 alert로 남깁니다.
+  if (failedAttempt || noFollowupCommand || explicitPrivilegeAttempt) {
+    return output("ambiguous_privilege_activity", 0.68);
   }
 
   // 짧은 시간 안의 관리자 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.

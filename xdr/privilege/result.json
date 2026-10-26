@@ -28,15 +28,15 @@
     },
     {
       "alertId": "pv-05",
-      "action": "alert",
-      "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "bulk_admin_group_addition: 단일 경보의 대량 관리자 그룹 추가 — 관리자 그룹 대상, 세 계정 이상의 변경 수, 고위험 규칙 수준, 관련 MITRE 기법이 동일 경보에 함께 있다."
     },
     {
       "alertId": "pv-06",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
     },
     {
       "alertId": "pv-07",
@@ -54,13 +54,13 @@
       "alertId": "pv-09",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
     },
     {
       "alertId": "pv-10",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
     },
     {
       "alertId": "pv-11",
@@ -84,7 +84,7 @@
       "alertId": "pv-14",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
     },
     {
       "alertId": "pv-15",
@@ -96,7 +96,7 @@
       "alertId": "pv-16",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
     },
     {
       "alertId": "pv-17",
@@ -160,8 +160,8 @@
     }
   ],
   "counts": {
-    "block": 3,
-    "alert": 9,
+    "block": 4,
+    "alert": 8,
     "record": 14
   }
 }

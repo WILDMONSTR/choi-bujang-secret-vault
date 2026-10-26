@@ -122,7 +122,10 @@ async function main() {
         && alert.rule.mitre.some((id) => ["T1078", "T1068"].includes(id))) {
       createCandidate(candidates, subjectId, [alert.id],
         decision.reason.includes("recent_elevation_then_admin_command")
-          ? "recent_elevation_then_admin_command" : "admin_group_added_then_admin_command",
+          ? "recent_elevation_then_admin_command"
+          : decision.reason.includes("bulk_admin_group_addition")
+            ? "bulk_admin_group_addition"
+            : "admin_group_added_then_admin_command",
         decision.confidence);
     }
 
