@@ -136,7 +136,7 @@ function hasAddVerb(text) {
 }
 
 function hasRemoveVerb(text) {
-  return /제거|삭제|빠지|탈퇴|회수|해제|제외|removed?|deleted?|revoked?|dropped from|removed from|left the group|membership.{0,16}(?:revoked|removed)/i.test(text);
+  return /제거|삭제|빠진|빠졌|빠져|빠지|탈퇴|회수|해제|제외|removed?|deleted?|revoked?|dropped from|removed from|left the group|membership.{0,16}(?:revoked|removed)/i.test(text);
 }
 
 function hasAdminGroupAddition(alert, text = descriptionOf(alert)) {
