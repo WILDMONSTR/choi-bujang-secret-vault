@@ -54,15 +54,6 @@ const PATTERN_SPEC = Object.freeze({
       confidenceRationale: "0.90은 동일 경보에 관리자 그룹 대상과 3개 이상 계정 변경 수가 함께 있고 실패·취소 신호가 없을 때 쓰는 로컬 점수다.",
     }),
     Object.freeze({
-      id: "recent_group_change_then_admin_command",
-      name: "5분 내 관리자 그룹 변경과 관리자 명령",
-      condition: "respond 단계에서만 같은 정규화 계정·같은 출발지의 두 경보가 300초 안에 나타나는지 상관분석한다. decide(alert)는 경보 하나만 받으므로 이 패턴은 단일 경보의 판정이나 차단 분기로 사용하지 않는다.",
-      action: "confidence_threshold",
-      confidence: 0.97,
-      evidence: "T1078은 유효 계정 악용 맥락을, T1068은 권한 상승 결과인 관리자 명령의 악용 가능성을 뒷받침한다.",
-      confidenceRationale: "300초(5분)는 저장소 README/respond 정책에 정의된 로컬 상관분석 구간이며 MITRE가 정한 수치가 아니다. 0.97은 두 경보의 계정·출발지·시간·행위가 모두 일치할 때만 쓰는 respond 단계 점수다.",
-    }),
-    Object.freeze({
       id: "admin_group_addition",
       name: "단독 관리자 그룹 추가",
       condition: "관리자 그룹 추가가 보이지만 같은 경보에 관리자 명령이 함께 없거나 결합 증거가 불충분하면 알림으로 남긴다.",
