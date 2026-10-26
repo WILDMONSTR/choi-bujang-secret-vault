@@ -9,7 +9,7 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "recent_elevation_then_admin_command",
       name: "권한 상승 직후 관리자 명령",
-      condition: "같은 경보에 성공한 권한 상승과 실제 실행된 관리자 명령이 함께 있고, 해당 행위에 실패·취소·미실행 부정이 없을 때 block한다. 출발지 주소·경보 수준·MITRE 표식·identity 필드 유무는 행위 조합 판정을 낮추는 조건으로 사용하지 않는다.",
+      condition: "같은 경보에 성공한 권한 상승과 실제 실행된 관리자 명령이 함께 있고 실패·취소·미실행 부정이 없어야 한다. 여기에 rule.level 10 이상, 유효한 data.srcip, T1068/T1078 MITRE 근거, trusted-directory 출처의 identity.subjectId가 모두 있어야 block한다.",
       action: "confidence_threshold",
       confidence: 0.96,
       evidence: "T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다.",
@@ -17,7 +17,7 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "admin_group_added_then_admin_command",
       name: "관리자 그룹 추가와 관리자 명령",
-      condition: "같은 경보에 성공한 관리자 그룹 추가와 실제 실행된 관리자 명령이 함께 있고, 해당 행위에 실패·취소·미실행 부정이 없을 때 block한다. 출발지 주소·경보 수준·MITRE 표식·identity 필드 유무는 행위 조합 판정을 낮추는 조건으로 사용하지 않는다.",
+      condition: "같은 경보에 성공한 관리자 그룹 추가와 실제 실행된 관리자 명령이 함께 있고 실패·취소·미실행 부정이 없어야 한다. 여기에 rule.level 10 이상, 유효한 data.srcip, T1068/T1078 MITRE 근거, trusted-directory 출처의 identity.subjectId가 모두 있어야 block한다.",
       action: "confidence_threshold",
       confidence: 0.96,
       evidence: "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다.",
@@ -41,7 +41,7 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "bulk_admin_group_addition",
       name: "단일 경보의 대량 관리자 그룹 추가",
-      condition: "같은 경보의 data.group이 관리자 그룹이고 data.count가 3 이상이며 rule.level이 10 이상이고 MITRE에 T1078 또는 T1068이 있을 때, 실패·취소가 아닌 대량 관리자 권한 부여를 block한다. 별도 경보 신호는 결합하지 않는다.",
+      condition: "같은 경보의 data.group이 관리자 그룹이고 data.count가 3 이상이어야 한다. 또한 rule.level 10 이상, 유효한 data.srcip, T1078/T1068 MITRE 근거, trusted-directory 출처의 identity.subjectId가 모두 있을 때만 block한다. 실패·취소된 변경은 제외하며 별도 경보 신호는 결합하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.90,
       evidence: "관리자 그룹 대상, 세 계정 이상의 변경 수, 고위험 규칙 수준, 관련 MITRE 기법이 동일 경보에 함께 있다.",
@@ -147,6 +147,29 @@ function hasExplicitNonExecution(description) {
 function hasSuccessfulAdminCommand(description) {
   return /(?:관리자 명령|권한 명령|관리자 권한.{0,24}명령|admin command|administrator command|privileged command|elevated command|command requiring (?:admin|administrator|elevated|privileged) privileges).{0,40}(?:실행했습니다|실행함|실행됐|수행했습니다|수행함|호출했습니다|호출함|실행이 같이 있|executed|ran|invoked|launched|started)|(?:execute|executed|ran|invoke|invoked|launched|started).{0,32}(?:an? )?(?:admin(?:istrator)?|privileged|elevated) command/i.test(description);
 }
+function hasValidSourceIp(alert) {
+  const parts = oneLine(alert?.data?.srcip).split(".");
+  return parts.length === 4
+    && parts.every((part) => /^(?:0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255);
+}
+
+function hasTrustedAccountId(alert) {
+  const identity = alert?.identity;
+  const subjectId = oneLine(identity?.subjectId);
+  return identity?.source === "trusted-directory"
+    && /^[A-Za-z0-9._:-]{1,128}$/.test(subjectId);
+}
+
+function hasRequiredBlockEvidence(alert) {
+  const ruleLevel = Number(alert?.rule?.level);
+  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
+  return Number.isFinite(ruleLevel)
+    && ruleLevel >= 10
+    && hasValidSourceIp(alert)
+    && mitre.some((id) => id === "T1078" || id === "T1068")
+    && hasTrustedAccountId(alert);
+}
+
 function hasRecentElevation(alert) {
   const description = descriptionOf(alert);
   if (/권한 상승.{0,32}(?:성공하지 않았|실패|취소|거부)|관리자 권한.{0,32}(?:얻지 못|부여되지 않았|부여 실패|취소)|(?:not successfully elevated|failed to gain admin(?:istrator)? privileges|elevation (?:failed|was cancelled|was canceled|was denied))/i.test(description)) return false;
@@ -245,29 +268,25 @@ export function decide(alert) {
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command)/i.test(description);
   const nonExecution = hasExplicitNonExecution(description) || noFollowupCommand;
   const commandPerformed = adminCommand && !nonExecution;
+  const requiredBlockEvidence = hasRequiredBlockEvidence(alert);
   const elevatedThenCommand = recentElevation && commandPerformed && !failedAttempt && !explicitPrivilegeAttempt;
   const groupAndCommand = groupAddition && commandPerformed && !failedAttempt && !explicitPrivilegeAttempt;
-  // 대량 관리자 그룹 추가는 이 경보의 data.group/count, rule.level, rule.mitre만으로 판정합니다.
-  // 조건을 모두 충족하면 다른 경보와의 상관분석 없이 차단합니다.
+  // 대량 관리자 그룹 추가도 공통 차단 근거와 계정 수 조건을 모두 갖춰야 합니다.
   const eventCount = Number(alert?.data?.count);
-  const ruleLevel = Number(alert?.rule?.level);
-  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
   const bulkAdminGroupAddition = groupAddition
     && Number.isFinite(eventCount) && eventCount >= 3
-    && Number.isFinite(ruleLevel) && ruleLevel >= 10
-    && mitre.some((id) => id === "T1078" || id === "T1068");
+    && requiredBlockEvidence;
   const repeatedAdminReadd = groupAddition
     && /빠진 계정.{0,30}1분 뒤.{0,20}다시 관리자로|removed.{0,30}one minute later.{0,20}re.added|removed from (?:the )?(?:administrators?|admins?).{0,48}(?:added|re.added) back/i.test(description);
   const elevatedSessionFromNewAddress = sessionElevation && unfamiliarAddress;
   const unusualAdminCommand = adminCommand && unfamiliarAddress;
   const explicitNormal = isExplicitlyBenign(description, alert);
 
-  // 성공한 권한 상승·관리자 명령 또는 관리자 그룹 추가·관리자 명령이
-  // 같은 경보에서 명확히 결합되면, 보조 메타데이터 누락만으로 alert로 낮추지 않습니다.
-  if (elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
-  if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
+  // 명확한 행위 결합만으로는 부족합니다. 위험도·출발지·MITRE·신뢰된 계정 ID를 모두 확인합니다.
+  if (requiredBlockEvidence && elevatedThenCommand) return output("recent_elevation_then_admin_command", 0.96);
+  if (requiredBlockEvidence && groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
 
-  // 동일 경보의 관리자 그룹·계정 수·규칙 수준·MITRE 필드가 모두 고위험 조건이면 차단합니다.
+  // 대량 변경도 네 가지 공통 차단 근거와 계정 수 조건을 모두 갖춘 경우에만 차단합니다.
   if (!failedAttempt && !explicitPrivilegeAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
 
   // 명확한 공격 block 뒤에, 실패·취소·미실행·미확정 신호가 없는 정상 활동을 먼저 record로 분류합니다.
