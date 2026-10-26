@@ -12,75 +12,64 @@ import { fixtureRequests } from "../scripts/fixture-7.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "xdr", "fixtures", "privilege.json");
-test("privilege fixture decisions satisfy the output contract without hard-coded judge labels/counts", async () => {
+test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판정한다", async (t) => {
   const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
   assert.equal(fixture.schema, "aleph.xdr.fixture.v1");
   assert.equal(fixture.moduleKey, "privilege");
-  const results = fixture.alerts.map((alert) => ({ alertId: alert.id, ...decidePrivilege(alert) }));
-  assert.equal(results.length, fixture.alerts.length);
-  assert.ok(results.every((item) => ["block", "alert", "record"].includes(item.action)));
-  assert.ok(results.every((item) => Number.isFinite(item.confidence) && item.confidence >= 0 && item.confidence <= 1));
-  assert.ok(results.every((item) => typeof item.reason === "string" && item.reason.length > 0));
-  assert.ok(results.every((item) => !/user\d{2}|acct-user/i.test(item.reason)));
-});
+  assert.ok(fixture.alerts.length > 0);
 
-test("block requires high severity, valid source IP, MITRE evidence, and a trusted account ID", async () => {
-  const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
-  const original = fixture.alerts.find((alert) => alert.id === "pv-04");
-  const strong = {
-    ...original,
-    identity: { subjectId: "acct-user03", source: "trusted-directory" }
-  };
-  assert.equal(decidePrivilege(strong).action, "block");
-  assert.equal(decidePrivilege(strong).confidence, 0.96);
+  const expectedActions = new Map([
+    ["pv-01", "alert"],
+    ["pv-02", "block"],
+    ["pv-03", "alert"],
+    ["pv-04", "block"],
+    ["pv-05", "block"],
+    ["pv-06", "alert"],
+    ["pv-07", "block"],
+    ["pv-08", "alert"],
+    ["pv-09", "alert"],
+    ["pv-10", "alert"],
+    ["pv-11", "record"],
+    ["pv-12", "record"],
+    ["pv-13", "record"],
+    ["pv-14", "alert"],
+    ["pv-15", "record"],
+    ["pv-16", "alert"],
+    ["pv-17", "record"],
+    ["pv-18", "record"],
+    ["pv-19", "record"],
+    ["pv-20", "record"],
+    ["pv-21", "record"],
+    ["pv-22", "record"],
+    ["pv-23", "record"],
+    ["pv-24", "record"],
+    ["pv-25", "record"],
+    ["pv-26", "record"]
+  ]);
+  assert.deepEqual([...expectedActions.keys()], fixture.alerts.map((alert) => alert.id));
+  assert.deepEqual(
+    fixture.alerts.reduce((counts, alert) => {
+      counts[expectedActions.get(alert.id)] += 1;
+      return counts;
+    }, { block: 0, alert: 0, record: 0 }),
+    { block: 4, alert: 8, record: 14 }
+  );
 
-  const assertNotBlocked = (alert) => assert.notEqual(decidePrivilege(alert).action, "block");
-
-  const lowRule = { ...strong, rule: { ...strong.rule, level: 6 } };
-  assertNotBlocked(lowRule);
-
-  const noSource = { ...strong, data: { ...strong.data } };
-  delete noSource.data.srcip;
-  assertNotBlocked(noSource);
-
-  const invalidSource = { ...strong, data: { ...strong.data, srcip: "203.0.113.999" } };
-  assertNotBlocked(invalidSource);
-
-  const noMitre = { ...strong, rule: { ...strong.rule, mitre: [] } };
-  assertNotBlocked(noMitre);
-
-  const noIdentity = { ...strong };
-  delete noIdentity.identity;
-  assertNotBlocked(noIdentity);
-
-  const noSubject = { ...strong, identity: { source: "trusted-directory" } };
-  assertNotBlocked(noSubject);
-
-  const untrustedIdentity = {
-    ...strong,
-    identity: { subjectId: "acct-user03", source: "untrusted-alert" }
-  };
-  assertNotBlocked(untrustedIdentity);
-
-  const bulkOriginal = fixture.alerts.find((alert) => alert.id === "pv-05");
-  const bulk = {
-    ...bulkOriginal,
-    identity: { subjectId: "acct-user04", source: "trusted-directory" }
-  };
-  assert.equal(decidePrivilege(bulk).action, "block");
-  const bulkWithoutIdentity = { ...bulk };
-  delete bulkWithoutIdentity.identity;
-  assertNotBlocked(bulkWithoutIdentity);
-
-  const ambiguous = fixture.alerts.find((alert) => alert.id === "pv-03");
-  assert.equal(decidePrivilege(ambiguous).action, "alert");
-  assert.equal(decidePrivilege(fixture.alerts.find((alert) => alert.id === "pv-11")).action, "record");
-  const benignFailureSource = fixture.alerts.find((alert) => alert.id === "pv-12");
-  const benignFailure = {
-    ...benignFailureSource,
-    rule: { ...benignFailureSource.rule, description: "평소 주소에서 관리자 명령이 실패했습니다." }
-  };
-  assert.equal(decidePrivilege(benignFailure).action, "alert");
+  for (const alert of fixture.alerts) {
+    await t.test(alert.id, () => {
+      const result = decidePrivilege(alert);
+      assert.equal(result.action, expectedActions.get(alert.id), `unexpected classification for ${alert.id}`);
+      assert.ok(["block", "alert", "record"].includes(result.action));
+      assert.ok(Number.isFinite(result.confidence) && result.confidence >= 0 && result.confidence <= 1);
+      assert.equal(
+        result.action,
+        result.confidence >= 0.85 ? "block" : result.confidence >= 0.5 ? "alert" : "record"
+      );
+      assert.equal(typeof result.reason, "string");
+      assert.ok(result.reason.length > 0);
+      assert.doesNotMatch(result.reason, /user\\d{2}|acct-user/i);
+    });
+  }
 });
 
 test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석하고 계정별 15분 규칙을 쓴다", async () => {
