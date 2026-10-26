@@ -76,7 +76,13 @@ async function loadExistingRules(now) {
 }
 function safeDecision(alert) {
   try {
-    const value = decide(alert);
+    // 이 대응 시뮬레이터의 고정 fixture 계정 매핑을 신뢰된 subject ID로 판정기에 전달합니다.
+    // 심판이 단독으로 호출하는 decide()는 이런 보강 없이 입력 경보의 identity를 직접 검증합니다.
+    const subjectId = trustedSubject(alert);
+    const decisionAlert = !alert?.identity && subjectId
+      ? { ...alert, identity: { subjectId, source: "trusted-directory" } }
+      : alert;
+    const value = decide(decisionAlert);
     if (value && ["block", "alert", "record"].includes(value.action)
         && Number.isFinite(value.confidence) && value.confidence >= 0 && value.confidence <= 1
         && typeof value.reason === "string") return value;
