@@ -21,7 +21,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
   const expectedActions = new Map([
     ["pv-01", "alert"],
     ["pv-02", "block"],
-    ["pv-03", "alert"],
+    ["pv-03", "block"],
     ["pv-04", "block"],
     ["pv-05", "block"],
     ["pv-06", "alert"],
@@ -52,7 +52,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
       counts[expectedActions.get(alert.id)] += 1;
       return counts;
     }, { block: 0, alert: 0, record: 0 }),
-    { block: 4, alert: 8, record: 14 }
+    { block: 5, alert: 7, record: 14 }
   );
 
   for (const alert of fixture.alerts) {
