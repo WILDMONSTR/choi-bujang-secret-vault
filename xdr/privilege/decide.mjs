@@ -9,7 +9,7 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "recent_elevation_then_admin_command",
       name: "권한 상승 직후 관리자 명령",
-      condition: "같은 경보 설명에 성공한 권한 상승 정황과 관리자 명령 실행이 함께 있으면 block한다. 출발지 주소·경보 수준·MITRE 표식·identity 필드 유무는 행위 조합 판정을 낮추는 조건으로 사용하지 않는다.",
+      condition: "같은 경보에 성공한 권한 상승과 실제 실행된 관리자 명령이 함께 있고, 해당 행위에 실패·취소·미실행 부정이 없을 때 block한다. 출발지 주소·경보 수준·MITRE 표식·identity 필드 유무는 행위 조합 판정을 낮추는 조건으로 사용하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.96,
       evidence: "T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다.",
@@ -17,7 +17,7 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "admin_group_added_then_admin_command",
       name: "관리자 그룹 추가와 관리자 명령",
-      condition: "같은 경보에서 성공한 관리자 그룹 추가와 관리자 명령 실행이 함께 있으면 block한다. 출발지 주소·경보 수준·MITRE 표식·identity 필드 유무는 행위 조합 판정을 낮추는 조건으로 사용하지 않는다.",
+      condition: "같은 경보에 성공한 관리자 그룹 추가와 실제 실행된 관리자 명령이 함께 있고, 해당 행위에 실패·취소·미실행 부정이 없을 때 block한다. 출발지 주소·경보 수준·MITRE 표식·identity 필드 유무는 행위 조합 판정을 낮추는 조건으로 사용하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.96,
       evidence: "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다.",
@@ -33,7 +33,7 @@ const PATTERN_SPEC = Object.freeze({
     Object.freeze({
       id: "off_hours_privilege_use",
       name: "업무 시간 밖 권한 사용",
-      condition: "업무 시간 밖 관리자 명령이나 권한 사용은 조사 대상이지만, 명확한 관리자 그룹 추가와 명령 결합이 없으면 alert로 분류한다. 시간대만으로 block하지 않는다.",
+      condition: "업무 시간 밖이라는 맥락이나 포괄적인 권한 작업 신호만으로 alert하지 않는다. 업무 외 시간에 실제 관리자 명령·관리자 그룹 추가·세션 권한 상승처럼 구체적 행위가 동반되면 alert로 분류하며, 시간대만으로 block하지 않는다.",
       action: "confidence_threshold",
       confidence: 0.72,
       evidence: "T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다.",
@@ -56,7 +56,7 @@ const PATTERN_SPEC = Object.freeze({
     }),
     Object.freeze({
       id: "ambiguous_privilege_activity",
-      name: "불충분하거나 실패한 권한 사용 시도",
+      name: "결과가 불명확하거나 실패·취소된 권한 사용 시도",
       condition: "권한 상승 창 취소, 명령 없는 권한 상승, 실패한 관리자 명령, 낯선 세션 권한 변경처럼 조사 가치가 있지만 명확한 복합 공격으로 확정되지 않은 활동은 알림으로 분류한다.",
       action: "confidence_threshold",
       confidence: 0.68,
@@ -120,11 +120,16 @@ function isAdminGroup(alert) {
 
 function hasAdminGroupAddition(alert) {
   const description = descriptionOf(alert);
-  if (/관리자 그룹.{0,40}(?:추가되지 않았|추가되지 않음|추가 안 됨|추가 실패|추가가 실패|추가를 취소|변경 없음|없습니다|성공하지 않았)|(?:not|never) added to (?:the )?(?:administrators?|admins?|admin group)|failed to add.{0,32}(?:administrators?|admins?|admin group)|(?:administrators?|admins?|admin group).{0,32}(?:was not added|addition failed|was cancelled|was canceled)/i.test(description)) return false;
+  // 실제 관리자 그룹 변경이 아니라 실패·취소·요청/시도만 기술한 문장은 성공한 변경으로 보지 않습니다.
+  const failedGroupChange = /(?:관리자 그룹|administrator group|administrators?|admins?).{0,48}(?:추가되지 않았|추가되지 않음|추가 안 됨|추가 실패|추가가 실패|추가를 취소|성공하지 않았|변경 없음|not added|addition failed|failed to add|was cancelled|was canceled|denied|unsuccessful)|(?:not|never) added to (?:the )?(?:administrators?|admins?|admin group)/i.test(description);
+  const groupAttemptOnly = /(?:관리자 그룹|administrator group|administrators?|admins?).{0,40}(?:추가|들어가|가입|편입|멤버).{0,28}(?:시도|요청|attempt(?:ed|ing)?|tried)|(?:시도|요청|attempt(?:ed|ing)?|tried).{0,40}(?:관리자 그룹|administrator group|administrators?|admins?).{0,28}(?:추가|들어가|가입|편입|멤버)/i.test(description);
+  const explicitSuccess = /(?:관리자 그룹.{0,32}(?:추가됐|추가되었|추가되었습니다|추가됨|추가했습니다|추가하였|들어가고|들어왔|가입했|편입됐|편입되었)|(?:added|re-added|readded|joined|became a member of|membership (?:was )?granted).{0,36}(?:the )?(?:administrators?|admins?)(?: group)?|(?:administrators?|admins?).{0,36}(?:was added|addition succeeded|membership granted|was joined))/i.test(description);
+  if (failedGroupChange && !explicitSuccess) return false;
+  if (groupAttemptOnly && !explicitSuccess) return false;
+
   return isAdminGroup(alert)
     && /추가|들어가|가입|다시 관리자|재등록|멤버로|관리자 그룹의 구성원이 되|관리자 그룹에 편입|관리자 권한을 부여|added|joined|re-added|readded|added to|became a member of|granted membership|membership was granted|membership added|was made a member/i.test(description);
 }
-
 function hasAdminCommand(alert) {
   const description = descriptionOf(alert);
   const explicit = /관리자 명령|권한 명령|관리자 권한.{0,32}(?:명령|셸|쉘|powershell|터미널)|권한 상승.{0,32}명령|(?:admin(?:istrator)?|privileged|elevated)[ -]?(?:level[ -]?)?command|command.{0,32}(?:admin|elevat|privileg)|command requiring (?:admin(?:istrator)?|elevated|privileged) privileges|(?:run|execute|launch|start).{0,24}(?:as an? administrator|with (?:admin|elevated) privileges)|(?:sudo|runas)\s+(?:-\w+\s+)?[\w.-]+/i.test(description);
@@ -135,6 +140,13 @@ function hasAdminCommand(alert) {
   return genericCommand && privilegedContext;
 }
 
+function hasExplicitNonExecution(description) {
+  return /(?:관리자 명령|권한 명령|명령 실행|admin command|administrator command|privileged command|elevated command|command execution).{0,36}(?:실행되지 않았|실행되지 않음|실행 안 됨|실행하지 않았|미실행|실행 불가|요청만|시도만|취소|거부|실패|not executed|not run|did not execute|never ran|only requested|attempted but not run|cancelled|canceled|denied|failed to execute|execution failed)|(?:실행되지 않았|실행되지 않음|실행 안 됨|실행하지 않았|미실행|not executed|not run|did not execute|never ran|only requested|attempted but not run).{0,36}(?:관리자 명령|권한 명령|admin command|administrator command|privileged command|elevated command|command execution)/i.test(description);
+}
+
+function hasSuccessfulAdminCommand(description) {
+  return /(?:관리자 명령|권한 명령|관리자 권한.{0,24}명령|admin command|administrator command|privileged command|elevated command|command requiring (?:admin|administrator|elevated|privileged) privileges).{0,40}(?:실행했습니다|실행함|실행됐|수행했습니다|수행함|호출했습니다|호출함|실행이 같이 있|executed|ran|invoked|launched|started)|(?:execute|executed|ran|invoke|invoked|launched|started).{0,32}(?:an? )?(?:admin(?:istrator)?|privileged|elevated) command/i.test(description);
+}
 function hasRecentElevation(alert) {
   const description = descriptionOf(alert);
   if (/권한 상승.{0,32}(?:성공하지 않았|실패|취소|거부)|관리자 권한.{0,32}(?:얻지 못|부여되지 않았|부여 실패|취소)|(?:not successfully elevated|failed to gain admin(?:istrator)? privileges|elevation (?:failed|was cancelled|was canceled|was denied))/i.test(description)) return false;
@@ -158,13 +170,15 @@ function hasOtherAccountCommand(description, adminCommand) {
 }
 
 function hasFailedOrCancelledPrivilegeAttempt(description, signalsPrivilege) {
-  // 경보 어디에나 있는 실패 단어가 아니라, 권한 작업과 가까이 연결된 실패만 사용합니다.
-  const failure = /(?:관리자 그룹|관리자 권한|권한 상승|권한 명령|관리자 명령|권한 변경|권한 부여|관리자로 승격|administrator group|admin group|admin(?:istrator)? privileges?|privileged command|privilege escalation|privilege elevation|privilege change).{0,64}(?:실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|grant failed|not successfully)|(?:실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|failed to execute|failed to add|grant failed|not successfully).{0,64}(?:관리자 그룹|관리자 권한|권한 상승|권한 명령|관리자 명령|권한 변경|권한 부여|관리자로 승격|administrator group|admin group|admin(?:istrator)? privileges?|privileged command|privilege escalation|privilege elevation|privilege change)/i.test(description);
+  // 실패/부정은 권한 행위 또는 관리자 명령과 가까이 연결된 경우에만 사용합니다.
+  const privilege = /관리자 그룹|관리자 권한|권한 상승|권한 명령|관리자 명령|권한 변경|권한 부여|관리자로 승격|administrator group|admin group|admin(?:istrator)? privileges?|admin command|administrator command|privileged command|elevated command|privilege escalation|privilege elevation|privilege change/i;
+  const failure = /실패|오류|거부|취소|중단|차단됨|실행되지 않|실행 안|실행 불가|추가되지 않았|추가 실패|권한을 얻지 못|부여되지 않았|failed|error|denied|cancelled|canceled|aborted|blocked|not executed|did not execute|never ran|failed to execute|failed to add|grant failed|not successfully|was not added|addition failed|execution failed/i;
+  const relatedFailure = new RegExp("(?:" + privilege.source + ").{0,64}(?:" + failure.source + ")|(?:" + failure.source + ").{0,64}(?:" + privilege.source + ")", "i").test(description);
   const cancelled = /(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation).{0,40}(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied)|(?:취소|철회|중단|거부|cancelled|canceled|aborted|denied).{0,40}(?:권한 상승|관리자 명령|권한 명령|admin command|privileged command|elevation prompt|privilege escalation)|권한 상승 창.{0,20}(?:취소|거부)|elevation prompt.{0,20}(?:cancelled|canceled|denied)/i.test(description);
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command)|(?:명령.{0,12}(?:없|않|미실행)|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command).{0,48}(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation)/i.test(description);
-  return (signalsPrivilege && failure) || cancelled || noFollowupCommand;
+  const commandFailure = /(?:관리자 명령|권한 명령|admin command|administrator command|privileged command|elevated command).{0,40}(?:실패|오류|거부|취소|중단|failed|error|denied|cancelled|canceled|aborted|execution failed)|(?:실패|오류|거부|취소|중단|failed|error|denied|cancelled|canceled|aborted|execution failed).{0,40}(?:관리자 명령|권한 명령|admin command|administrator command|privileged command|elevated command)/i.test(description);
+  return (signalsPrivilege && relatedFailure) || cancelled || noFollowupCommand || commandFailure;
 }
-
 function isExplicitlyBenign(description, alert) {
   if (/관리자 그룹은 아닙니다|관리자 그룹이 아닙니다|관리자 그룹에 속하지 않|not an? admin(?:istrator)? group|not in (?:the )?administrators?/i.test(description)) return true;
   if (/평소 주소에서 관리자 명령이 한 번 실행됐습니다|정상 주소에서 관리자 명령|계정 종류를 조회한 뒤 변경은 없습니다|그룹 목록을 읽은 뒤 수업 그룹 설명만 바뀌었습니다|그룹 소속을 읽기만 했습니다|자기 계정 종류를 조회.{0,24}변경은 없|자기 세션 정보를 조회|자료실을 열었|비밀번호를 변경했|로그인했습니다|로그아웃했습니다|예약 작업을 확인했|read.only (?:query|enumeration)|no (?:privilege|permission|group) changes?|routine (?:login|logout|task check|scheduled task)|(?:logged|signed) (?:in|out) from (?:a )?(?:usual|regular|known|trusted) address/i.test(description)) return true;
@@ -179,7 +193,20 @@ function isPrivilegeOperationSignal(description, alert) {
   return /(?:관리자 그룹|관리자 권한 그룹|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|administrator group|admin group|administrator privileges|admin privileges|privilege escalation|privilege elevation|privilege change|permission grant|role assignment|sudoers? membership|wheel group).{0,48}(?:추가|변경|부여|회수|승격|전환|시도|실패|취소|거부|중단|added|changed|granted|revoked|elevated|switched|attempted|failed|cancelled|canceled|denied|aborted|executed|assigned|modified)|(?:추가|변경|부여|회수|승격|전환|시도|실패|취소|거부|중단|added|changed|granted|revoked|elevated|switched|attempted|failed|cancelled|canceled|denied|aborted|executed|assigned|modified).{0,48}(?:관리자 그룹|관리자 권한 그룹|권한 상승|권한 변경|권한 부여|권한 회수|관리자로 승격|administrator group|admin group|administrator privileges|admin privileges|privilege escalation|privilege elevation|privilege change|permission grant|role assignment|sudoers? membership|wheel group)/i.test(description);
 }
 
+function hasExplicitPrivilegeAttempt(description) {
+  const groupAttempt = /(?:관리자 그룹|administrator group|administrators?|admins?).{0,40}(?:추가|들어가|가입|편입|멤버).{0,28}(?:시도|요청|attempt(?:ed|ing)?|tried)|(?:시도|요청|attempt(?:ed|ing)?|tried).{0,40}(?:관리자 그룹|administrator group|administrators?|admins?).{0,28}(?:추가|들어가|가입|편입|멤버)/i.test(description);
+  const elevationAttempt = /(?:권한 상승|권한 변경|관리자 권한|권한 부여|권한 회수|privilege escalation|privilege elevation|privilege change|admin(?:istrator)? privileges?|permission grant|role assignment).{0,32}(?:시도|요청|attempt(?:ed|ing)?|tried)|(?:시도|요청|attempt(?:ed|ing)?|tried).{0,32}(?:권한 상승|권한 변경|관리자 권한|권한 부여|권한 회수|privilege escalation|privilege elevation|privilege change|admin(?:istrator)? privileges?|permission grant|role assignment)/i.test(description);
+  const commandAttempt = /(?:관리자 명령|권한 명령|admin command|administrator command|privileged command|elevated command).{0,32}(?:시도|요청|attempt(?:ed|ing)?|tried)|(?:시도|요청|attempt(?:ed|ing)?|tried).{0,32}(?:관리자 명령|권한 명령|admin command|administrator command|privileged command|elevated command)/i.test(description);
 
+  // 성공 여부가 분명한 동일 유형의 행위는 '미확정 시도'로 낮추지 않습니다.
+  const groupSucceeded = /(?:관리자 그룹.{0,32}(?:추가됐|추가되었|추가되었습니다|추가됨|추가했습니다|들어가고|들어왔|가입했|편입됐|편입되었)|(?:added|re-added|readded|joined|became a member of|membership (?:was )?granted).{0,36}(?:the )?(?:administrators?|admins?)(?: group)?|(?:administrators?|admins?).{0,36}(?:was added|addition succeeded|membership granted))/i.test(description);
+  const elevationSucceeded = /(?:방금 관리자가 된|새로 관리자가 된|새 관리자(?:가 된| 권한을 얻)|관리자 권한을 얻|관리자 권한(?:이|을) 부여(?:받|되)|관리자로 승격|권한 상승.{0,32}(?:성공|완료|됨|성공적으로 실행)|(?:성공적으로|최근|방금|새로).{0,20}(?:권한 상승|관리자 권한 획득)|(?:관리자|권한) 권한.{0,20}(?:상승|승격).{0,16}(?:성공|완료|됨)|just became an? administrator|newly elevated|elevated to (?:an? )?(?:admin|administrator)|gained (?:admin|administrator|elevated) privileges|granted (?:admin|administrator) privileges|became an? admin|privilege escalation succeeded|successfully escalated privileges|account was elevated to (?:admin|administrator))/i.test(description);
+  const commandSucceeded = hasSuccessfulAdminCommand(description);
+
+  return (groupAttempt && !groupSucceeded)
+    || (elevationAttempt && !elevationSucceeded)
+    || (commandAttempt && !commandSucceeded);
+}
 function patternById(id) {
   return PATTERN_SPEC.patterns.find((pattern) => pattern.id === id)
     ?? PATTERN_SPEC.patterns[PATTERN_SPEC.patterns.length - 1];
@@ -210,13 +237,16 @@ export function decide(alert) {
   const unfamiliarAddress = isUnfamiliarAddress(description);
   const otherAccountCommand = hasOtherAccountCommand(description, adminCommand);
   const privilegeOperation = isPrivilegeOperationSignal(description, alert);
+  const explicitPrivilegeAttempt = hasExplicitPrivilegeAttempt(description);
   const failedAttempt = hasFailedOrCancelledPrivilegeAttempt(
     description,
     groupAddition || adminCommand || recentElevation || sessionElevation || privilegeOperation
   );
   const noFollowupCommand = /(?:권한 상승|권한 변경|관리자 권한|privilege escalation|privilege elevation).{0,48}(?:명령.{0,12}(?:없|않|미실행|이어지지)|후속 명령 없음|명령 없이|no (?:admin |privileged )?command|without (?:an? )?(?:admin |privileged )?command)/i.test(description);
-  const elevatedThenCommand = recentElevation && adminCommand && !failedAttempt && !noFollowupCommand;
-  const groupAndCommand = groupAddition && adminCommand && !failedAttempt;
+  const nonExecution = hasExplicitNonExecution(description) || noFollowupCommand;
+  const commandPerformed = adminCommand && !nonExecution;
+  const elevatedThenCommand = recentElevation && commandPerformed && !failedAttempt && !explicitPrivilegeAttempt;
+  const groupAndCommand = groupAddition && commandPerformed && !failedAttempt && !explicitPrivilegeAttempt;
   // 대량 관리자 그룹 추가는 이 경보의 data.group/count, rule.level, rule.mitre만으로 판정합니다.
   // 조건을 모두 충족하면 다른 경보와의 상관분석 없이 차단합니다.
   const eventCount = Number(alert?.data?.count);
@@ -238,30 +268,35 @@ export function decide(alert) {
   if (groupAndCommand) return output("admin_group_added_then_admin_command", 0.96);
 
   // 동일 경보의 관리자 그룹·계정 수·규칙 수준·MITRE 필드가 모두 고위험 조건이면 차단합니다.
-  if (!failedAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
+  if (!failedAttempt && !explicitPrivilegeAttempt && bulkAdminGroupAddition) return output("bulk_admin_group_addition", 0.90);
 
-  // 명확한 정상 활동은 약한 단독 신호보다 먼저 기록합니다.
-  if (explicitNormal) return output("ordinary_account_activity", 0.10);
+  // 실패·취소·실행되지 않은 명령·성공 여부가 불명확한 시도는 정상 단서보다 먼저 alert로 남깁니다.
+  if (failedAttempt || noFollowupCommand || explicitPrivilegeAttempt) {
+    return output("ambiguous_privilege_activity", 0.68);
+  }
+
+  // 정상 주소/읽기 전용/변경 없음 같은 근거는 명확한 성공 공격 판정보다 우선하지 않지만,
+  // 실패·미확정 시도나 관리자 그룹/세션 권한 변경이 있는 경보를 record로 덮어쓰지 않습니다.
+  if (explicitNormal && !groupAddition && !sessionElevation && !recentElevation) {
+    return output("ordinary_account_activity", 0.10);
+  }
 
   // 짧은 시간 안의 관리자 재추가는 의심 활동으로 남기되 단독 차단하지 않습니다.
-  if (!failedAttempt && repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
-
-  // 실패·취소·후속 명령 없는 시도는 성공한 공격으로 보지 않고 알림만 남깁니다.
-  if (failedAttempt || noFollowupCommand) return output("ambiguous_privilege_activity", 0.68);
+  if (repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
 
   // 권한 상승 세션만 확인된 경우에는 명령 등 추가 증거가 없으므로 alert입니다.
   if (elevatedSessionFromNewAddress) return output("ambiguous_privilege_activity", 0.68);
 
-  // 업무 시간 외의 권한 사용은 명령·변경 행위가 없어도 약한 조사 신호로 알립니다.
-  // 업무 외 시간이라는 표현이나 권한 관련 단어만으로 알림을 만들지 않습니다.
-  // 실제 관리자 명령·그룹 변경·권한 상승 신호가 함께 있을 때만 조사 알림으로 분류합니다.
-  if (offHours && (adminCommand || groupAddition || sessionElevation || recentElevation || privilegeOperation)) {
+  // 업무 외 시간은 보조 맥락일 뿐입니다. 시간대 + 포괄적인 privilegeOperation만으로는 alert하지 않습니다.
+  // 실제 관리자 명령·그룹 추가·세션/권한 상승 같은 구체적 행위가 함께 있을 때만 시간대 기반 알림을 냅니다.
+  if (offHours && (commandPerformed || groupAddition || sessionElevation || recentElevation)) {
     return output("off_hours_privilege_use", 0.72);
   }
   if (repeatedAdminReadd) return output("ambiguous_privilege_activity", 0.68);
   if (unusualAdminCommand || otherAccountCommand) return output("unfamiliar_admin_command", 0.68);
   // 단독 관리자 그룹 추가는 아래 전용 분기에서 admin_group_addition으로 분류합니다.
-  if (sessionElevation || recentElevation || (privilegeOperation && !groupAddition)) return output("ambiguous_privilege_activity", 0.68);
+  // 넓은 privilegeOperation 신호만으로는 alert하지 않고, 낯선 주소라는 독립된 정황이 있을 때 조사합니다.
+  if (sessionElevation || recentElevation || (privilegeOperation && unfamiliarAddress)) return output("ambiguous_privilege_activity", 0.68);
   if (groupAddition) return output("admin_group_addition", 0.68);
 
   return output("ordinary_account_activity", 0.10);
