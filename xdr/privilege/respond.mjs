@@ -17,27 +17,16 @@ function oneLine(value) {
   return String(value ?? "").replace(/[\r\n\t]+/g, " ").trim();
 }
 function trustedSubject(alert) {
-  // 원본 실습 경보 26건은 identity 필드가 없는 초기 형식입니다.
-  // 실습용 고정 매핑으로만 Wazuh의 srcuser를 인증된 ZTNA subjectId 규약에 연결합니다.
-  // identity가 명시돼 있으면 신뢰 디렉터리 정보가 아니거나 불완전한 경우 fail closed 합니다.
   const identity = alert?.identity;
-  if (identity !== undefined && identity !== null) {
-    const id = oneLine(identity.subjectId);
-    return identity.source === "trusted-directory" && /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : "";
-  }
-  const fixtureAccountMap = {
-    user01: "acct-user01",
-    user02: "acct-user02",
-    user03: "acct-user03",
-    user04: "acct-user04",
-    user05: "acct-user05",
-    user06: "acct-user06",
-    user07: "acct-user07",
-    user08: "acct-user08",
-    admin01: "acct-admin01",
-    "svc-lab": "acct-svc-lab"
-  };
-  return fixtureAccountMap[oneLine(alert?.data?.srcuser)] ?? "";
+  const id = oneLine(identity?.subjectId);
+  return identity?.source === "trusted-directory" && /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : "";
+}
+function normalizedAccount(alert) {
+  return oneLine(alert?.data?.srcuser)
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 function isAdminGroup(alert) {
   const raw = oneLine(alert?.data?.group);
@@ -76,13 +65,7 @@ async function loadExistingRules(now) {
 }
 function safeDecision(alert) {
   try {
-    // 이 대응 시뮬레이터의 고정 fixture 계정 매핑을 신뢰된 subject ID로 판정기에 전달합니다.
-    // 심판이 단독으로 호출하는 decide()는 이런 보강 없이 입력 경보의 identity를 직접 검증합니다.
-    const subjectId = trustedSubject(alert);
-    const decisionAlert = !alert?.identity && subjectId
-      ? { ...alert, identity: { subjectId, source: "trusted-directory" } }
-      : alert;
-    const value = decide(decisionAlert);
+    const value = decide(alert);
     if (value && ["block", "alert", "record"].includes(value.action)
         && Number.isFinite(value.confidence) && value.confidence >= 0 && value.confidence <= 1
         && typeof value.reason === "string") return value;
@@ -155,18 +138,18 @@ async function main() {
       const leftSubject = trustedSubject(left);
       if (!leftSubject || leftSubject !== trustedSubject(right)) continue;
       if (!validAddress(left) || !validAddress(right) || left.data.srcip.trim() !== right.data.srcip.trim()) continue;
-      if (!oneLine(left.data.srcuser) || oneLine(left.data.srcuser) !== oneLine(right.data.srcuser)) continue;
+      if (!normalizedAccount(left) || normalizedAccount(left) !== normalizedAccount(right)) continue;
       const leftTime = Date.parse(left.timestamp);
       const rightTime = Date.parse(right.timestamp);
       if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime) || Math.abs(leftTime - rightTime) > CORRELATION_MS) continue;
       const paired = (groupAddition(left) && adminCommand(right)) || (adminCommand(left) && groupAddition(right));
       if (!paired) continue;
-      const leftDecision = outputs.find((item) => item.alert === left)?.decision;
-      const rightDecision = outputs.find((item) => item.alert === right)?.decision;
-      if (![leftDecision, rightDecision].some((decision) => decision?.action === "block" && decision.confidence >= 0.85)) continue;
-      if (Number(left?.rule?.level) < 10 || Number(right?.rule?.level) < 10) continue;
-      const techniques = [...(left?.rule?.mitre ?? []), ...(right?.rule?.mitre ?? [])];
-      if (!techniques.some((id) => ["T1078", "T1068"].includes(id))) continue;
+      const leftLevel = Number(left?.rule?.level);
+      const rightLevel = Number(right?.rule?.level);
+      if (!Number.isFinite(leftLevel) || leftLevel < 10 || !Number.isFinite(rightLevel) || rightLevel < 10) continue;
+      const hasRelevantMitre = (alert) => Array.isArray(alert?.rule?.mitre)
+        && alert.rule.mitre.some((id) => ["T1078", "T1068"].includes(id));
+      if (!hasRelevantMitre(left) || !hasRelevantMitre(right)) continue;
       createCandidate(candidates, leftSubject, [left.id, right.id],
         "recent_group_change_then_admin_command", 0.97);
     }
