@@ -212,9 +212,17 @@ function isUnfamiliarAddress(text) {
 }
 
 function hasValidSourceIp(alert) {
-  const parts = oneLine(alert?.data?.srcip).split(".");
-  return parts.length === 4
-    && parts.every((part) => /^(?:0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255);
+  const value = oneLine(alert?.data?.srcip);
+  const parts = value.split(".");
+  if (parts.length === 4
+      && parts.every((part) => /^(?:0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255)) return true;
+  if (!value.includes(":")) return false;
+  try {
+    const hostname = new URL("http://[" + value + "]/").hostname;
+    return hostname.startsWith("[") && hostname.endsWith("]");
+  } catch {
+    return false;
+  }
 }
 
 function hasTrustedAccountId(alert) {
