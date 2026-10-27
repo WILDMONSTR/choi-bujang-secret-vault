@@ -211,15 +211,27 @@ function isUnfamiliarAddress(text) {
   return unfamiliar && address;
 }
 
-function isUnfamiliarAdminCommand(alert, text, adminCommand) {
-  if (!adminCommand) return false;
-  const command = [
-    text,
-    alert?.data?.command,
-    alert?.data?.command_line,
-    alert?.data?.process
-  ].map(normalize).filter(Boolean).join(" ");
-  return /(?:처음\s*보는|처음\s*(?:관측|확인|발견)(?:된|한)?|새로운|신규|낯선|미관측).{0,28}(?:관리자\s*)?(?:명령|command)|(?:관리자\s*)?(?:명령|command).{0,28}(?:처음\s*관측|first[ -]?seen|new(?:ly)? observed|previously unseen|unknown|unfamiliar|unrecognized)/i.test(command);
+function hasValidSourceIp(alert) {
+  const parts = oneLine(alert?.data?.srcip).split(".");
+  return parts.length === 4
+    && parts.every((part) => /^(?:0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255);
+}
+
+function hasTrustedAccountId(alert) {
+  const identity = alert?.identity;
+  const subjectId = oneLine(identity?.subjectId);
+  return identity?.source === "trusted-directory"
+    && /^[A-Za-z0-9._:-]{1,128}$/.test(subjectId);
+}
+
+function hasRequiredBlockEvidence(alert) {
+  const ruleLevel = Number(alert?.rule?.level);
+  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
+  return Number.isFinite(ruleLevel)
+    && ruleLevel >= 10
+    && hasValidSourceIp(alert)
+    && mitre.some((id) => id === "T1078" || id === "T1068")
+    && hasTrustedAccountId(alert);
 }
 
 function hasOtherAccountCommand(text, adminCommand) {
@@ -250,7 +262,7 @@ function isExplicitlyBenign(text, alert, flags) {
     && !flags.groupAddition && !flags.groupRemoval
     && !flags.elevation && !flags.sessionElevation
     && !flags.otherAccount && !flags.unfamiliarAddress
-    && !flags.unfamiliarCommand && !flags.offHours && !flags.failed && !flags.attempted;
+    && !flags.offHours && !flags.failed && !flags.attempted;
 }
 
 function patternById(id) {
@@ -281,7 +293,6 @@ export function decide(alert) {
   const groupAddition = hasAdminGroupAddition(alert, text);
   const groupRemoval = hasAdminGroupRemoval(alert, text);
   const adminCommand = hasAdminCommand(alert, text);
-  const unfamiliarCommand = isUnfamiliarAdminCommand(alert, text, adminCommand);
   const elevation = hasElevationActivity(text);
   const successfulElevation = hasSuccessfulElevation(text);
   const sessionElevation = hasSessionElevation(text);
@@ -294,10 +305,11 @@ export function decide(alert) {
   const commandSuccessful = adminCommand && !nonExecution && !failed && !attempted;
   const groupCycle = isAdminGroupTarget && groupAddition && groupRemoval;
   const count = Number(alert?.data?.count);
-  const bulkGroupAddition = groupAddition && Number.isFinite(count) && count >= 3;
+  const bulkGroupAddition = isAdminGroupName(oneLine(alert?.data?.group))
+    && groupAddition && Number.isFinite(count) && count >= 3;
   const flags = {
     groupAddition, groupRemoval, adminCommand, elevation, sessionElevation,
-    failed, attempted, otherAccount, unfamiliarAddress, unfamiliarCommand, offHours
+    failed, attempted, otherAccount, unfamiliarAddress, offHours
   };
 
   // 정상 대조 이벤트는 경보 수준이나 MITRE 태그만으로 알림/차단으로 올리지 않습니다.
@@ -314,18 +326,23 @@ export function decide(alert) {
     return output("ambiguous_privilege_activity", 0.68);
   }
 
-  // 한 경보에 성공한 권한 상승/그룹 추가와 실제 관리자 명령이 모두 있어야 차단합니다.
+  // patterns.json의 강한 단일 경보 패턴만 차단 후보로 삼고, 모든 필수 증거를 차단 직전에 확인합니다.
   if (!groupCycle && commandSuccessful && (successfulElevation || groupAddition)) {
-    return output(successfulElevation ? "recent_elevation_then_admin_command" : "admin_group_added_then_admin_command", 0.96);
+    const patternId = successfulElevation ? "recent_elevation_then_admin_command" : "admin_group_added_then_admin_command";
+    if (!hasRequiredBlockEvidence(alert)) {
+      return output(patternId, 0.68, "강한 공격 행동은 보이지만 rule.level, 유효 IP, MITRE, 신뢰 계정 증거가 모두 충족되지 않아 차단하지 않습니다.");
+    }
+    return output(patternId, 0.96);
   }
 
-  // 시간대 + 낯선 주소 + 실행된 관리자 명령은 독립적인 성공 복합 신호입니다.
-  if (offHours && unfamiliarAddress && commandSuccessful) {
-    return output("off_hours_privilege_use", 0.96);
-  }
+  // 업무 외 시간·낯선 주소·명령 조합만으로는 patterns.json의 block 조건이 아니므로 여기서 차단하지 않습니다.
+  // 해당 경보는 아래의 off-hours/unfamiliar 패턴에서 alert로 분류됩니다.
 
-  // 단일 경보에서 계정 3개 이상이 관리자 그룹에 추가된 경우는 대량 변경으로 분류합니다.
-  if (!groupCycle && bulkGroupAddition && !failed && !attempted) {
+  // 대량 관리자 그룹 추가는 data.group과 data.count 조건 및 모든 필수 증거를 같은 경보에서 확인합니다.
+  if (!groupCycle && bulkGroupAddition && !failed && !attempted && !nonExecution) {
+    if (!hasRequiredBlockEvidence(alert)) {
+      return output("bulk_admin_group_addition", 0.68, "대량 관리자 그룹 추가 신호는 있으나 필수 차단 증거가 부족해 차단하지 않습니다.");
+    }
     return output("bulk_admin_group_addition", 0.90);
   }
 
@@ -336,8 +353,8 @@ export function decide(alert) {
   if (groupAddition && !groupRemoval) return output("admin_group_addition", 0.68);
   if (groupRemoval) return output("ambiguous_privilege_activity", 0.68);
 
-  // 낯선 주소·다른 계정·처음 관측된 명령은 단독으로는 alert이며, 위의 강한 결합 패턴이 우선합니다.
-  if (otherAccount || unfamiliarCommand || (adminCommand && unfamiliarAddress)) {
+  // 낯선 주소 또는 다른 계정의 관리자 명령은 단독으로 차단하지 않고 alert로 남깁니다.
+  if (otherAccount || (adminCommand && unfamiliarAddress)) {
     return output("unfamiliar_admin_command", 0.68);
   }
   if (offHours && (adminCommand || isAdminGroupTarget || elevation || sessionElevation)) {
