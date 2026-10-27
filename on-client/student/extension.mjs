@@ -774,8 +774,145 @@ export function createStudentView() {
       return view;
     },
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
-    renderAiConnection() { return '학생 구현 대기: 모델 응답 점검과 실제 사건 설명을 구분하고 AI 오류·취소·수동 복구를 안내하세요.'; },
-    renderExplanation() { return '학생 구현 대기: 선택한 사건의 근거·규칙·현재 상태와 AI 설명을 연결하세요. 제안은 자동 실행하지 않습니다.'; },
+    renderAiConnection(input) {
+      const resource = eventIsRecord(input) ? input : {};
+      const view = eventNode('div');
+      view.appendChild(eventNode('h3', '앱 내부 AI 연결 점검'));
+
+      if (resource.status === 'idle') {
+        view.appendChild(eventNode('p', 'AI 연결 점검 전', 'state state-empty'));
+        view.appendChild(eventNode('p', '다시 점검하려면 「현재 API 연결 점검」을 직접 누르세요. 자동 재점검은 하지 않습니다.', 'muted'));
+        return view;
+      }
+      if (resource.status === 'loading') {
+        view.appendChild(eventNode('p', 'AI 연결 점검 중', 'state state-loading'));
+        view.appendChild(eventNode('p', '점검 중 취소할 수 있습니다. 취소되거나 오래된 응답은 현재 결과로 표시하지 않습니다.', 'muted'));
+        return view;
+      }
+      if (resource.status === 'error') {
+        const error = eventIsRecord(resource.error) ? resource.error : {};
+        const rawCode = eventScalar(error.code);
+        const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(rawCode) ? rawCode : 'AI_REQUEST_UNVERIFIED';
+        const rawMessage = eventScalar(error.message).trim().slice(0, 800);
+        const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+        const message = rawMessage && !secretPattern.test(rawMessage) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(rawMessage)
+          ? rawMessage
+          : '오류 메시지를 안전하게 표시할 수 없습니다.';
+
+        const permissionCodes = new Set(['ON_AI_PROVISIONING_PENDING', 'ON_AI_AUTHORIZATION_CHANGED', 'SUBJECT_SCOPE_UNVERIFIED', 'AI_REQUEST_UNVERIFIED']);
+        const authenticationCodes = new Set(['WB_CLCO_AUTH_REQUIRED', 'WB_CLCO_INVALID_TOKEN']);
+        const accessCodes = new Set(['WB_CLCO_ACCESS_BLOCKED']);
+        const limitCodes = new Set(['WB_CLCO_COHORT_BUDGET_EXHAUSTED', 'WB_CLCO_LIMIT_REACHED']);
+        const timeCodes = new Set(['WB_CLCO_SESSION_CLOSED']);
+        const retryCodes = new Set(['WB_CLCO_RATE_LIMITED', 'WB_CLCO_TIMEOUT', 'REQUEST_TIMEOUT', 'ENGINE_TIMEOUT', 'TIMEOUT', 'WB_CLCO_NETWORK_ERROR', 'WB_CLCO_SERVER_UNAVAILABLE']);
+        const cancelCodes = new Set(['WB_CLCO_CANCELLED', 'CANCELLED', 'REQUEST_CANCELLED']);
+        const modelCodes = new Set(['MODEL_NOT_CONFIGURED', 'ON_AI_MODEL_LIST_EMPTY']);
+        let guidance = '오류 원인을 구분할 수 없습니다. 담당자에게 계정 연결과 앱 권한 확인을 요청하세요.';
+        if (permissionCodes.has(code)) {
+          guidance = '학생 계정 연결과 앱 이용 권한의 발급·준비 상태를 담당자에게 확인 요청하세요.';
+        } else if (authenticationCodes.has(code)) {
+          guidance = '계정 연결을 다시 확인하고, 담당자에게 앱 전용 인증 상태를 확인 요청하세요.';
+        } else if (accessCodes.has(code)) {
+          guidance = '담당자에게 학생 앱의 이용 권한과 접근 제한 상태를 확인 요청하세요.';
+        } else if (limitCodes.has(code)) {
+          guidance = '담당자에게 반 사용량과 이용 한도를 확인 요청하세요.';
+        } else if (timeCodes.has(code)) {
+          guidance = '허용된 AI 이용 시간을 확인하세요.';
+        } else if (retryCodes.has(code)) {
+          guidance = '잠시 뒤 「현재 API 연결 점검」을 직접 눌러 다시 점검하세요. 자동 재점검은 하지 않습니다.';
+        } else if (cancelCodes.has(code)) {
+          guidance = '요청이 취소되었습니다. 이전 결과는 현재 결과가 아닙니다. 필요하면 직접 다시 점검하세요.';
+        } else if (modelCodes.has(code)) {
+          guidance = '담당자에게 앱에서 허용된 AI 모델 설정을 확인 요청하세요.';
+        }
+
+        view.appendChild(eventNode('p', 'AI 연결 점검 실패', 'state state-error'));
+        view.appendChild(eventNode('p', '오류 코드(code): ' + code));
+        view.appendChild(eventNode('p', '오류 메시지(message): ' + message));
+        view.appendChild(eventNode('p', '원인 및 조치: ' + guidance, 'muted'));
+        return view;
+      }
+      if (resource.status !== 'ok') {
+        view.appendChild(eventNode('p', '확인 불가: AI 연결 점검 상태를 알 수 없습니다.', 'state state-empty'));
+        return view;
+      }
+
+      const data = resource.data;
+      const checkedAt = eventScalar(resource.checkedAt).trim();
+      if (!eventIsRecord(data) || data.transportChecked !== true
+        || !['test', 'verified'].includes(data.audienceAuthorization)
+        || !Number.isInteger(data.modelCount) || data.modelCount < 0 || data.modelCount > 10000
+        || !eventIsRecord(data.help) || !checkedAt || !Number.isFinite(Date.parse(checkedAt))
+        || resource.explanationAccepted !== false) {
+        view.appendChild(eventNode('p', '확인 불가: AI 연결 점검 응답이 공식 입력 계약과 일치하지 않습니다.', 'state state-error'));
+        return view;
+      }
+
+      const authorizationLabel = data.audienceAuthorization === 'test'
+        ? '시험 연결 점검(test)'
+        : '앱 권한 확인 후 점검(verified)';
+      view.appendChild(eventNode('p', authorizationLabel, 'state state-ok'));
+      if (resource.mode === 'demo') {
+        view.appendChild(eventNode('p', '예제 응답(demo) · 실제 게이트 수용 아님', 'muted'));
+      }
+      view.appendChild(eventNode('p', '응답 모델 수(modelCount): ' + data.modelCount));
+      view.appendChild(eventNode('p', '점검 시각(checkedAt): ' + checkedAt));
+      view.appendChild(eventNode('p', '연결 경로와 모델 응답만 점검했습니다. 사건 설명은 아직 실행하지 않았습니다.', 'muted'));
+      return view;
+    },
+    renderExplanation(input) {
+      const resource = eventIsRecord(input) ? input : {};
+      const event = eventIsRecord(resource.event) ? resource.event : null;
+      const explanation = eventIsRecord(resource.explanation) ? resource.explanation : {};
+      const view = eventNode('div');
+      view.appendChild(eventNode('h3', 'AI 사건 설명'));
+
+      if (explanation.status === 'idle') {
+        view.appendChild(eventNode('p', '사건 설명은 아직 실행되지 않았습니다. 연결 점검과는 별도의 요청입니다.', 'state state-empty'));
+        return view;
+      }
+      if (explanation.status === 'loading') {
+        view.appendChild(eventNode('p', 'AI 사건 설명 요청 중입니다.', 'state state-loading'));
+        return view;
+      }
+      if (explanation.status === 'error') {
+        const error = eventIsRecord(explanation.error) ? explanation.error : {};
+        const rawCode = eventScalar(error.code);
+        const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(rawCode) ? rawCode : 'AI_REQUEST_UNVERIFIED';
+        const rawMessage = eventScalar(error.message).trim().slice(0, 800);
+        const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+        const message = rawMessage && !secretPattern.test(rawMessage) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(rawMessage)
+          ? rawMessage
+          : '오류 메시지를 안전하게 표시할 수 없습니다.';
+        view.appendChild(eventNode('p', 'AI 사건 설명 실패', 'state state-error'));
+        view.appendChild(eventNode('p', '오류 코드(code): ' + code));
+        view.appendChild(eventNode('p', '오류 메시지(message): ' + message));
+        view.appendChild(eventNode('p', '보안 기록은 그대로 유지됩니다.', 'muted'));
+        return view;
+      }
+      if (explanation.status !== 'ok') {
+        view.appendChild(eventNode('p', '사건 설명 결과를 확인할 수 없습니다. 보안 기록은 그대로 유지됩니다.', 'state state-empty'));
+        return view;
+      }
+
+      const data = explanation.data;
+      const eventId = event ? eventScalar(event.id).trim() : '';
+      const summary = eventIsRecord(data) ? eventScalar(data.summary).trim() : '';
+      const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+      if (!eventId || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(eventId)
+        || !summary || summary.length > 2000 || secretPattern.test(summary)
+        || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(summary)) {
+        view.appendChild(eventNode('p', '확인 불가: 사건 ID 또는 AI 요약이 공식 입력 계약과 일치하지 않습니다.', 'state state-error'));
+        view.appendChild(eventNode('p', '보안 기록은 그대로 유지됩니다.', 'muted'));
+        return view;
+      }
+
+      view.setAttribute('data-student-explanation-event', eventId);
+      view.appendChild(eventNode('p', '사건 ID: ' + eventId));
+      view.appendChild(eventNode('p', 'AI 설명(참고용)'));
+      view.appendChild(eventNode('p', summary));
+      return view;
+    },
     renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
   };
 }
