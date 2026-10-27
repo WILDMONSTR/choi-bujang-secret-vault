@@ -272,7 +272,10 @@ function hasExplicitNoChangeEvidence(text) {
 // 정상 기록은 명시적 정상 증거가 있을 때만 허용합니다.
 // 이상 징후가 적혀 있지 않다는 사실만으로는 정상 증거가 되지 않습니다.
 function normalEvidenceOf(text, alert, flags) {
-  if (flags.groupAddition || flags.groupRemoval || flags.elevation
+  const explicitNoChange = hasExplicitNoChangeEvidence(text);
+  const unconfirmedElevation = flags.elevation
+    && !(explicitNoChange && !flags.successfulElevation);
+  if (flags.groupAddition || flags.groupRemoval || unconfirmedElevation
       || flags.sessionElevation || flags.otherAccount || flags.unfamiliarAddress
       || flags.offHours || flags.failed || flags.attempted || flags.nonExecution) {
     return [];
@@ -304,7 +307,7 @@ function normalEvidenceOf(text, alert, flags) {
 
   // 관리자 명령은 '낯선 주소가 아니다'라는 이유만으로 정상 처리하지 않습니다.
   // 평소/승인 맥락 또는 명시적인 읽기 전용·조회 근거가 있어야 합니다.
-  if (flags.adminCommand && !normalContext && !readOnly) return [];
+  if (flags.adminCommand && !normalContext && !readOnly && !noChange) return [];
   return [...new Set(evidence)];
 }
 
