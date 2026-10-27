@@ -1,84 +1,97 @@
 // 독립 심판용 순수 판정기입니다. import, 파일 입출력, 패키지 호출을 하지 않습니다.
+// 패턴 ID·조건·확신도·근거는 patterns.json과 동일하게 유지합니다. 상관분석은 respond.mjs의 책임입니다.
 const PATTERN_SPEC = Object.freeze({
   attackTechniques: Object.freeze([
-    Object.freeze({ id: "T1068", name: "Exploitation for Privilege Escalation", source: "https://attack.mitre.org/techniques/T1068/" }),
-    Object.freeze({ id: "T1078", name: "Valid Accounts", source: "https://attack.mitre.org/techniques/T1078/" })
+    {
+      "id": "T1068",
+      "name": "Exploitation for Privilege Escalation",
+      "source": "https://attack.mitre.org/techniques/T1068/"
+    },
+    {
+      "id": "T1078",
+      "name": "Valid Accounts",
+      "source": "https://attack.mitre.org/techniques/T1078/"
+    }
   ]),
-  // 0.85/0.5 are the rubric's action cutoffs. Per-pattern scores below are local heuristic values,
-  // not numeric scores prescribed by MITRE ATT&CK; each score's operational rationale is recorded with its pattern.
-  thresholds: Object.freeze({ blockMinimumConfidence: 0.85, alertMinimumConfidence: 0.5 }),
+  thresholds: Object.freeze({
+    "blockMinimumConfidence": 0.85,
+    "alertMinimumConfidence": 0.5,
+    "blockMinimumRuleLevel": 10,
+    "correlationWindowSeconds": 300,
+    "sessionRuleTtlSeconds": 900
+  }),
   patterns: Object.freeze([
     Object.freeze({
-      id: "recent_elevation_then_admin_command",
-      name: "권한 상승 직후 관리자 명령",
-      condition: "같은 경보에 성공한 권한 상승과 실제 실행된 관리자 명령이 함께 있어야 하며, 실패·취소·미실행 부정이 없어야 한다. 또한 rule.level 10 이상, 유효한 data.srcip, T1068/T1078 MITRE 근거, trusted-directory 출처의 유효한 identity.subjectId가 모두 있을 때만 block한다.",
-      action: "confidence_threshold",
-      confidence: 0.96,
-      evidence: "T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다.",
-      confidenceRationale: "0.96은 같은 경보에 성공한 권한 상승과 실제 관리자 명령이 함께 나타나는 강한 결합 신호에 부여한 로컬 점수다.",
+      "id": "recent_elevation_then_admin_command",
+      "name": "권한 상승 직후 관리자 명령",
+      "condition": "같은 경보에 성공한 권한 상승과 실제 실행된 관리자 명령이 함께 있어야 하며, rule.level 10 이상·유효한 출발지 IP·T1068/T1078 근거·trusted-directory 출처의 identity.subjectId가 모두 있을 때만 block한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.96,
+      "evidence": "T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다."
     }),
     Object.freeze({
-      id: "admin_group_added_then_admin_command",
-      name: "관리자 그룹 추가와 관리자 명령",
-      condition: "같은 경보에 성공한 관리자 그룹 추가와 실제 실행된 관리자 명령이 함께 있어야 하며, 실패·취소·미실행 부정이 없어야 한다. 또한 rule.level 10 이상, 유효한 data.srcip, T1068/T1078 MITRE 근거, trusted-directory 출처의 유효한 identity.subjectId가 모두 있을 때만 block한다.",
-      action: "confidence_threshold",
-      confidence: 0.96,
-      evidence: "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다.",
-      confidenceRationale: "0.96은 같은 경보에 성공한 관리자 그룹 추가와 실행된 관리자 명령이 함께 있는 경우에만 쓰는 로컬 점수다.",
+      "id": "admin_group_added_then_admin_command",
+      "name": "관리자 그룹 추가와 관리자 명령",
+      "condition": "같은 경보에 성공한 관리자 그룹 추가와 실제 실행된 관리자 명령이 함께 있어야 하며, rule.level 10 이상·유효한 출발지 IP·T1068/T1078 근거·trusted-directory 출처의 identity.subjectId가 모두 있을 때만 block한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.96,
+      "evidence": "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다."
     }),
     Object.freeze({
-      id: "unfamiliar_admin_command",
-      name: "낯선 주소 또는 다른 계정의 관리자 명령",
-      condition: "처음 보는 주소 또는 다른 계정 권한에서 관리자 명령이 나타나지만, 같은 경보에 명확한 권한 상승·그룹 추가 결합 증거가 없으면 alert로 분류한다.",
-      action: "confidence_threshold",
-      confidence: 0.68,
-      evidence: "T1078은 정상 계정의 비정상적 사용이 계정 악용 가능성을 나타낼 수 있음을 설명한다.",
-      confidenceRationale: "0.68은 의심 신호는 있으나 성공한 복합 공격이 확인되지 않은 경우의 로컬 alert 점수다.",
+      "id": "bulk_admin_group_addition",
+      "name": "단일 경보의 대량 관리자 그룹 추가",
+      "condition": "같은 경보의 data.group이 관리자 그룹을 가리키고 data.count가 3 이상이어야 한다. 또한 rule.level 10 이상·유효한 출발지 IP·T1078/T1068 근거·trusted-directory 출처의 identity.subjectId가 모두 있을 때만 block한다. 실패·취소된 변경은 제외하며 별도 경보 신호는 결합하지 않는다.",
+      "action": "confidence_threshold",
+      "confidence": 0.9,
+      "evidence": "관리자 그룹 대상, 세 계정 이상의 변경 수, 고위험 규칙 수준, 관련 MITRE 기법이 동일 경보에 함께 있다."
     }),
     Object.freeze({
-      id: "off_hours_privilege_use",
-      name: "업무 시간 밖 권한 사용",
-      condition: "업무 시간 밖 관리자 명령이나 권한 사용은 조사 대상이지만, 명확한 관리자 그룹 추가와 명령 결합이 없으면 alert로 분류한다. 시간대만으로 block하지 않는다.",
-      action: "confidence_threshold",
-      confidence: 0.72,
-      evidence: "T1078은 비정상적인 유효 계정 사용의 맥락을, T1068은 권한 상승 악용의 맥락을 뒷받침한다. 업무 시간 밖이라는 사실만으로 공격을 확정하지 않는다.",
-      confidenceRationale: "0.72는 업무 외 시간의 관리자 명령·권한 사용을 조사 대상으로 남기는 로컬 alert 점수다. 이 패턴 자체는 block하지 않는다.",
+      "id": "recent_group_change_then_admin_command",
+      "name": "5분 내 관리자 그룹 변경과 관리자 명령",
+      "condition": "응답 단계에서 동일한 정규화 계정·동일 출발지의 관리자 그룹 변경과 관리자 명령 경보가 5분 안에 함께 나타나고, 두 경보의 규칙 수준·MITRE 근거가 유효할 때 거부 규칙 후보로 결합한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.97,
+      "evidence": "T1078은 유효 계정 악용 맥락을, T1068은 권한 상승 결과인 관리자 명령의 악용 가능성을 뒷받침한다."
     }),
     Object.freeze({
-      id: "bulk_admin_group_addition",
-      name: "단일 경보의 대량 관리자 그룹 추가",
-      condition: "같은 경보의 data.group이 관리자 그룹을 가리키고 data.count가 3 이상이어야 한다. 또한 rule.level 10 이상, 유효한 data.srcip, T1078/T1068 MITRE 근거, trusted-directory 출처의 유효한 identity.subjectId가 모두 있을 때만 block한다. 실패·취소된 변경은 제외하며 별도 경보 신호는 결합하지 않는다.",
-      action: "confidence_threshold",
-      confidence: 0.90,
-      evidence: "T1078은 유효 계정 악용 맥락을 뒷받침하며, 대량 변경은 관리자 그룹 대상·3개 이상 변경 수·필수 차단 증거가 동일 경보에 있어야 한다.",
-      confidenceRationale: "0.90은 동일 경보에 관리자 그룹 대상, 3개 이상 변경 수, 모든 필수 차단 증거가 있고 실패·취소·미실행 신호가 없을 때 쓰는 로컬 점수다.",
+      "id": "unfamiliar_admin_command",
+      "name": "낯선 주소 또는 다른 계정의 관리자 명령",
+      "condition": "처음 보는 주소 또는 다른 계정 권한에서 관리자 명령이 나타나지만, 같은 경보의 명확한 권한 상승·그룹 추가 결합 증거가 없으면 alert로 분류한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.68,
+      "evidence": "T1078은 정상 계정의 비정상적 사용이 계정 악용 가능성을 나타낼 수 있음을 설명한다."
     }),
     Object.freeze({
-      id: "admin_group_addition",
-      name: "단독 관리자 그룹 추가",
-      condition: "관리자 그룹 추가가 보이지만 같은 경보에 관리자 명령이 함께 없거나 결합 증거가 불충분하면 alert로 남긴다. 차단은 별도로 정의된 강한 공격 패턴과 모든 필수 증거가 충족될 때만 허용한다.",
-      action: "confidence_threshold",
-      confidence: 0.68,
-      evidence: "관리자 그룹 구성원 변경이 실제로 발생했다는 구체적인 이벤트 증거를 사용한다. 실패 여부와 시도-only 신호를 먼저 확인한다.",
-      confidenceRationale: "0.68은 단독 관리자 그룹 추가가 의심 신호이지만 결합 공격 증거가 충분하지 않을 때 쓰는 로컬 alert 점수다.",
+      "id": "off_hours_privilege_use",
+      "name": "업무 시간 밖 권한 사용",
+      "condition": "업무 시간 밖 관리자 명령이나 권한 사용은 조사 대상이지만, 명확한 관리자 그룹 추가와 명령 결합이 없으면 alert로 분류한다. 시간대만으로 block하지 않는다.",
+      "action": "confidence_threshold",
+      "confidence": 0.72,
+      "evidence": "T1078의 유효 계정 악용 맥락과 T1068의 권한 상승 맥락에 부합할 수 있지만, 시간대만으로 공격을 확정하지 않는다."
     }),
     Object.freeze({
-      id: "ambiguous_privilege_activity",
-      name: "결과가 불명확하거나 실패·취소된 권한 사용 시도",
-      condition: "권한 상승 창 취소, 명령 없는 권한 상승, 실패한 관리자 명령, 낯선 세션 권한 변경처럼 조사 가치가 있지만 명확한 복합 공격으로 확정되지 않은 활동은 알림으로 분류한다.",
-      action: "confidence_threshold",
-      confidence: 0.68,
-      evidence: "T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다.",
-      confidenceRationale: "0.68은 실패·취소·미실행 또는 결과가 불명확한 시도를 차단하지 않고 alert로 유지하기 위한 로컬 점수다.",
+      "id": "admin_group_addition",
+      "name": "단독 관리자 그룹 추가",
+      "condition": "관리자 그룹 추가가 보이지만 같은 경보에 관리자 명령이 함께 없거나 결합 증거가 불충분하면 알림으로 남긴다.",
+      "action": "confidence_threshold",
+      "confidence": 0.68,
+      "evidence": "T1078은 계정 권한 변경이 유효 계정 악용과 연결될 수 있음을 뒷받침하지만 단독 그룹 변경만으로 악용을 확정하지 않는다."
     }),
     Object.freeze({
-      id: "ordinary_account_activity",
-      name: "정상 계정·그룹 활동",
-      condition: "로그인·로그아웃·읽기 전용 조회·비관리자 그룹 활동·평소 주소의 정상 관리자 사용처럼 권한 악용을 뒷받침하는 결합 신호가 없으면 기록만 한다.",
-      action: "confidence_threshold",
-      confidence: 0.1,
-      evidence: "경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다.",
-      confidenceRationale: "0.10은 명시적으로 정상·읽기 전용·변경 없음인 대조 이벤트에 쓰는 로컬 기록 점수다.",
+      "id": "ambiguous_privilege_activity",
+      "name": "불충분하거나 실패한 권한 사용 시도",
+      "condition": "권한 상승 창 취소, 명령 없는 권한 상승, 실패한 관리자 명령, 낯선 세션 권한 변경처럼 조사 가치가 있지만 명확한 복합 공격으로 확정되지 않은 활동은 알림으로 분류한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.68,
+      "evidence": "T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+    }),
+    Object.freeze({
+      "id": "ordinary_account_activity",
+      "name": "정상 계정·그룹 활동",
+      "condition": "로그인·로그아웃·읽기 전용 조회·비관리자 그룹 활동·평소 주소의 정상 관리자 사용처럼 권한 악용을 뒷받침하는 결합 신호가 없으면 기록만 한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.1,
+      "evidence": "경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
     })
   ])
 });
@@ -228,7 +241,7 @@ function hasRequiredBlockEvidence(alert) {
   const ruleLevel = Number(alert?.rule?.level);
   const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
   return Number.isFinite(ruleLevel)
-    && ruleLevel >= 10
+    && ruleLevel >= PATTERN_SPEC.thresholds.blockMinimumRuleLevel
     && hasValidSourceIp(alert)
     && mitre.some((id) => id === "T1078" || id === "T1068")
     && hasTrustedAccountId(alert);
@@ -314,7 +327,7 @@ function describeDecisionEvidence(alert, flags, normalEvidence = []) {
   if (privilegeSignal) {
     const ruleLevel = Number(alert?.rule?.level);
     evidence.push(Number.isFinite(ruleLevel)
-      ? (ruleLevel >= 10 ? "rule.level 10 이상 확인" : "rule.level 10 미만이므로 차단 기준 미충족")
+      ? (ruleLevel >= PATTERN_SPEC.thresholds.blockMinimumRuleLevel ? `rule.level ${PATTERN_SPEC.thresholds.blockMinimumRuleLevel} 이상 확인` : "rule.level 10 미만이므로 차단 기준 미충족")
       : "rule.level이 없거나 유효하지 않음");
     evidence.push(hasValidSourceIp(alert)
       ? "data.srcip이 유효한 IPv4 주소임"
