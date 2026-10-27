@@ -867,50 +867,204 @@ export function createStudentView() {
       const view = eventNode('div');
       view.appendChild(eventNode('h3', 'AI 사건 설명'));
 
+      const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+      const controlPattern = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
+      const idPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
+      const safeText = (value, maxLength = 2000) => {
+        const text = eventScalar(value).trim();
+        return text && text.length <= maxLength && !secretPattern.test(text) && !controlPattern.test(text) ? text : '';
+      };
+      const safeCode = value => {
+        const code = eventScalar(value).trim();
+        return /^[A-Z][A-Z0-9_]{0,79}$/.test(code) ? code : '';
+      };
+      const appendErrorCode = () => {
+        const error = eventIsRecord(explanation.error) ? explanation.error : {};
+        const code = safeCode(error.code);
+        if (code) view.appendChild(eventNode('p', '오류 코드(code): ' + code));
+      };
+      const failWithoutSuccess = reason => {
+        view.appendChild(eventNode('p', reason, 'state state-error'));
+        appendErrorCode();
+        view.appendChild(eventNode('p', '기록은 그대로입니다.', 'muted'));
+        return view;
+      };
+
+      // 실패는 event가 없어도 먼저 표시한다. raw 오류 문자열과 코드는 안전성 검사를 거친다.
+      if (explanation.status === 'error') {
+        const error = eventIsRecord(explanation.error) ? explanation.error : {};
+        const code = safeCode(error.code) || 'AI_REQUEST_UNVERIFIED';
+        const rawMessage = eventScalar(error.message).trim();
+        const message = safeText(rawMessage, 800) || '오류 메시지를 안전하게 표시할 수 없습니다.';
+        const evidenceFailure = /EVIDENCE|INSUFFICIENT/i.test(code)
+          || /근거.{0,20}(부족|불일치|확인할 수 없)|evidence|insufficient/i.test(rawMessage);
+        const contractFailure = /CONTRACT|INVALID_RESPONSE|UNVERIFIED/i.test(code);
+        if (evidenceFailure) {
+          view.appendChild(eventNode('p', '근거가 부족하거나 근거 ID가 일치하지 않아 AI 설명을 표시할 수 없습니다.', 'state state-error'));
+        } else if (contractFailure) {
+          view.appendChild(eventNode('p', '응답 계약을 검증할 수 없어 AI 설명을 표시하지 않습니다.', 'state state-error'));
+        }
+        view.appendChild(eventNode('p', 'AI 설명 실패', 'state state-error'));
+        view.appendChild(eventNode('p', '오류 코드(code): ' + code));
+        view.appendChild(eventNode('p', '오류 메시지(message): ' + message));
+        view.appendChild(eventNode('p', '기록은 그대로입니다.', 'muted'));
+        return view;
+      }
+
+      if (!event) {
+        view.appendChild(eventNode('p', '보안 기록에서 기록을 먼저 고르세요.', 'state state-empty'));
+        return view;
+      }
       if (explanation.status === 'idle') {
-        view.appendChild(eventNode('p', '사건 설명은 아직 실행되지 않았습니다. 연결 점검과는 별도의 요청입니다.', 'state state-empty'));
+        view.appendChild(eventNode('p', '선택한 기록의 AI 설명은 아직 요청하지 않았습니다.', 'state state-empty'));
         return view;
       }
       if (explanation.status === 'loading') {
-        view.appendChild(eventNode('p', 'AI 사건 설명 요청 중입니다.', 'state state-loading'));
-        return view;
-      }
-      if (explanation.status === 'error') {
-        const error = eventIsRecord(explanation.error) ? explanation.error : {};
-        const rawCode = eventScalar(error.code);
-        const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(rawCode) ? rawCode : 'AI_REQUEST_UNVERIFIED';
-        const rawMessage = eventScalar(error.message).trim().slice(0, 800);
-        const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
-        const message = rawMessage && !secretPattern.test(rawMessage) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(rawMessage)
-          ? rawMessage
-          : '오류 메시지를 안전하게 표시할 수 없습니다.';
-        view.appendChild(eventNode('p', 'AI 사건 설명 실패', 'state state-error'));
-        view.appendChild(eventNode('p', '오류 코드(code): ' + code));
-        view.appendChild(eventNode('p', '오류 메시지(message): ' + message));
-        view.appendChild(eventNode('p', '보안 기록은 그대로 유지됩니다.', 'muted'));
+        view.appendChild(eventNode('p', '선택한 기록의 AI 설명을 요청 중입니다.', 'state state-loading'));
         return view;
       }
       if (explanation.status !== 'ok') {
-        view.appendChild(eventNode('p', '사건 설명 결과를 확인할 수 없습니다. 보안 기록은 그대로 유지됩니다.', 'state state-empty'));
+        view.appendChild(eventNode('p', 'AI 설명 결과를 확인할 수 없습니다. 기록은 그대로입니다.', 'state state-empty'));
         return view;
       }
 
       const data = explanation.data;
-      const eventId = event ? eventScalar(event.id).trim() : '';
-      const summary = eventIsRecord(data) ? eventScalar(data.summary).trim() : '';
-      const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
-      if (!eventId || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(eventId)
-        || !summary || summary.length > 2000 || secretPattern.test(summary)
-        || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(summary)) {
-        view.appendChild(eventNode('p', '확인 불가: 사건 ID 또는 AI 요약이 공식 입력 계약과 일치하지 않습니다.', 'state state-error'));
-        view.appendChild(eventNode('p', '보안 기록은 그대로 유지됩니다.', 'muted'));
-        return view;
+      if (!eventIsRecord(data)) return failWithoutSuccess('응답 자료의 형식이 올바르지 않아 AI 설명을 표시할 수 없습니다.');
+      if (data.executed === true) {
+        return failWithoutSuccess('AI가 이미 실행했다고 답한 설명은 표시할 수 없습니다. 실행 상태가 공식 계약과 일치하지 않습니다.');
+      }
+      if (data.requiresHumanConfirmation !== true || data.executed !== false) {
+        return failWithoutSuccess('사람 확인 필요 여부 또는 미실행 상태가 공식 계약과 일치하지 않아 설명을 표시할 수 없습니다.');
       }
 
+      const eventId = eventScalar(event.id).trim();
+      if (!idPattern.test(eventId)) return failWithoutSuccess('선택한 보안 기록의 사건 ID가 올바르지 않습니다.');
+
+      const evidence = Array.isArray(event.evidence) ? event.evidence : null;
+      if (!evidence || evidence.length === 0) {
+        return failWithoutSuccess('선택한 기록에 표시할 근거가 없어 AI 설명을 표시할 수 없습니다.');
+      }
+      const evidenceById = new Map();
+      for (const item of evidence) {
+        if (!eventIsRecord(item)) return failWithoutSuccess('기록의 근거 자료 형식이 올바르지 않습니다.');
+        const id = eventScalar(item.id).trim();
+        const text = safeText(item.text);
+        if (!idPattern.test(id) || !text || evidenceById.has(id)) {
+          return failWithoutSuccess('기록의 근거 ID 또는 근거 글을 확인할 수 없어 AI 설명을 표시할 수 없습니다.');
+        }
+        evidenceById.set(id, text);
+      }
+
+      const summary = safeText(data.summary);
+      if (!summary) return failWithoutSuccess('AI 요약이 비어 있거나 안전하게 표시할 수 없어 설명을 표시하지 않습니다.');
+
+      const evidenceIds = data.evidenceIds;
+      if (!Array.isArray(evidenceIds) || evidenceIds.length !== evidenceById.size
+        || new Set(evidenceIds).size !== evidenceIds.length
+        || evidenceIds.some(id => typeof id !== 'string' || !idPattern.test(id) || !evidenceById.has(id))) {
+        return failWithoutSuccess('근거 ID가 현재 기록의 근거와 일치하지 않아 AI 설명을 표시할 수 없습니다.');
+      }
+
+      if (!Array.isArray(event.rules)) return failWithoutSuccess('현재 기록의 규칙 자료를 확인할 수 없어 설명을 표시하지 않습니다.');
+      const rules = [];
+      const ruleIds = new Set();
+      for (const rule of event.rules) {
+        if (!eventIsRecord(rule)) return failWithoutSuccess('규칙 자료 형식이 올바르지 않아 설명을 표시하지 않습니다.');
+        const id = eventScalar(rule.id).trim();
+        const text = safeText(rule.text);
+        if (!idPattern.test(id) || !text || ruleIds.has(id)) {
+          return failWithoutSuccess('규칙 ID 또는 규칙 글을 확인할 수 없어 설명을 표시하지 않습니다.');
+        }
+        ruleIds.add(id);
+        rules.push({ id, text });
+      }
+
+      if (!eventIsRecord(event.state)) return failWithoutSuccess('현재 상태 자료를 확인할 수 없어 설명을 표시하지 않습니다.');
+      const unknownStates = [
+        ['access', '접속'],
+        ['session', '세션'],
+        ['device', '기기'],
+      ].filter(([key]) => event.state[key] === 'unknown');
+      const otherStatesValid = ['access', 'session', 'device'].every(key =>
+        typeof event.state[key] === 'string' && event.state[key].length > 0);
+      if (!otherStatesValid) return failWithoutSuccess('접속·세션·기기 상태 형식이 올바르지 않아 설명을 표시하지 않습니다.');
+
+      if (!Array.isArray(event.supportedActions)) {
+        return failWithoutSuccess('연동 시스템의 지원 조치 목록을 확인할 수 없어 제안 여부를 판단할 수 없습니다.');
+      }
+      if (!Array.isArray(data.proposals)) return failWithoutSuccess('AI 제안 자료의 형식이 올바르지 않아 설명을 표시하지 않습니다.');
+      const proposals = [];
+      for (const proposal of data.proposals) {
+        if (!eventIsRecord(proposal)) return failWithoutSuccess('AI 제안 자료의 형식이 올바르지 않아 설명을 표시하지 않습니다.');
+        const action = eventScalar(proposal.action).trim();
+        const reason = safeText(proposal.reason, 500);
+        const proposalEvidenceIds = proposal.evidenceIds;
+        if (!idPattern.test(action) || !event.supportedActions.includes(action) || !reason
+          || !Array.isArray(proposalEvidenceIds) || proposalEvidenceIds.length === 0
+          || new Set(proposalEvidenceIds).size !== proposalEvidenceIds.length
+          || proposalEvidenceIds.some(id => typeof id !== 'string' || !idPattern.test(id) || !evidenceById.has(id))) {
+          return failWithoutSuccess('AI 제안의 조치 또는 근거 ID가 현재 기록과 일치하지 않아 제안을 표시하지 않습니다.');
+        }
+        proposals.push({ action, reason, evidenceIds: proposalEvidenceIds });
+      }
+
+      // 모든 입력과 참조를 검사한 뒤 성공 DOM을 만든다. 실패 경로에는 성공 속성을 붙이지 않는다.
+      const content = eventNode('section');
+      content.appendChild(eventNode('p', '사건 ID: ' + eventId));
+      content.appendChild(eventNode('h4', 'AI 설명(참고용)'));
+      content.appendChild(eventNode('p', summary));
+      content.appendChild(eventNode('p', 'AI 설명은 해석입니다. 사실 판단은 인용한 근거 글과 연동 시스템이 알려 준 현재 상태를 기준으로 하세요.', 'muted'));
+
+      content.appendChild(eventNode('h4', '인용한 근거'));
+      const evidenceList = eventNode('ul', undefined, 'plain-list');
+      for (const id of evidenceIds) {
+        evidenceList.appendChild(eventNode('li', id + ' — ' + evidenceById.get(id)));
+      }
+      content.appendChild(evidenceList);
+
+      content.appendChild(eventNode('h4', '현재 규칙'));
+      if (rules.length === 0) {
+        content.appendChild(eventNode('p', '표시할 규칙이 없습니다.', 'state state-empty'));
+      } else {
+        const ruleList = eventNode('ul', undefined, 'plain-list');
+        for (const rule of rules) ruleList.appendChild(eventNode('li', rule.id + ' — ' + rule.text));
+        content.appendChild(ruleList);
+      }
+
+      content.appendChild(eventNode('h4', '확인 불가 상태'));
+      if (unknownStates.length === 0) {
+        content.appendChild(eventNode('p', '없음', 'state state-empty'));
+      } else {
+        const stateList = eventNode('ul', undefined, 'plain-list');
+        for (const [key, label] of unknownStates) {
+          stateList.appendChild(eventNode('li', label + ': 확인 불가(unknown)'));
+        }
+        content.appendChild(stateList);
+      }
+
+      content.appendChild(eventNode('h4', '조치 제안'));
+      if (proposals.length === 0) {
+        const noProposalText = event.supportedActions.length === 0
+          ? '연동 시스템이 지원하는 조치가 없어 제안이 없습니다(정상).'
+          : 'AI가 제안한 조치가 없습니다.';
+        content.appendChild(eventNode('p', noProposalText, 'state state-empty'));
+      } else {
+        const proposalList = eventNode('ul', undefined, 'plain-list');
+        for (const proposal of proposals) {
+          const item = eventNode('li');
+          item.appendChild(eventNode('p', '조치: ' + proposal.action));
+          item.appendChild(eventNode('p', '사유: ' + proposal.reason));
+          const refs = proposal.evidenceIds.map(id => id + ' — ' + evidenceById.get(id)).join(' / ');
+          item.appendChild(eventNode('p', '근거: ' + refs));
+          item.appendChild(eventNode('p', '사람 확인이 필요하며 아직 실행되지 않았습니다.', 'muted'));
+          proposalList.appendChild(item);
+        }
+        content.appendChild(proposalList);
+      }
+      content.appendChild(eventNode('p', '이 AI 설명과 제안만으로 보안 조치는 실행되지 않습니다.', 'muted'));
+
       view.setAttribute('data-student-explanation-event', eventId);
-      view.appendChild(eventNode('p', '사건 ID: ' + eventId));
-      view.appendChild(eventNode('p', 'AI 설명(참고용)'));
-      view.appendChild(eventNode('p', summary));
+      view.appendChild(content);
       return view;
     },
     renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
