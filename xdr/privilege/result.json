@@ -6,61 +6,61 @@
       "alertId": "pv-01",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-02",
       "action": "block",
       "confidence": 0.96,
-      "reason": "recent_elevation_then_admin_command: 권한 상승 직후 관리자 명령 — 확인 근거: 성공한 권한 상승 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "recent_elevation_then_admin_command: 권한 상승 직후 관리자 명령 — 확인 근거: 성공한 권한 상승 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-03",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 낯선 주소 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 낯선 주소 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-04",
       "action": "block",
       "confidence": 0.96,
-      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — 확인 근거: 권한 상승·변경 표현 확인; 관리자 그룹 추가 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — 확인 근거: 권한 상승·변경 표현 확인; 관리자 그룹 추가 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-05",
       "action": "block",
       "confidence": 0.9,
-      "reason": "bulk_admin_group_addition: 단일 경보의 대량 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "bulk_admin_group_addition: 단일 경보의 대량 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-06",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 낯선 주소 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 낯선 주소 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-07",
       "action": "block",
       "confidence": 0.96,
-      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-08",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 다른 계정 권한 사용 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 다른 계정 권한 사용 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-09",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 그룹 제거 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 그룹 제거 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-10",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 실패·오류·거부·취소 신호 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 실패·오류·거부·취소 신호 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-11",
@@ -70,9 +70,9 @@
     },
     {
       "alertId": "pv-12",
-      "action": "record",
-      "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 경보 설명에 평소·정상·승인된 활동 맥락이 명시됨; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 정상 사용을 뒷받침하는 명시적 승인 근거가 없어 alert로 분류함. 이상 징후가 명시되지 않았다는 사실이나 평소 주소라는 표현만으로 정상이라고 판단하지 않음. 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-13",
@@ -84,7 +84,7 @@
       "alertId": "pv-14",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 명령 미실행 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 명령 미실행 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-15",
@@ -96,7 +96,7 @@
       "alertId": "pv-16",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 실패·오류·거부·취소 신호 확인; 명령 미실행 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 실패·오류·거부·취소 신호 확인; 명령 미실행 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-17",
@@ -161,7 +161,7 @@
   ],
   "counts": {
     "block": 4,
-    "alert": 8,
-    "record": 14
+    "alert": 9,
+    "record": 13
   }
 }

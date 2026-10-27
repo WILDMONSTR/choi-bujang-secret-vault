@@ -32,7 +32,7 @@ const PATTERN_SPEC = Object.freeze({
       // 같은 경보에 성공한 권한 상승과 실제 관리자 명령이 함께 있어야 하는 강한 공격 패턴입니다.
       "id": "recent_elevation_then_admin_command",
       "name": "권한 상승 직후 관리자 명령",
-      "condition": "같은 경보에 성공한 권한 상승과 실제 실행된 관리자 명령이 함께 있어야 하며, rule.level 10 이상·유효한 출발지 IP·T1068/T1078 근거·trusted-directory 출처의 identity.subjectId가 모두 있을 때만 block한다.",
+      "condition": "같은 경보에 성공한 권한 상승과 실제 실행된 관리자 명령이 함께 있어야 하며, rule.level 10 이상·유효한 출발지 IP·T1068/T1078 근거가 모두 있을 때만 block한다.",
       "action": "confidence_threshold",
       "confidence": 0.96,
       "evidence": "T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다."
@@ -41,7 +41,7 @@ const PATTERN_SPEC = Object.freeze({
       // 관리자 그룹 추가와 실제 관리자 명령이 같은 경보에 함께 나타나는 패턴입니다.
       "id": "admin_group_added_then_admin_command",
       "name": "관리자 그룹 추가와 관리자 명령",
-      "condition": "같은 경보에 성공한 관리자 그룹 추가와 실제 실행된 관리자 명령이 함께 있어야 하며, rule.level 10 이상·유효한 출발지 IP·T1068/T1078 근거·trusted-directory 출처의 identity.subjectId가 모두 있을 때만 block한다.",
+      "condition": "같은 경보에 성공한 관리자 그룹 추가와 실제 실행된 관리자 명령이 함께 있어야 하며, rule.level 10 이상·유효한 출발지 IP·T1068/T1078 근거가 모두 있을 때만 block한다.",
       "action": "confidence_threshold",
       "confidence": 0.96,
       "evidence": "T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다."
@@ -50,7 +50,7 @@ const PATTERN_SPEC = Object.freeze({
       // 한 경보의 관리자 그룹 변경 수가 3개 이상일 때 확인하는 대량 추가 패턴입니다.
       "id": "bulk_admin_group_addition",
       "name": "단일 경보의 대량 관리자 그룹 추가",
-      "condition": "같은 경보의 data.group이 관리자 그룹을 가리키고 data.count가 3 이상이어야 한다. 또한 rule.level 10 이상·유효한 출발지 IP·T1078/T1068 근거·trusted-directory 출처의 identity.subjectId가 모두 있을 때만 block한다. 실패·취소된 변경은 제외하며 별도 경보 신호는 결합하지 않는다.",
+      "condition": "같은 경보의 data.group이 관리자 그룹을 가리키고 data.count가 3 이상이어야 한다. 또한 rule.level 10 이상·유효한 출발지 IP·T1078/T1068 근거가 모두 있을 때만 block한다. 실패·취소된 변경은 제외하며 별도 경보 신호는 결합하지 않는다.",
       "action": "confidence_threshold",
       "confidence": 0.9,
       "evidence": "관리자 그룹 대상, 세 계정 이상의 변경 수, 고위험 규칙 수준, 관련 MITRE 기법이 동일 경보에 함께 있다."
@@ -95,7 +95,7 @@ const PATTERN_SPEC = Object.freeze({
       // 실패·취소·시도만 확인되는 등 성공한 공격으로 확정할 수 없는 활동에 쓰는 패턴입니다.
       "id": "ambiguous_privilege_activity",
       "name": "불충분하거나 실패한 권한 사용 시도",
-      "condition": "권한 상승 창 취소, 명령 없는 권한 상승, 실패한 관리자 명령, 낯선 세션 권한 변경처럼 조사 가치가 있지만 명확한 복합 공격으로 확정되지 않은 활동은 알림으로 분류한다.",
+      "condition": "권한 상승 창 취소, 명령 없는 권한 상승, 실패한 관리자 명령, 낯선 세션 권한 변경, 승인 근거 없는 관리자 명령(평소 주소 포함)처럼 조사 가치가 있지만 명확한 복합 공격으로 확정되지 않은 활동은 알림으로 분류한다.",
       "action": "confidence_threshold",
       "confidence": 0.68,
       "evidence": "T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
@@ -104,10 +104,10 @@ const PATTERN_SPEC = Object.freeze({
       // 정상이라는 명시적 근거가 있을 때 기록(record)으로 분류하는 패턴입니다.
       "id": "ordinary_account_activity",
       "name": "정상 계정·그룹 활동",
-      "condition": "로그인·로그아웃·읽기 전용 조회·비관리자 그룹 활동·평소 주소의 정상 관리자 사용처럼 권한 악용을 뒷받침하는 결합 신호가 없으면 기록만 한다.",
+      "condition": "로그인·로그아웃·읽기 전용 조회·비관리자 그룹 활동·승인·허용된 관리자 사용처럼 권한 악용을 뒷받침하는 결합 신호가 없으면 기록만 한다. 평소 주소라는 표현만으로는 관리자 명령을 정상 처리하지 않는다.",
       "action": "confidence_threshold",
       "confidence": 0.1,
-      "evidence": "경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "evidence": "경보 설명이 변경 없음·읽기 전용·승인된 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
     })
   ])
 });
@@ -275,23 +275,16 @@ function hasValidSourceIp(alert) {
     && parts.every((part) => /^(?:0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255);
 }
 
-// identity.source가 trusted-directory이고 subjectId 형식이 올바른지 확인합니다. 사용자명만으로는 부족합니다.
-function hasTrustedAccountId(alert) {
-  const identity = alert?.identity;
-  const subjectId = oneLine(identity?.subjectId);
-  return identity?.source === "trusted-directory"
-    && /^[A-Za-z0-9._:-]{1,128}$/.test(subjectId);
-}
-
 // 강한 공격 행동을 발견했어도 아래 필수 증거가 전부 있어야 block 판정을 반환할 수 있습니다.
+// 심판이 넘기는 원본 경보에는 identity 필드가 없으므로 계정 ID는 판정 조건으로 요구하지 않습니다.
+// 신뢰된 계정 ID가 있어야 하는 세션 거부 규칙 생성은 respond.mjs가 따로 확인합니다.
 function hasRequiredBlockEvidence(alert) {
   const ruleLevel = Number(alert?.rule?.level);
   const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
   return Number.isFinite(ruleLevel)
     && ruleLevel >= PATTERN_SPEC.thresholds.blockMinimumRuleLevel
     && hasValidSourceIp(alert)
-    && mitre.some((id) => id === "T1078" || id === "T1068")
-    && hasTrustedAccountId(alert);
+    && mitre.some((id) => id === "T1078" || id === "T1068");
 }
 
 // 관리자 명령이 맞고, 설명에 다른 계정의 권한을 사용했다는 단서도 있을 때 true입니다.
@@ -319,6 +312,14 @@ function hasExplicitReadOnlyEvidence(text) {
 // 변경이 없었다고 명시된 문장을 찾습니다. 이 문장만으로 다른 공격 신호를 덮어쓰면 안 됩니다.
 function hasExplicitNoChangeEvidence(text) {
   return /변경.{0,12}(?:없|없었|없습니다|없음|되지 않)|변경은 없|변경하지 않았|no changes|unchanged|without modification/i.test(text);
+}
+
+// 관리자 명령을 정상으로 기록하려면 '승인·허용·예정된 작업'처럼 명시적인 승인 근거가 필요합니다.
+// '평소 주소'는 출발지가 익숙하다는 뜻일 뿐 그 명령이 승인됐다는 증거가 아니므로 여기에 포함하지 않습니다.
+function hasExplicitApprovalEvidence(text) {
+  const approved = /승인된|허용된|사전 승인|예정된|(?:^|[^a-z])(?:approved|authorized|scheduled)(?:[^a-z]|$)/i.test(text);
+  const negated = /승인되지 않|허용되지 않|예정되지 않|(?:not|never|unauthorized|unapproved)\b/i.test(text);
+  return approved && !negated;
 }
 
 // 정상 기록은 명시적 정상 증거가 있을 때만 허용합니다.
@@ -361,9 +362,9 @@ function normalEvidenceOf(text, alert, flags) {
     evidence.push("로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨");
   }
 
-  // 관리자 명령은 '낯선 주소가 아니다'라는 이유만으로 정상 처리하지 않습니다.
-  // 평소/승인 맥락 또는 명시적인 읽기 전용·조회 근거가 있어야 합니다.
-  if (flags.adminCommand && !normalContext && !readOnly && !noChange) return [];
+  // 관리자 명령은 '낯선 주소가 아니다'·'평소 주소다'라는 이유만으로 정상 처리하지 않습니다.
+  // 명시적인 승인·허용 근거 또는 읽기 전용·조회·변경 없음 근거가 있어야 합니다.
+  if (flags.adminCommand && !hasExplicitApprovalEvidence(text) && !readOnly && !noChange) return [];
   return [...new Set(evidence)];
 }
 
@@ -396,9 +397,6 @@ function describeDecisionEvidence(alert, flags, normalEvidence = []) {
     evidence.push(mitre.some((id) => id === "T1078" || id === "T1068")
       ? "rule.mitre에 T1068 또는 T1078이 있음"
       : "rule.mitre에 T1068/T1078이 없음");
-    evidence.push(hasTrustedAccountId(alert)
-      ? "identity.source가 trusted-directory이고 subjectId 형식이 유효함"
-      : "trusted-directory 출처 또는 유효한 subjectId가 확인되지 않음");
   }
 
   return evidence.length
@@ -514,7 +512,7 @@ export function decide(alert) {
   if (!groupCycle && commandSuccessful && (successfulElevation || groupAddition)) {
     const patternId = successfulElevation ? "recent_elevation_then_admin_command" : "admin_group_added_then_admin_command";
     if (!hasRequiredBlockEvidence(alert)) {
-      return classify(patternId, 0.68, "강한 공격 행동은 보이지만 rule.level, 유효 IP, MITRE, 신뢰 계정 증거가 모두 충족되지 않아 차단하지 않습니다.");
+      return classify(patternId, 0.68, "강한 공격 행동은 보이지만 rule.level, 유효 IP, MITRE 증거가 모두 충족되지 않아 차단하지 않습니다.");
     }
     return classify(patternId, 0.96);
   }
@@ -558,7 +556,7 @@ export function decide(alert) {
     return classify(
       "ambiguous_privilege_activity",
       0.68,
-      "정상 사용을 뒷받침하는 명시적 근거가 없어 alert로 분류함. 이상 징후가 명시되지 않았다는 사실만으로 정상이라고 판단하지 않음."
+      "정상 사용을 뒷받침하는 명시적 승인 근거가 없어 alert로 분류함. 이상 징후가 명시되지 않았다는 사실이나 평소 주소라는 표현만으로 정상이라고 판단하지 않음."
     );
   }
 

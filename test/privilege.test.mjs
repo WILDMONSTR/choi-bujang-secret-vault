@@ -30,7 +30,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
     ["pv-09", "alert"],
     ["pv-10", "alert"],
     ["pv-11", "record"],
-    ["pv-12", "record"],
+    ["pv-12", "alert"],
     ["pv-13", "record"],
     ["pv-14", "alert"],
     ["pv-15", "record"],
@@ -52,7 +52,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
       counts[expectedActions.get(alert.id)] += 1;
       return counts;
     }, { block: 0, alert: 0, record: 0 }),
-    { block: 4, alert: 8, record: 14 }
+    { block: 4, alert: 9, record: 13 }
   );
 
   for (const alert of fixture.alerts) {
@@ -69,6 +69,18 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
       assert.ok(result.reason.length > 0);
       assert.doesNotMatch(result.reason, /user\\d{2}|acct-user/i);
     });
+  }
+});
+
+test("심판의 원본 경보처럼 identity 필드가 없어도 같은 판정을 반환한다", async () => {
+  const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
+  for (const alert of fixture.alerts) {
+    const { identity: _identity, ...withoutIdentity } = alert;
+    assert.deepEqual(
+      decidePrivilege(withoutIdentity),
+      decidePrivilege(alert),
+      `${alert.id}: identity 유무로 판정이 달라지면 안 됩니다`
+    );
   }
 });
 
