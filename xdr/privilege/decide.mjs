@@ -1,5 +1,5 @@
 // 독립 심판용 순수 판정기입니다. import, 파일 입출력, 패키지 호출을 하지 않습니다.
-// 패턴 ID·조건·확신도·근거는 patterns.json과 동일하게 유지합니다. 상관분석은 respond.mjs의 책임입니다.
+// 패턴 ID·조건·확신도·근거는 patterns.json과 동일하게 유지합니다. 여러 경보를 결합하는 상관분석은 respond.mjs와 사람의 역할입니다.
 // 심판은 이 파일 하나만 따로 불러 실행하므로 patterns.json을 import하지 않습니다.
 // 따라서 아래 PATTERN_SPEC은 patterns.json 규칙을 이 파일 안에 복사한 것입니다. 둘의 내용은 서로 맞아야 합니다.
 const PATTERN_SPEC = Object.freeze({
@@ -26,7 +26,7 @@ const PATTERN_SPEC = Object.freeze({
     "sessionRuleTtlSeconds": 900
   }),
   // 각 판정 유형의 ID, 이름, 조건, 기본 확신도, 설명을 보관합니다.
-  // decide(alert)는 한 건만 판단합니다. 여러 경보의 상관분석은 respond.mjs 쪽 책임입니다.
+  // decide(alert)는 한 건만 판단합니다. 여러 경보를 결합하는 상관분석은 respond.mjs와 사람의 역할입니다.
   patterns: Object.freeze([
     Object.freeze({
       // 같은 경보에 성공한 권한 상승과 실제 관리자 명령이 함께 있어야 하는 강한 공격 패턴입니다.
@@ -433,7 +433,7 @@ function output(patternId, confidence, evidenceNote) {
 }
 
 // 단일 경보 안의 설명·구조화 필드·결과 상태를 함께 평가합니다.
-// rule.level이나 MITRE 태그만으로 공격을 단정하지 않고, 다른 경보와도 상관분석하지 않습니다.
+// rule.level이나 MITRE 태그만으로 공격을 단정하지 않고, decide.mjs는 서로 다른 경보를 결합하지 않습니다. 여러 경보를 결합하는 상관분석은 respond.mjs와 사람의 역할입니다.
 // 심판/실행기가 호출하는 진입점입니다. 매번 경보 하나를 받고, 그 경보 하나의 결과만 돌려줍니다.
 export function decide(alert) {
   // 1단계: 경보 설명 문장과 상태 정보를 정리합니다.
