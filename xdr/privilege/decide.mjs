@@ -184,7 +184,7 @@ function hasAttemptCue(text) {
 function hasExplicitNonExecution(text) {
   if (!hasCommandMention(text)) return false;
   // A separate "no privilege change" statement must not be mistaken for "no command executed".
-  return /명령.{0,14}(?:미실행|실행.{0,4}(?:하지 않|못|되지 않|안)|취소|거부|실패|없(?:었습니다|습니다|음|다)?)|(?:미실행|실행 불가|실행되지|실행 안|실행하지 않|실행 못|취소|거부|실패).{0,14}(?:명령|command)|command.{0,24}(?:not run|not executed|never ran|was not executed|cancelled|canceled|denied|failed)|(?:no|without)\\s+(?:an?\\s+)?(?:admin(?:istrator)?\\s+|privileged\\s+|elevated\\s+)?command/i.test(text);
+  return /명령.{0,14}(?:미실행|실행.{0,4}(?:하지 않|못|되지 않|안)|취소|거부|실패|없(?:었습니다|습니다|음|다)?)|(?:미실행|실행 불가|실행되지|실행 안|실행하지 않|실행 못|취소|거부|실패).{0,14}(?:명령|command)|command.{0,24}(?:not run|not executed|never ran|was not executed|cancelled|canceled|denied|failed)|(?:no|without)\s+(?:an?\\s+)?(?:admin(?:istrator)?\\s+|privileged\\s+|elevated\\s+)?command/i.test(text);
 }
 
 function hasAdminCommand(alert, text = descriptionOf(alert)) {
