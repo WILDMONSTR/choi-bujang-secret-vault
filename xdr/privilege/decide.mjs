@@ -239,48 +239,119 @@ function hasOtherAccountCommand(text, adminCommand) {
 }
 
 function isRoutineContext(text) {
-  return /평소|정상|승인된|허용된|예상된|일상|routine|usual|regular|known|trusted|approved|authorized|expected|legitimate|normal/i.test(text);
+  const positive = /평소|정상|승인된|허용된|예상된|일상|(?:^|[^a-z])(?:routine|usual|regular|known|trusted|approved|authorized|expected|legitimate|normal)(?:[^a-z]|$)/i.test(text);
+  const negated = /비정상|정상이 아니|정상적이지 않|정상.{0,10}(?:아니|않|어렵)|승인되지 않|허용되지 않|예상되지 않|평소.{0,10}(?:아니|않)|(?:not|never|isn't|is not|untrusted|unauthorized|unexpected|illegitimate|abnormal)\b/i.test(text);
+  return positive && !negated;
 }
 
 function isRoutineOperation(text) {
   return /로그인|로그아웃|sign(?:ed)?\s*in|sign(?:ed)?\s*out|log(?:ged)?\s*in|log(?:ged)?\s*out|비밀번호|password change|읽기만|읽기 전용|read.only|목록.{0,12}(?:조회|열람)|조회|열람|자기.{0,12}(?:계정|세션)|own (?:account|session)|자료실|예약 작업|scheduled task|task check|열었습니다|opened|viewed|listed|queried|looked up/i.test(text);
 }
 
-function isExplicitlyBenign(text, alert, flags) {
-  if (isExplicitlyNonAdminGroup(text)
-      && !flags.adminCommand && !flags.elevation && !flags.sessionElevation
-      && !flags.failed && !flags.attempted) return true;
-
-  const rawGroup = oneLine(alert?.data?.group ?? alert?.data?.target_group ?? alert?.group);
-  const nonAdminGroup = Boolean(rawGroup) && !isAdminGroupName(rawGroup);
-  if (nonAdminGroup
-      && !flags.adminCommand && !flags.elevation && !flags.sessionElevation
-      && !flags.failed && !flags.attempted) return true;
-
-  // 정상 맥락은 위험한 권한 변경·다른 계정 사용·실패/시도가 함께 있으면 우선하지 않습니다.
-  return (isRoutineContext(text) || isRoutineOperation(text))
-    && !flags.groupAddition && !flags.groupRemoval
-    && !flags.elevation && !flags.sessionElevation
-    && !flags.otherAccount && !flags.unfamiliarAddress
-    && !flags.offHours && !flags.failed && !flags.attempted;
+function hasExplicitReadOnlyEvidence(text) {
+  return /읽기만|읽기 전용|read.only|목록.{0,12}(?:조회|열람)|조회|열람|listed|queried|looked up/i.test(text);
 }
 
+function hasExplicitNoChangeEvidence(text) {
+  return /변경.{0,12}(?:없|없었|없습니다|없음|되지 않)|변경은 없|변경하지 않았|no changes|unchanged|without modification/i.test(text);
+}
+
+// 정상 기록은 명시적 정상 증거가 있을 때만 허용합니다.
+// 이상 징후가 적혀 있지 않다는 사실만으로는 정상 증거가 되지 않습니다.
+function normalEvidenceOf(text, alert, flags) {
+  if (flags.groupAddition || flags.groupRemoval || flags.elevation
+      || flags.sessionElevation || flags.otherAccount || flags.unfamiliarAddress
+      || flags.offHours || flags.failed || flags.attempted || flags.nonExecution) {
+    return [];
+  }
+
+  const rawGroup = oneLine(alert?.data?.group ?? alert?.data?.target_group ?? alert?.group);
+  const nonAdminGroup = isExplicitlyNonAdminGroup(text)
+    || (Boolean(rawGroup) && !isAdminGroupName(rawGroup));
+
+  if (nonAdminGroup && !flags.adminCommand) {
+    return [isExplicitlyNonAdminGroup(text)
+      ? "경보 설명에 대상이 관리자 그룹이 아니라고 명시됨"
+      : "data.group이 관리자 그룹이 아닌 대상으로 확인됨"];
+  }
+
+  const evidence = [];
+  const normalContext = isRoutineContext(text);
+  const readOnly = hasExplicitReadOnlyEvidence(text);
+  const noChange = hasExplicitNoChangeEvidence(text);
+
+  if (normalContext) evidence.push("경보 설명에 평소·정상·승인된 활동 맥락이 명시됨");
+  if (readOnly) evidence.push("읽기 전용 또는 조회 작업이 명시됨");
+  if (noChange) evidence.push("권한·그룹 변경이 없었다고 명시됨");
+
+  // 일반 로그인/로그아웃 등은 명시된 활동 유형 자체가 정상 근거가 될 수 있습니다.
+  if (!flags.adminCommand && !hasCommandMention(text) && isRoutineOperation(text)) {
+    evidence.push("로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨");
+  }
+
+  // 관리자 명령은 '낯선 주소가 아니다'라는 이유만으로 정상 처리하지 않습니다.
+  // 평소/승인 맥락 또는 명시적인 읽기 전용·조회 근거가 있어야 합니다.
+  if (flags.adminCommand && !normalContext && !readOnly) return [];
+  return [...new Set(evidence)];
+}
+
+function describeDecisionEvidence(alert, flags, normalEvidence = []) {
+  const evidence = [...normalEvidence];
+  if (flags.successfulElevation) evidence.push("성공한 권한 상승 표현 확인");
+  else if (flags.elevation || flags.sessionElevation) evidence.push("권한 상승·변경 표현 확인");
+  if (flags.groupAddition) evidence.push("관리자 그룹 추가 표현 확인");
+  if (flags.groupRemoval) evidence.push("관리자 그룹 제거 표현 확인");
+  if (flags.adminCommand) evidence.push("관리자 명령 실행 또는 실행 실패 표현 확인");
+  if (flags.failed) evidence.push("실패·오류·거부·취소 신호 확인");
+  if (flags.attempted) evidence.push("시도-only 표현 확인");
+  if (flags.nonExecution) evidence.push("명령 미실행 표현 확인");
+  if (flags.otherAccount) evidence.push("다른 계정 권한 사용 표현 확인");
+  if (flags.unfamiliarAddress) evidence.push("낯선 주소 표현 확인");
+  if (flags.offHours) evidence.push("업무·수업 시간 외 표현 확인");
+
+  const privilegeSignal = flags.groupAddition || flags.groupRemoval
+    || flags.adminCommand || flags.elevation || flags.sessionElevation;
+  if (privilegeSignal) {
+    const ruleLevel = Number(alert?.rule?.level);
+    evidence.push(Number.isFinite(ruleLevel)
+      ? (ruleLevel >= 10 ? "rule.level 10 이상 확인" : "rule.level 10 미만이므로 차단 기준 미충족")
+      : "rule.level이 없거나 유효하지 않음");
+    evidence.push(hasValidSourceIp(alert)
+      ? "data.srcip이 유효한 IPv4 주소임"
+      : "data.srcip이 없거나 유효한 IPv4 주소가 아님");
+    const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
+    evidence.push(mitre.some((id) => id === "T1078" || id === "T1068")
+      ? "rule.mitre에 T1068 또는 T1078이 있음"
+      : "rule.mitre에 T1068/T1078이 없음");
+    evidence.push(hasTrustedAccountId(alert)
+      ? "identity.source가 trusted-directory이고 subjectId 형식이 유효함"
+      : "trusted-directory 출처 또는 유효한 subjectId가 확인되지 않음");
+  }
+
+  return evidence.length
+    ? evidence.join("; ")
+    : "분류를 뒷받침하는 구체적인 정상 또는 공격 근거가 확인되지 않음";
+}
 function patternById(id) {
   return PATTERN_SPEC.patterns.find((pattern) => pattern.id === id)
     ?? PATTERN_SPEC.patterns[PATTERN_SPEC.patterns.length - 1];
 }
 
-function output(patternId, confidence, reasonOverride) {
+function output(patternId, confidence, evidenceNote) {
   const pattern = patternById(patternId);
   const action = confidence >= PATTERN_SPEC.thresholds.blockMinimumConfidence
     ? "block"
     : confidence >= PATTERN_SPEC.thresholds.alertMinimumConfidence
       ? "alert"
       : "record";
+  const label = pattern.id + ": " + pattern.name;
+  const details = oneLine(evidenceNote);
   return {
     action,
     confidence,
-    reason: oneLine(reasonOverride || (pattern.id + ": " + pattern.name + " — " + pattern.evidence))
+    reason: details
+      ? oneLine(label + " — 확인 근거: " + details)
+      : oneLine(label + " — " + pattern.evidence)
   };
 }
 
@@ -308,13 +379,22 @@ export function decide(alert) {
   const bulkGroupAddition = isAdminGroupName(oneLine(alert?.data?.group))
     && groupAddition && Number.isFinite(count) && count >= 3;
   const flags = {
-    groupAddition, groupRemoval, adminCommand, elevation, sessionElevation,
-    failed, attempted, otherAccount, unfamiliarAddress, offHours
+    groupAddition, groupRemoval, adminCommand, elevation, successfulElevation,
+    sessionElevation, failed, attempted, nonExecution, otherAccount,
+    unfamiliarAddress, offHours
   };
+  const normalEvidence = normalEvidenceOf(text, alert, flags);
+  const observedEvidence = describeDecisionEvidence(alert, flags, normalEvidence);
+  const classify = (patternId, confidence, note = "") =>
+    output(patternId, confidence, [note, observedEvidence].filter(Boolean).join(" "));
 
-  // 정상 대조 이벤트는 경보 수준이나 MITRE 태그만으로 알림/차단으로 올리지 않습니다.
-  if (isExplicitlyBenign(text, alert, flags)) {
-    return output("ordinary_account_activity", 0.10);
+  // record는 경보 안에서 확인된 정상 근거가 있을 때만 반환합니다.
+  if (normalEvidence.length > 0) {
+    return classify(
+      "ordinary_account_activity",
+      0.10,
+      "명시적인 정상 활동 근거가 확인되어 record로 분류함."
+    );
   }
 
   const privilegeRelevant = isAdminGroupTarget || groupAddition || groupRemoval
@@ -323,16 +403,16 @@ export function decide(alert) {
 
   // 실패·취소·미실행·시도-only는 공격 성공으로 간주하지 않습니다.
   if (privilegeRelevant && (failed || attempted || nonExecution)) {
-    return output("ambiguous_privilege_activity", 0.68);
+    return classify("ambiguous_privilege_activity", 0.68);
   }
 
   // patterns.json의 강한 단일 경보 패턴만 차단 후보로 삼고, 모든 필수 증거를 차단 직전에 확인합니다.
   if (!groupCycle && commandSuccessful && (successfulElevation || groupAddition)) {
     const patternId = successfulElevation ? "recent_elevation_then_admin_command" : "admin_group_added_then_admin_command";
     if (!hasRequiredBlockEvidence(alert)) {
-      return output(patternId, 0.68, "강한 공격 행동은 보이지만 rule.level, 유효 IP, MITRE, 신뢰 계정 증거가 모두 충족되지 않아 차단하지 않습니다.");
+      return classify(patternId, 0.68, "강한 공격 행동은 보이지만 rule.level, 유효 IP, MITRE, 신뢰 계정 증거가 모두 충족되지 않아 차단하지 않습니다.");
     }
-    return output(patternId, 0.96);
+    return classify(patternId, 0.96);
   }
 
   // 업무 외 시간·낯선 주소·명령 조합만으로는 patterns.json의 block 조건이 아니므로 여기서 차단하지 않습니다.
@@ -341,31 +421,40 @@ export function decide(alert) {
   // 대량 관리자 그룹 추가는 data.group과 data.count 조건 및 모든 필수 증거를 같은 경보에서 확인합니다.
   if (!groupCycle && bulkGroupAddition && !failed && !attempted && !nonExecution) {
     if (!hasRequiredBlockEvidence(alert)) {
-      return output("bulk_admin_group_addition", 0.68, "대량 관리자 그룹 추가 신호는 있으나 필수 차단 증거가 부족해 차단하지 않습니다.");
+      return classify("bulk_admin_group_addition", 0.68, "대량 관리자 그룹 추가 신호는 있으나 필수 차단 증거가 부족해 차단하지 않습니다.");
     }
-    return output("bulk_admin_group_addition", 0.90);
+    return classify("bulk_admin_group_addition", 0.90);
   }
 
   // 제거 후 재추가가 포함된 순환·불명확한 변경은 한 번의 성공적 추가로 간주하지 않습니다.
-  if (groupCycle) return output("ambiguous_privilege_activity", 0.68);
+  if (groupCycle) return classify("ambiguous_privilege_activity", 0.68);
 
   // 단독 관리자 그룹 추가는 위험 신호이지만 다른 강한 신호가 없으므로 alert로 남깁니다.
-  if (groupAddition && !groupRemoval) return output("admin_group_addition", 0.68);
-  if (groupRemoval) return output("ambiguous_privilege_activity", 0.68);
+  if (groupAddition && !groupRemoval) return classify("admin_group_addition", 0.68);
+  if (groupRemoval) return classify("ambiguous_privilege_activity", 0.68);
 
   // 낯선 주소 또는 다른 계정의 관리자 명령은 단독으로 차단하지 않고 alert로 남깁니다.
   if (otherAccount || (adminCommand && unfamiliarAddress)) {
-    return output("unfamiliar_admin_command", 0.68);
+    return classify("unfamiliar_admin_command", 0.68);
   }
   if (offHours && (adminCommand || isAdminGroupTarget || elevation || sessionElevation)) {
-    return output("off_hours_privilege_use", 0.72);
+    return classify("off_hours_privilege_use", 0.72);
   }
-  if (sessionElevation || elevation) return output("ambiguous_privilege_activity", 0.68);
+  if (sessionElevation || elevation) return classify("ambiguous_privilege_activity", 0.68);
 
-  // 정상 주소에서 단독으로 실행된 일반 관리자 명령은 정상 대조 활동으로 기록합니다.
+  // 낯선 주소·업무 외 시간 신호가 없더라도 정상 활동 근거가 없으면 record로 낮추지 않습니다.
   if (adminCommand && !otherAccount && !unfamiliarAddress && !offHours) {
-    return output("ordinary_account_activity", 0.10);
+    return classify(
+      "ambiguous_privilege_activity",
+      0.68,
+      "정상 사용을 뒷받침하는 명시적 근거가 없어 alert로 분류함. 이상 징후가 명시되지 않았다는 사실만으로 정상이라고 판단하지 않음."
+    );
   }
 
-  return output("ordinary_account_activity", 0.10);
+  // 정상 근거가 없고 확정 공격 패턴도 충족하지 않은 미분류 경보는 조사 알림으로 남깁니다.
+  return classify(
+    "ambiguous_privilege_activity",
+    0.68,
+    "명시적 정상 근거와 확정 공격 패턴이 모두 충분하지 않아 record가 아닌 alert로 분류함."
+  );
 }
