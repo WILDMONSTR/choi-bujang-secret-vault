@@ -6,162 +6,162 @@
       "alertId": "pv-01",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — T1078은 계정 권한 변경이 유효 계정 악용과 연결될 수 있음을 뒷받침하지만 단독 그룹 변경만으로 악용을 확정하지 않는다."
+      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-02",
       "action": "block",
       "confidence": 0.96,
-      "reason": "recent_elevation_then_admin_command: 권한 상승 직후 관리자 명령 — T1068은 권한 상승 악용 기법이며, T1078은 유효 계정 악용의 맥락을 뒷받침한다."
+      "reason": "recent_elevation_then_admin_command: 권한 상승 직후 관리자 명령 — 확인 근거: 성공한 권한 상승 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-03",
-      "action": "block",
-      "confidence": 0.96,
-      "reason": "off_hours_privilege_use: 업무 시간 밖 권한 사용 — T1078은 비정상적인 유효 계정 사용의 맥락을, T1068은 권한 상승 악용의 맥락을 뒷받침한다. ATT&CK은 이 조합의 숫자 확신도를 정하지 않으므로 0.96은 아래의 강한 3신호 조합에만 적용하는 로컬 점수다."
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 낯선 주소 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-04",
       "action": "block",
       "confidence": 0.96,
-      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다."
+      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — 확인 근거: 권한 상승·변경 표현 확인; 관리자 그룹 추가 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-05",
       "action": "block",
       "confidence": 0.9,
-      "reason": "bulk_admin_group_addition: 단일 경보의 대량 관리자 그룹 추가 — T1078은 유효 계정 악용 맥락만 뒷받침하며, 3계정 임계값은 외부 표준이 아니라 대량 변경과 단독 변경을 나누기 위한 명시적 로컬 휴리스틱이다. fixture pv-05의 count 4가 그 적용 예다."
+      "reason": "bulk_admin_group_addition: 단일 경보의 대량 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-06",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 낯선 주소 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-07",
       "action": "block",
       "confidence": 0.96,
-      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — T1078은 유효 계정의 악용을, T1068은 관리자 권한 상승 악용을 설명하는 MITRE ATT&CK 기법이다."
+      "reason": "admin_group_added_then_admin_command: 관리자 그룹 추가와 관리자 명령 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 명령 실행 또는 실행 실패 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-08",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — T1078은 정상 계정의 비정상적 사용이 계정 악용 가능성을 나타낼 수 있음을 설명한다."
+      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 다른 계정 권한 사용 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-09",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 그룹 제거 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-10",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 실패·오류·거부·취소 신호 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-11",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 경보 설명에 대상이 관리자 그룹이 아니라고 명시됨"
     },
     {
       "alertId": "pv-12",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 경보 설명에 평소·정상·승인된 활동 맥락이 명시됨; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-13",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 읽기 전용 또는 조회 작업이 명시됨; 권한·그룹 변경이 없었다고 명시됨; 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-14",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 명령 미실행 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-15",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. data.group이 관리자 그룹이 아닌 대상으로 확인됨"
     },
     {
       "alertId": "pv-16",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 결과가 불명확하거나 실패·취소된 권한 사용 시도 — T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 실패·오류·거부·취소 신호 확인; 명령 미실행 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음; identity.source가 trusted-directory이고 subjectId 형식이 유효함"
     },
     {
       "alertId": "pv-17",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. data.group이 관리자 그룹이 아닌 대상으로 확인됨"
     },
     {
       "alertId": "pv-18",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-19",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 읽기 전용 또는 조회 작업이 명시됨; 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-20",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-21",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 경보 설명에 평소·정상·승인된 활동 맥락이 명시됨; 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-22",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-23",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 읽기 전용 또는 조회 작업이 명시됨; 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-24",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-25",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 경보 설명에 평소·정상·승인된 활동 맥락이 명시됨; 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-26",
       "action": "record",
       "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 경보 설명이 변경 없음·읽기 전용·정상 주소 활동을 명시하고 T1068/T1078의 악용 신호가 결합되지 않으면 공격으로 올릴 근거가 없다."
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     }
   ],
   "counts": {
-    "block": 5,
-    "alert": 7,
+    "block": 4,
+    "alert": 8,
     "record": 14
   }
 }
