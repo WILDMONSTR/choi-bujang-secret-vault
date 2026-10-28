@@ -1,4 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
+import {checkPrivilegeSessionDeny} from '../xdr/privilege/respond.mjs';
 import {createLoginVerifier} from './verify-login.mjs';
 import {isTrustedBrowserOrigin,readSessionCookies} from './session-cookies.mjs';
 
@@ -86,6 +87,20 @@ export async function requireResourceIdentity(req,res,config){
     }
   }catch{
     sendResourceError(res,401,'UNAUTHORIZED');
+    return null;
+  }
+
+  // Apply active PRIVILEGE deny rules to the verified identity on every protected API route.
+  // The subject comes only from the verified access token, never the request body.
+  try {
+    const denied=await checkPrivilegeSessionDeny(id.userId,new Date(),ctx.supabase);
+    if(denied){
+      sendResourceError(res,403,'XDR_PRIVILEGE_DENIED');
+      return null;
+    }
+  }catch{
+    // Do not silently bypass the gate if the shared rule store is unavailable.
+    sendResourceError(res,503,'XDR_PRIVILEGE_CHECK_UNAVAILABLE');
     return null;
   }
 
