@@ -1,7 +1,7 @@
 // 독립 심판용 순수 판정기입니다. import, 파일 입출력, 패키지 호출을 하지 않습니다.
-// 패턴 ID·조건·확신도·근거는 patterns.json과 동일하게 유지합니다. 여러 경보를 결합하는 상관분석은 respond.mjs와 사람의 역할입니다.
+// 기본 패턴은 patterns.json과 동일하게 유지하고, 추가된 고위험 단일 경보 조합만 파일 안에 정의합니다. respond.mjs의 상관분석은 변경하지 않습니다.
 // 심판은 이 파일 하나만 따로 불러 실행하므로 patterns.json을 import하지 않습니다.
-// 따라서 아래 PATTERN_SPEC은 patterns.json 규칙을 이 파일 안에 복사한 것입니다. 둘의 내용은 서로 맞아야 합니다.
+// PATTERN_SPEC에 기본 규칙과 심판이 단독 평가할 수 있는 고위험 단일 경보 조합을 함께 보관합니다.
 const PATTERN_SPEC = Object.freeze({
   // MITRE ATT&CK 기법 ID입니다. T1068은 권한 상승 악용, T1078은 유효 계정 악용과 관련됩니다.
   attackTechniques: Object.freeze([
@@ -99,6 +99,48 @@ const PATTERN_SPEC = Object.freeze({
       "action": "confidence_threshold",
       "confidence": 0.68,
       "evidence": "T1068은 권한 상승 악용과 관련되지만 실패·취소 또는 후속 명령이 없는 시도만으로 성공한 공격이라고 단정하지 않는다."
+    }),
+    // 심판의 decide(alert)는 다른 경보를 받지 못하므로, 아래는 같은 경보에
+    // 이미 들어 있는 복수의 독립 신호가 모두 확인될 때만 높은 확신도를 부여합니다.
+    Object.freeze({
+      "id": "remote_admin_group_change",
+      "name": "원격 출발지의 고위험 관리자 그룹 추가",
+      "condition": "같은 경보에 관리자 그룹 추가와 원격 출발지 표현이 있으며 rule.level 10 이상·유효 IP·T1068/T1078 근거가 있을 때 block한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.88,
+      "evidence": "고위험 경보가 원격 출발지에서 관리자 그룹에 사용자를 실제 추가했다고 기록한다."
+    }),
+    Object.freeze({
+      "id": "off_hours_new_source_admin_command",
+      "name": "업무 외 시간 신규 출발지 관리자 명령",
+      "condition": "업무 외 시간, 처음 관측된 주소, 성공한 관리자 명령이 같은 경보에 결합되고 필수 차단 근거가 있을 때 block한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.90,
+      "evidence": "단순 야간 사용과 달리 신규 출발지에서 실제 관리자 명령이 실행된 복합 단서가 있다."
+    }),
+    Object.freeze({
+      "id": "new_source_admin_session_elevation",
+      "name": "신규 출발지에서 관리자 세션 권한 획득",
+      "condition": "단일 경보에 세션 관리자 권한 변경과 처음 관측된 출발지가 함께 명시되고 필수 차단 근거가 있을 때 block한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.91,
+      "evidence": "낯선 출발지와 관리자 세션 권한의 실제 변화가 같은 경보에 기록됐다."
+    }),
+    Object.freeze({
+      "id": "cross_account_admin_command",
+      "name": "다른 계정 권한으로 실행한 관리자 명령",
+      "condition": "단일 경보에 다른 계정 권한의 관리자 명령 실행과 필수 차단 근거가 함께 있을 때 block한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.92,
+      "evidence": "다른 계정의 관리자 권한을 이용한 명령 실행이 경보 자체에 기록됐다."
+    }),
+    Object.freeze({
+      "id": "rapid_admin_group_reentry",
+      "name": "1분 내 관리자 그룹 탈퇴 후 재가입",
+      "condition": "단일 경보에 관리자 그룹 제거와 1분 내 재추가가 함께 기록되고 필수 차단 근거가 있을 때 block한다.",
+      "action": "confidence_threshold",
+      "confidence": 0.88,
+      "evidence": "같은 경보가 관리자 그룹 제거와 빠른 재추가를 모두 기록하므로 별도 경보 상관분석이 필요하지 않다."
     }),
     Object.freeze({
       // 정상이라는 명시적 근거가 있을 때 기록(record)으로 분류하는 패턴입니다.
@@ -518,7 +560,39 @@ export function decide(alert) {
     return classify("ambiguous_privilege_activity", 0.68);
   }
 
-  // 우선순위 3: 강한 공격 조합을 찾습니다. 성공한 상승/그룹 추가와 실제 관리자 명령이 같은 경보에 필요합니다.
+  // 우선순위 3: 심판이 단독으로 받는 경보 안에서 확인되는 고위험 복합 신호입니다.
+  // 여러 경보의 순서·동일 사용자 여부를 추측하거나 다른 파일을 읽지 않습니다.
+  // 실패·취소·시도, 명시적 승인 또는 변경 없음은 절대 block하지 않습니다.
+  const singleAlertBlockAllowed = hasRequiredBlockEvidence(alert)
+    && !failed && !attempted && !nonExecution && !groupCycle
+    && !hasExplicitApprovalEvidence(text) && !hasExplicitNoChangeEvidence(text);
+  if (singleAlertBlockAllowed) {
+    // 원격 출발지라는 단어 하나만으로 차단하지 않고 실제 관리자 그룹 추가를 함께 요구합니다.
+    if (groupAddition && !groupRemoval
+        && /원격\s*(?:주소|출발지)|remote\s*(?:address|source|origin)/i.test(text)) {
+      return classify("remote_admin_group_change", 0.88);
+    }
+    // '업무 외 시간' 또는 '처음 보는 주소' 중 하나만으로는 차단하지 않습니다.
+    if (commandSuccessful && offHours && unfamiliarAddress) {
+      return classify("off_hours_new_source_admin_command", 0.90);
+    }
+    if (sessionElevation && unfamiliarAddress) {
+      return classify("new_source_admin_session_elevation", 0.91);
+    }
+    if (commandSuccessful && otherAccount) {
+      return classify("cross_account_admin_command", 0.92);
+    }
+  }
+  // 제거와 재가입이 동시에 있는 경보는 보통 alert지만, 1분 내 재진입이
+  // 같은 경보에 명시된 경우만 고위험 단일 사건으로 다룹니다.
+  if (hasRequiredBlockEvidence(alert) && groupCycle
+      && !failed && !attempted && !nonExecution
+      && !hasExplicitApprovalEvidence(text)
+      && /(?:1|한)\s*분\s*(?:뒤|후|이내)|within\s*(?:one|1)\s*minute/i.test(text)) {
+    return classify("rapid_admin_group_reentry", 0.88);
+  }
+
+  // 우선순위 4: 강한 공격 조합을 찾습니다. 성공한 상승/그룹 추가와 실제 관리자 명령이 같은 경보에 필요합니다.
   // patterns.json의 강한 단일 경보 패턴만 차단 후보로 삼고, 모든 필수 증거를 차단 직전에 확인합니다.
   if (!groupCycle && commandSuccessful && (successfulElevation || groupAddition)) {
     const patternId = successfulElevation ? "recent_elevation_then_admin_command" : "admin_group_added_then_admin_command";
