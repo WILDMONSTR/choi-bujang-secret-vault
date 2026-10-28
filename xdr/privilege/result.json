@@ -18,7 +18,7 @@
       "alertId": "pv-03",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 낯선 주소 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "reason": "unfamiliar_admin_command: 처음 관측된 관리자 명령 또는 낯선 출발지·계정 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 낯선 주소 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-04",
@@ -48,7 +48,7 @@
       "alertId": "pv-08",
       "action": "alert",
       "confidence": 0.68,
-      "reason": "unfamiliar_admin_command: 낯선 주소 또는 다른 계정의 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 다른 계정 권한 사용 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "reason": "unfamiliar_admin_command: 처음 관측된 관리자 명령 또는 낯선 출발지·계정 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 다른 계정 권한 사용 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-09",
