@@ -538,9 +538,24 @@ export function decide(alert) {
   const classify = (patternId, confidence, note = "") =>
     output(patternId, confidence, [note, observedEvidence].filter(Boolean).join(" "));
 
+  // 명시적인 정상 문맥처럼 보여도, 권한 악용 기법(T1068/T1078)으로
+  // 탐지된 사건은 확인된 승인 근거가 없는 한 정상이라고 확정하지 않습니다.
+  // 특히 비관리자 그룹 작업·자기 계정 조회·읽기 전용 작업은 공격으로
+  // 단정할 수 없으므로 block이 아니라 개별 alert로만 분류합니다.
+  // MITRE 태그가 없는 일반 로그인·로그아웃·조회 등은 record를 유지합니다.
+  const mitre = Array.isArray(alert?.rule?.mitre) ? alert.rule.mitre : [];
+  const taggedPrivilegeActivity = mitre.some((id) => id === "T1068" || id === "T1078");
+  if (normalEvidence.length > 0
+      && taggedPrivilegeActivity
+      && !hasExplicitApprovalEvidence(text)) {
+    return classify(
+      "ambiguous_privilege_activity",
+      PATTERN_SPEC.patterns.find((pattern) => pattern.id === "ambiguous_privilege_activity").confidence,
+      "MITRE T1068/T1078 권한 활동으로 분류된 경보지만 승인 근거와 공격 성공을 입증할 신호가 충분하지 않아 단독 alert로 조사함."
+    );
+  }
+
   // 우선순위 1: 명시적 정상 근거가 있을 때만 record를 반환합니다.
-  // record는 경보 안에서 확인된 정상 근거가 있을 때만 반환합니다.
-  // record는 경보 안에서 확인된 정상 근거가 있을 때만 반환합니다.
   if (normalEvidence.length > 0) {
     return classify(
       "ordinary_account_activity",
