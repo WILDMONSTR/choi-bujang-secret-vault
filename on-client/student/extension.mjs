@@ -794,7 +794,7 @@ export function createStudentView() {
         const rawCode = eventScalar(error.code);
         const code = /^[A-Z][A-Z0-9_]{0,79}$/.test(rawCode) ? rawCode : 'AI_REQUEST_UNVERIFIED';
         const rawMessage = eventScalar(error.message).trim().slice(0, 800);
-        const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+      const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
         const message = rawMessage && !secretPattern.test(rawMessage) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(rawMessage)
           ? rawMessage
           : '오류 메시지를 안전하게 표시할 수 없습니다.';
@@ -1091,7 +1091,6 @@ export function createStudentView() {
         const text = safeText(value, 120);
         return text && Number.isFinite(Date.parse(text)) ? text : '';
       };
-      const safeScalar = value => {
         if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
         if (typeof value === 'boolean') return String(value);
         return safeText(value, 160);
