@@ -186,6 +186,11 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
     assert.ok(user04Rule);
     assert.deepEqual(user04Rule.evidenceAlertIds, ["pv-05"]);
     assert.equal(user04Rule.evidencePattern, "bulk_admin_group_addition");
+    // 정상 이벤트만 있는 계정에는 세션 거부 규칙을 만들지 않습니다.
+    assert.deepEqual(
+      ruleData.rules.map((rule) => rule.subjectId).sort(),
+      ["acct-user01", "acct-user03", "acct-user04", "acct-user06"]
+    );
     assert.ok(ruleData.rules.every((rule) => rule.id.startsWith("xdr-privilege-")));
 
     const log = await readFile(join(temp, "xdr", "alerts.log"), "utf8");
