@@ -1073,8 +1073,8 @@ export function createStudentView() {
       view.setAttribute('aria-live', 'polite');
       view.appendChild(eventNode('h3', '조치 처리 상태'));
 
-      const secretPattern = /(?:\\bBearer\\s+\\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\\s*[:=]\\s*\\S+)/i;
-      const controlPattern = /[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f]/;
+      const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+      const controlPattern = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
       const safeText = (value, maxLength = 800) => {
         const text = eventScalar(value).trim();
         return text && text.length <= maxLength && !secretPattern.test(text) && !controlPattern.test(text) ? text : '';
