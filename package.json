@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/decider-test.mjs && node scripts/resource-id-test.mjs && node scripts/detect-test.mjs && node scripts/stage10-test.mjs && node scripts/device-cookie-test.mjs && node --test scripts/stage11-test.mjs && node --test test/stage12.test.mjs && node --test test/known-cve.test.mjs && node --test test/persistence.test.mjs && node --test test/privilege.test.mjs && node scripts/build-public.mjs",
+    "build": "node scripts/decider-test.mjs && node scripts/resource-id-test.mjs && node scripts/detect-test.mjs && node scripts/stage10-test.mjs && node scripts/device-cookie-test.mjs && node --test test/api-router.test.mjs && node --test scripts/stage11-test.mjs && node --test test/stage12.test.mjs && node --test test/known-cve.test.mjs && node --test test/persistence.test.mjs && node --test test/privilege.test.mjs && node scripts/build-public.mjs",
     "test:r5": "node --test test/r5.test.mjs",
     "test:package": "node --test test/package-starter.test.mjs",
     "bundle": "node scripts/bundle.mjs",
@@ -20,7 +20,8 @@
     "persistence:test": "node --test test/persistence.test.mjs",
     "privilege:test": "node --test test/privilege.test.mjs",
     "privilege:run": "node scripts/xdr-run.mjs privilege && node xdr/privilege/respond.mjs",
-    "privilege:check": "npm run privilege:test && npm run xdr:run -- privilege"
+    "privilege:check": "npm run privilege:test && npm run xdr:run -- privilege",
+    "api-router:test": "node --test test/api-router.test.mjs"
   },
   "engines": {
     "node": "22.x"
