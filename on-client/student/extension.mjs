@@ -773,7 +773,160 @@ export function createStudentView() {
       view.appendChild(statusDiagnosticsSection(resource.diagnostics));
       return view;
     },
-    renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
+    renderVulnerabilities(input) {
+      const resource = eventIsRecord(input) ? input : {};
+      const view = eventNode('div');
+      view.setAttribute('aria-live', 'polite');
+      view.appendChild(eventNode('h3', '설치 패키지 취약점 조회'));
+
+      const mode = eventScalar(resource.mode).trim();
+      if (mode === 'demo') {
+        view.appendChild(eventNode('p', '예제 데이터(demo) · 실제 연결 아님', 'tag tag-demo'));
+      } else if (mode === 'disconnected') {
+        view.appendChild(eventNode('p', '연결 없음(disconnected)', 'tag'));
+      } else if (mode !== '' && mode !== 'connected') {
+        view.appendChild(eventNode('p', '연결 상태 확인 불가(unknown)', 'tag'));
+      }
+
+      const secretPattern = /(?:\bBearer\s+\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-|ant-|svcacct-)?[A-Za-z0-9_-]{8,}|(?:api[_ -]?key|authorization|password|token|비밀번호|토큰)\s*[:=]\s*\S+)/i;
+      const controlPattern = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+      const safeText = (value, maxLength = 800) => {
+        const text = eventScalar(value).trim();
+        return text && text.length <= maxLength && !secretPattern.test(text) && !controlPattern.test(text) ? text : '';
+      };
+      const packageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+      const exactVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+
+      if (resource.status === 'idle') {
+        view.appendChild(eventNode('p', '조회 전(idle)', 'state state-empty'));
+        view.appendChild(eventNode('p', '아직 OSV 취약점 조회를 실행하지 않았습니다.', 'muted'));
+        return view;
+      }
+      if (resource.status === 'loading') {
+        view.appendChild(eventNode('p', '조회 중(loading)', 'state state-loading'));
+        view.appendChild(eventNode('p', '조회가 끝날 때까지 이전 표를 현재 결과로 표시하지 않습니다.', 'muted'));
+        return view;
+      }
+      if (resource.status === 'error') {
+        const error = eventIsRecord(resource.error) ? resource.error : {};
+        const rawMessage = eventScalar(error.message).trim();
+        const message = safeText(rawMessage) || (rawMessage ? '오류 메시지를 안전하게 표시할 수 없습니다.' : '서버가 오류 메시지를 제공하지 않았습니다.');
+        view.appendChild(eventNode('p', '조회 실패(error)', 'state state-error'));
+        view.appendChild(eventNode('p', '조회 실패: ' + message, 'state state-error'));
+        view.appendChild(eventNode('p', '이전 조회 결과는 현재 결과가 아닙니다. 필요하면 제공 화면에서 직접 다시 조회하세요.', 'muted'));
+        return view;
+      }
+      if (resource.status !== 'ok') {
+        view.appendChild(eventNode('p', '확인 불가: 조회 상태를 알 수 없습니다.', 'state state-empty'));
+        return view;
+      }
+
+      const data = eventIsRecord(resource.data) ? resource.data : null;
+      if (!data || !Array.isArray(data.packages)) {
+        view.appendChild(eventNode('p', '확인 불가: 조회 응답 형식이 공식 입력 계약과 일치하지 않습니다.', 'state state-error'));
+        return view;
+      }
+
+      const scanStatus = safeText(data.status, 80);
+      const scanStatusLabels = {
+        complete: '모두 조회',
+        partial: '일부 조회 실패',
+        not_checked: '아직 조회 안 함',
+        not_configured: '조회 준비 미완료',
+        unverifiable: '잠금 파일 확인 불가',
+      };
+      const scanStatusNotes = {
+        complete: '허용된 조회 범위의 패키지 조회가 완료되었습니다.',
+        partial: '일부 패키지 조회에 실패했습니다. 이미 받은 취약점 ID는 그대로 표시합니다.',
+        not_checked: '승인된 공개 조회 대상이 없어 아직 조회하지 않았습니다.',
+        not_configured: '조회 대상 프로젝트 설정이 필요합니다. 담당자에게 설정을 요청하세요.',
+        unverifiable: 'package-lock.json을 확인할 수 없어 설치 목록과 정확한 버전을 검증하지 못했습니다.',
+      };
+      if (!Object.hasOwn(scanStatusLabels, scanStatus)) {
+        view.appendChild(eventNode('p', '확인 불가: 전체 조회 상태를 해석할 수 없습니다(' + (scanStatus || 'unknown') + ').', 'state state-error'));
+        return view;
+      }
+
+      const scanTone = scanStatus === 'complete' ? 'state state-ok'
+        : scanStatus === 'partial' ? 'state state-error'
+          : 'state state-empty';
+      view.appendChild(eventNode('p', '전체 조회 상태: ' + scanStatusLabels[scanStatus] + '(' + scanStatus + ')', scanTone));
+      view.appendChild(eventNode('p', scanStatusNotes[scanStatus], scanStatus === 'partial' ? 'state state-error' : 'muted'));
+
+      const metadata = eventNode('dl', undefined, 'kv');
+      let metadataCount = 0;
+      const addMetadata = (label, value) => {
+        if (value === undefined || value === null) return;
+        const display = safeText(value, 300);
+        if (!display) return;
+        metadata.appendChild(eventNode('dt', label));
+        metadata.appendChild(eventNode('dd', display));
+        metadataCount += 1;
+      };
+      addMetadata('잠금 파일 버전(lockfileVersion)', data.lockfileVersion);
+      addMetadata('잠금 파일 해시(lockfileHash)', data.lockfileHash);
+      addMetadata('전체 조회 시각(checkedAt)', data.checkedAt);
+      if (metadataCount > 0) view.appendChild(metadata);
+
+      const packageStatusLabels = {
+        known_vulnerabilities: '알려진 취약점 항목 있음',
+        none_found: '조회 범위에서 알려진 취약점 항목 없음',
+        unverifiable: '조회 확인 불가',
+      };
+      const table = eventNode('table');
+      const head = eventNode('thead');
+      const headerRow = eventNode('tr');
+      for (const label of ['패키지', '정확한 설치 버전', '패키지 조회 상태', '출처(source)', '패키지 확인 시각(checkedAt)', '취약점 ID', '수정 시각(modified)']) {
+        headerRow.appendChild(eventNode('th', label));
+      }
+      head.appendChild(headerRow);
+      table.appendChild(head);
+      const body = eventNode('tbody');
+
+      for (const value of data.packages) {
+        const pkg = eventIsRecord(value) ? value : {};
+        const rawName = safeText(pkg.name, 214);
+        const name = rawName && packageNamePattern.test(rawName) ? rawName : '';
+        const rawVersion = safeText(pkg.version, 100);
+        const version = rawVersion && exactVersionPattern.test(rawVersion) ? rawVersion : '';
+        const packageStatus = safeText(pkg.status, 80);
+        const source = safeText(pkg.source, 300) || '확인 불가';
+        const packageCheckedAt = safeText(pkg.checkedAt, 120) || '확인 불가';
+        const findings = Array.isArray(pkg.vulnerabilities) && pkg.vulnerabilities.length > 0
+          ? pkg.vulnerabilities
+          : [null];
+        let statusText = Object.hasOwn(packageStatusLabels, packageStatus)
+          ? packageStatusLabels[packageStatus] + '(' + packageStatus + ')'
+          : '확인 불가(' + (packageStatus || 'unknown') + ')';
+        if (packageStatus === 'unverifiable' && Array.isArray(pkg.vulnerabilities) && pkg.vulnerabilities.length > 0) {
+          statusText = '일부 확인·전체 조회 확인 불가(unverifiable)';
+        }
+
+        for (const findingValue of findings) {
+          const finding = eventIsRecord(findingValue) ? findingValue : null;
+          const row = eventNode('tr');
+          row.setAttribute('data-student-package-name', name);
+          row.setAttribute('data-student-package-version', version);
+          row.appendChild(eventNode('td', name || '확인 불가'));
+          row.appendChild(eventNode('td', version || '확인 불가(정확한 설치 버전 아님)'));
+          row.appendChild(eventNode('td', statusText));
+          row.appendChild(eventNode('td', source));
+          row.appendChild(eventNode('td', packageCheckedAt));
+          row.appendChild(eventNode('td', finding ? safeText(finding.id, 160) : ''));
+          row.appendChild(eventNode('td', finding ? (safeText(finding.modified, 120) || '확인 불가') : ''));
+          body.appendChild(row);
+        }
+      }
+
+      if (data.packages.length > 0) {
+        table.appendChild(body);
+        view.appendChild(table);
+      } else {
+        view.appendChild(eventNode('p', '표시할 패키지 조회 결과가 없습니다.', 'state state-empty'));
+      }
+      view.appendChild(eventNode('p', 'OSV는 알려진 취약점 데이터베이스입니다. 조회 범위에서 알려진 항목이 없더라도 해당 패키지나 앱 전체의 안전성을 보장하지 않습니다.', 'muted'));
+      return view;
+    },
     renderAiConnection(input) {
       const resource = eventIsRecord(input) ? input : {};
       const view = eventNode('div');
