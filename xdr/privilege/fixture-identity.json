@@ -1,0 +1,162 @@
+{
+  "schema": "aleph.xdr.fixture-identity.v1",
+  "moduleKey": "privilege",
+  "accounts": [
+    {
+      "alertId": "pv-01",
+      "srcuser": "user01",
+      "subjectId": "acct-user01",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-02",
+      "srcuser": "user01",
+      "subjectId": "acct-user01",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-03",
+      "srcuser": "user02",
+      "subjectId": "acct-user02",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-04",
+      "srcuser": "user03",
+      "subjectId": "acct-user03",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-05",
+      "srcuser": "user04",
+      "subjectId": "acct-user04",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-06",
+      "srcuser": "user05",
+      "subjectId": "acct-user05",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-07",
+      "srcuser": "user06",
+      "subjectId": "acct-user06",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-08",
+      "srcuser": "user07",
+      "subjectId": "acct-user07",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-09",
+      "srcuser": "user08",
+      "subjectId": "acct-user08",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-10",
+      "srcuser": "user01",
+      "subjectId": "acct-user01",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-11",
+      "srcuser": "user02",
+      "subjectId": "acct-user02",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-12",
+      "srcuser": "user03",
+      "subjectId": "acct-user03",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-13",
+      "srcuser": "user04",
+      "subjectId": "acct-user04",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-14",
+      "srcuser": "user05",
+      "subjectId": "acct-user05",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-15",
+      "srcuser": "user06",
+      "subjectId": "acct-user06",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-16",
+      "srcuser": "user07",
+      "subjectId": "acct-user07",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-17",
+      "srcuser": "user08",
+      "subjectId": "acct-user08",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-18",
+      "srcuser": "user01",
+      "subjectId": "acct-user01",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-19",
+      "srcuser": "user01",
+      "subjectId": "acct-user01",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-20",
+      "srcuser": "user02",
+      "subjectId": "acct-user02",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-21",
+      "srcuser": "admin01",
+      "subjectId": "acct-admin01",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-22",
+      "srcuser": "admin01",
+      "subjectId": "acct-admin01",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-23",
+      "srcuser": "user03",
+      "subjectId": "acct-user03",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-24",
+      "srcuser": "user04",
+      "subjectId": "acct-user04",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-25",
+      "srcuser": "svc-lab",
+      "subjectId": "acct-svc-lab",
+      "source": "trusted-directory"
+    },
+    {
+      "alertId": "pv-26",
+      "srcuser": "user05",
+      "subjectId": "acct-user05",
+      "source": "trusted-directory"
+    }
+  ]
+}
