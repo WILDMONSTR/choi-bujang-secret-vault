@@ -21,6 +21,8 @@
 | 재현 확인 시각(날짜·시각·시간대) | **미확인** | 실제 명령 실행과 관찰 후 기록 |
 | 기존 프로젝트의 Git/파일 상태 | **미확인** | 학생 PC의 기존 원본을 확인해야 함 |
 
+**지원 경계:** 로컬 재현 절차는 Windows PowerShell을 기준으로 소스 확인했다. macOS·Linux에서 제공 Windows 실행 도구가 작동하는지는 확인하지 않았으며 지원 완료라고 주장하지 않는다. 앱을 직접 띄우지 않은 채 브라우저·OS·CLI 실행을 성공으로 기록하지 않는다.
+
 **원문 경계:** Git 최상위 `package.json`은 기존 1~12단계 프로젝트에 속하며 Node.js `22.x`와 외부 npm 패키지를 선언한다. **케세브 실행 대상은 별도 `on-client/package.json`**이다. 여기는 `type: module`, `start = node src/server.mjs`, `demo = node src/server.mjs --demo`, `check = node --check student/extension.mjs`이며 외부 npm 의존성을 선언하지 않는다. `on-client/package-lock.json`은 기준 커밋에서 찾지 못했지만 **저장소 최상위의 `package-lock.json`은 존재**한다. 루트 `npm ci`와 학생 앱 실행 절차를 혼용하지 않는다.
 
 ## 2. 현재 소스·설명서 일관성 (원문 확인 ≠ 실행 성공)
@@ -144,7 +146,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -No
 
 **백업 확인 순서:** (1) 원본 폴더 및 미커밋 변경 목록 확인 → (2) 제출 커밋의 원격 보존·새 clone 해시 대조 → (3) 개인·원격 데이터의 위치와 별도 관리 주체 확인(비밀 내용은 조회·복사하지 않음) → (4) 승인된 경우에만 운영 원천의 백업/복구 방법과 관측 가능한 데이터 범위를 확인 → (5) 재실행 뒤 원래 범위의 기록·상태가 동일한지 비교. **백업 수행/실제 복원 시험은 현재 모두 미확인**이다.
 
-`/.gitignore`은 `.env`, `.env.*`, `node_modules/`, `artifacts/` 및 생성된 일부 규칙 파일을 Git에서 제외한다. 이런 파일과 실행 환경의 별도 자격을 “GitHub ZIP 하나로 모두 복원”할 수 있다고 쓰지 않는다. 오류가 났을 때 원본 폴더·보관소·감사 DB를 지우거나 초기화하지 않는다.
+`.gitignore`은 `.env`, `.env.*`, `node_modules/`, `artifacts/` 및 생성된 일부 규칙 파일을 Git에서 제외한다. 이런 파일과 실행 환경의 별도 자격을 “GitHub ZIP 하나로 모두 복원”할 수 있다고 쓰지 않는다. 오류가 났을 때 원본 폴더·보관소·감사 DB를 지우거나 초기화하지 않는다.
 
 ## 6. 실패·변경·릴리스 결정 원칙
 
