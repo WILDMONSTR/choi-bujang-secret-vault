@@ -14,6 +14,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "xdr", "fixtures", "privilege.json");
 const PATTERNS_PATH = join(ROOT, "xdr", "privilege", "patterns.json");
 const RESULT_PATH = join(ROOT, "xdr", "privilege", "result.json");
+const IDENTITY_PATH = join(ROOT, "xdr", "privilege", "fixture-identity.json");
 test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판정한다", async (t) => {
   const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
   assert.equal(fixture.schema, "aleph.xdr.fixture.v1");
@@ -158,6 +159,7 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
       mkdir(join(temp, "xdr", "privilege"), { recursive: true })
     ]);
     await copyFile(FIXTURE_PATH, join(temp, "xdr", "fixtures", "privilege.json"));
+    await copyFile(IDENTITY_PATH, join(temp, "xdr", "privilege", "fixture-identity.json"));
     await copyFile(join(ROOT, "xdr", "privilege", "decide.mjs"), join(temp, "xdr", "privilege", "decide.mjs"));
     await copyFile(join(ROOT, "xdr", "privilege", "respond.mjs"), join(temp, "xdr", "privilege", "respond.mjs"));
     await writeFile(join(temp, "xdr", "alerts.log"), "existing-log-line\n");
@@ -247,5 +249,18 @@ test("ZTNA는 신뢰된 subjectId의 활성 세션 규칙만 먼저 확인하고
   } finally {
     if (previous === undefined) await rm(rulesPath, { force: true });
     else await writeFile(rulesPath, previous);
+  }
+});
+
+test("original Wazuh fixture and separate trusted identity evidence remain consistent", async () => {
+  const fixture=JSON.parse(await readFile(FIXTURE_PATH,"utf8"));
+  const identities=JSON.parse(await readFile(IDENTITY_PATH,"utf8"));
+  assert.equal(fixture.alerts.length,26);
+  assert.equal(identities.accounts.length,fixture.alerts.length);
+  for(const [i,alert] of fixture.alerts.entries()){
+    assert.equal(Object.hasOwn(alert,"identity"),false);
+    assert.equal(identities.accounts[i].alertId,alert.id);
+    assert.equal(identities.accounts[i].srcuser,alert.data.srcuser);
+    assert.equal(identities.accounts[i].source,"trusted-directory");
   }
 });
