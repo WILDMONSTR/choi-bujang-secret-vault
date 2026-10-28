@@ -12,6 +12,7 @@ import { fixtureRequests } from "../scripts/fixture-7.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "xdr", "fixtures", "privilege.json");
+const PATTERNS_PATH = join(ROOT, "xdr", "privilege", "patterns.json");
 test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판정한다", async (t) => {
   const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
   assert.equal(fixture.schema, "aleph.xdr.fixture.v1");
@@ -30,7 +31,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
     ["pv-09", "alert"],
     ["pv-10", "alert"],
     ["pv-11", "record"],
-    ["pv-12", "record"],
+    ["pv-12", "alert"],
     ["pv-13", "record"],
     ["pv-14", "alert"],
     ["pv-15", "record"],
@@ -52,7 +53,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
       counts[expectedActions.get(alert.id)] += 1;
       return counts;
     }, { block: 0, alert: 0, record: 0 }),
-    { block: 4, alert: 8, record: 14 }
+    { block: 4, alert: 9, record: 13 }
   );
 
   for (const alert of fixture.alerts) {
@@ -70,6 +71,60 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
       assert.doesNotMatch(result.reason, /user\\d{2}|acct-user/i);
     });
   }
+});
+
+test("patterns.json은 관리자 그룹 추가·처음 관측된 관리자 명령·업무 시간 밖 사용을 근거와 함께 정의한다", async () => {
+  const spec = JSON.parse(await readFile(PATTERNS_PATH, "utf8"));
+  const byId = new Map(spec.patterns.map((pattern) => [pattern.id, pattern]));
+  assert.ok(byId.has("admin_group_addition"), "관리자 그룹 추가 패턴이 있어야 합니다");
+  assert.ok(byId.has("unfamiliar_admin_command"), "처음 관측된 관리자 명령 패턴이 있어야 합니다");
+  assert.ok(byId.has("off_hours_privilege_use"), "업무 시간 밖 권한 사용 패턴이 있어야 합니다");
+  assert.match(byId.get("unfamiliar_admin_command").condition, /명령 자체가 처음 관측/);
+  assert.ok(spec.attackTechniques.some((technique) => technique.id === "T1068"));
+  assert.ok(spec.attackTechniques.some((technique) => technique.id === "T1078"));
+  for (const pattern of spec.patterns) {
+    assert.ok(pattern.name?.trim(), pattern.id + ": name이 있어야 합니다");
+    assert.ok(pattern.condition?.trim(), pattern.id + ": condition이 있어야 합니다");
+    assert.ok(pattern.evidence?.trim(), pattern.id + ": evidence가 있어야 합니다");
+    assert.equal(pattern.evidence.split(/\r?\n/).filter((line) => line.trim()).length, 1,
+      pattern.id + ": evidence는 한 줄이어야 합니다");
+  }
+});
+
+test("세 신호를 실제 판정에서 인식하고, 명령 자체가 처음 관측된 경우도 alert한다", async () => {
+  const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
+  const groupAdded = decidePrivilege(fixture.alerts.find((alert) => alert.id === "pv-01"));
+  assert.equal(groupAdded.action, "alert");
+  assert.match(groupAdded.reason, /admin_group_addition/);
+
+  const firstSeenCommand = decidePrivilege({
+    id: "pv-test-first-seen-command",
+    timestamp: "2026-10-28T01:00:00Z",
+    data: { srcip: "192.0.2.99", srcuser: "test-user" },
+    rule: {
+      level: 7,
+      description: "처음 관측된 관리자 명령이 실행됐습니다.",
+      mitre: ["T1078"]
+    }
+  });
+  assert.equal(firstSeenCommand.action, "alert");
+  assert.equal(firstSeenCommand.confidence, 0.68);
+  assert.match(firstSeenCommand.reason, /unfamiliar_admin_command/);
+  assert.match(firstSeenCommand.reason, /명령 자체가 처음 관측/);
+
+  const offHours = decidePrivilege({
+    id: "pv-test-off-hours",
+    timestamp: "2026-10-28T01:00:00Z",
+    data: { srcip: "192.0.2.100", srcuser: "test-user" },
+    rule: {
+      level: 7,
+      description: "업무 시간 밖 관리자 명령이 실행됐습니다.",
+      mitre: ["T1078"]
+    }
+  });
+  assert.equal(offHours.action, "alert");
+  assert.equal(offHours.confidence, 0.72);
+  assert.match(offHours.reason, /off_hours_privilege_use/);
 });
 
 test("심판의 원본 경보처럼 identity 필드가 없어도 같은 판정을 반환한다", async () => {
