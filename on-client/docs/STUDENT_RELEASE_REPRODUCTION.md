@@ -174,3 +174,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -No
 5. 생성된 JSON을 같은 단계의 **「비공개 저장소 원문 묶음」**에서 선택하고 저장소·커밋·단계를 재확인한 후 직접 제출한다. **원문 전달 완료와 AI 검토 통과는 다르며**, 원문만 실패하면 기존 접수를 유지해 「원문만 다시 보내기」를 사용한다.
 
 **이 문서 작성 시 남은 미확인:** 원본 PC 보존 확인, 개인 PC 운영체제·Node·브라우저 버전, 새 clone, 동일 최종 HEAD, 학생 화면, 실제 로그인/SDP/XDR/AI/OSV, 실제 조치 효과, 종료·재실행, 데이터 복원, 공식 22단계 판정. 이 중 어떤 항목도 이 문서 작성 자체로 성공하지 않는다.
+
+
+## 8. AI 격리 실행 환경에서 직접 관측한 재현 증거 (학생 PC 검증과 별도)
+
+**관측일:** 2026-10-28. **실행 원문 커밋:** `040ff787b9f212c20d9e681fa2ab7844041bc1cb`. **증거 종류:** Vercel 격리 샌드박스의 실제 Git 복제, Node.js 명령, HTTP GET 응답, 프로세스 종료·재실행, 모의 DOM 단위 실행. **환경:** Linux amd64 / Node.js `v24.22.1` / npm `11.19.1`, 앱 버전 `0.2.14`. 사용자의 Windows PC를 원격 제어하거나 Windows PowerShell 도구를 실행한 것은 아니다.
+
+| 검사·관측 | 실측 결과 | 근거와 범위 |
+|---|---|---|
+| Git 원문·보존 | `git rev-parse HEAD` = 상기 40자리, `git status --porcelain` 출력 없음; 문서·학생 코드·서버 경로 존재 | 새로 생성된 별도 샌드박스의 Git 작업 트리. 사용자 원본 PC 폴더 보존 여부는 미확인 |
+| Node 문법 | `npm run check` 종료 코드 0; `node --check`로 `src/server.mjs`·`public/app.js`·`public/vulnerabilities-view.mjs`·`student/extension.mjs` 확인 | 실제 Node 24 실행. 기능 통과나 Windows 실행과는 다름 |
+| 실제 서버 시작 | `ON_PORT=5190 node src/server.mjs` 실행, `케셰브 연결 확인: http://127.0.0.1:5190` 출력 | Linux 직접 실행. `tools/start-alekov.ps1` 사용 결과가 아님 |
+| 브라우저 자료 HTTP | `GET /` = 200 HTML, `GET /app.js` = 200, `GET /student/extension.mjs` = 200, `GET /vulnerabilities-view.mjs` = 200 | 실제 HTTP GET. 실제 브라우저 렌더링은 미확인 |
+| 로컬 진단·원천 미연결 | `GET /api/diagnostics` = HTTP 200 / `mode=disconnected`. `GET /api/me`·`/api/apps`·`/api/events`·`/api/devices`·`/api/sessions` = HTTP 503 / `ENGINE_NOT_CONNECTED` | 실제 HTTP 응답. 원천 접속·XDR 성공 아님 |
+| 승인 패키지 미설정 | `GET /api/vulnerabilities` = HTTP 200 / `data.status=not_configured` / `PROJECT_NOT_CONFIGURED` | 실제 HTTP 응답. OSV 조회 성공이나 `none_found`가 아님 |
+| 동일 커밋 서버 종료·재실행 | 동일 프로세스 모드로 2회 독립 기동. HTTP 상태 일치, 종료 후 포트 연결 거절(`PORT_CLOSED`) | **실제 시작/종료/재실행 확인**, Linux에서만 |
+| 예제 모드 | 별도 `node src/server.mjs --demo` 실행. `GET /api/me` = 200, `GET /api/apps` = 200/3건, `GET /api/events` = 200/1건, `meta.mode=demo` | 실제 HTTP에서 **예제 데이터**만 확인. 운영 연결 성공과 분리 |
+| 학생 확장 동작 | 실제 `student/extension.mjs`를 import, 모의 `document.createElement`로 렌더러 함수 8종 검사. 신원·판정·XDR 기록·오류·AI 연결·AI 설명 오류·조치 불명·OSV 상태/이전 표 제거 등 **12개 테스트 통과, 실패 0건** | 입력 fixture + 모의 DOM, **Chrome/실제 API UI 시연 아님** |
+| 검사 후 오염 여부 | `git rev-parse HEAD` 계속 상기 커밋, `git status --porcelain` 출력 없음 | 테스트 스크립트는 Git 추적 작업 폴더 밖에 임시 작성. 기존 코드 변경 없음 |
+
+**해석:** 이 표는 서버 실행과 제공 엔드포인트의 **미연결 상태 복구 전 경계**를 실제로 관측한 결과다. 13~21단계 운영 시스템 연동, Windows 네이티브 자격, 사용자의 원본 데이터 보존, 브라우저 실제 DOM·접근성, 실제 유료 AI 추론, OSV 실조회, 19단계 실집행과 효과, ALEPH 공식 판정은 **미확인 또는 미완료**다.
+
+**커밋 정합성 주의:** 위 관측은 이 문단을 문서에 추가하기 **직전**의 `040ff787b9f212c20d9e681fa2ab7844041bc1cb`에서 수행했다. 이 기록을 저장한 뒤 새 문서 커밋이 생기므로, **최종 제출할 새 40자리 커밋**도 별도 복제·HEAD 일치 및 같은 기초 검사를 다시 수행해야 한다. 이전 관측을 새로운 커밋에서 직접 실행한 결과로 바꿔 적지 않는다. 이 변경은 학생 문서만 추가하며 런타임 소스는 바꾸지 않는다.
