@@ -10,6 +10,9 @@ const ROOT = resolve(HERE, "../..");
 const FIXTURE = resolve(ROOT, "xdr/fixtures/privilege.json");
 const SESSION_RULES_FILE = resolve(HERE, "session-rules.json");
 const LOG_FILE = resolve(ROOT, "xdr/alerts.log");
+const IDENTITY_FILE = resolve(HERE, "fixture-identity.json");
+const DENY_TABLE = "xdr_privilege_session_rules";
+let fixtureIdentityByAlert = new Map();
 const TTL_MS = 15 * 60 * 1000;
 const CORRELATION_MS = 5 * 60 * 1000;
 
@@ -17,27 +20,17 @@ function oneLine(value) {
   return String(value ?? "").replace(/[\r\n\t]+/g, " ").trim();
 }
 function trustedSubject(alert) {
-  // 원본 실습 경보 26건은 identity 필드가 없는 초기 형식입니다.
-  // 실습용 고정 매핑으로만 Wazuh의 srcuser를 인증된 ZTNA subjectId 규약에 연결합니다.
-  // identity가 명시돼 있으면 신뢰 디렉터리 정보가 아니거나 불완전한 경우 fail closed 합니다.
-  const identity = alert?.identity;
-  if (identity !== undefined && identity !== null) {
-    const id = oneLine(identity.subjectId);
-    return identity.source === "trusted-directory" && /^[A-Za-z0-9._:-]{1,128}$/.test(id) ? id : "";
-  }
-  const fixtureAccountMap = {
-    user01: "acct-user01",
-    user02: "acct-user02",
-    user03: "acct-user03",
-    user04: "acct-user04",
-    user05: "acct-user05",
-    user06: "acct-user06",
-    user07: "acct-user07",
-    user08: "acct-user08",
-    admin01: "acct-admin01",
-    "svc-lab": "acct-svc-lab"
-  };
-  return fixtureAccountMap[oneLine(alert?.data?.srcuser)] ?? "";
+  // Fixture identity is held separately so the original Wazuh alerts stay byte-for-byte unchanged.
+  // Live Wazuh alerts may instead carry their own trusted-directory identity.
+  const embedded = alert?.identity;
+  const mapped = fixtureIdentityByAlert.get(oneLine(alert?.id));
+  const identity = embedded ?? mapped;
+  const subjectId = oneLine(identity?.subjectId);
+  if (identity?.source !== "trusted-directory" ||
+      !/^[A-Za-z0-9._:-]{1,128}$/.test(subjectId)) return "";
+  if (mapped && (mapped.srcuser !== oneLine(alert?.data?.srcuser) ||
+                 mapped.subjectId !== subjectId)) return "";
+  return subjectId;
 }
 function isAdminGroup(alert) {
   const raw = oneLine(alert?.data?.group);
@@ -97,15 +90,66 @@ function createCandidate(map, subjectId, evidenceIds, evidencePattern, confidenc
   }
 }
 
-export async function checkPrivilegeSessionDeny(subjectId, at = new Date()) {
+export async function checkPrivilegeSessionDeny(subjectId, at = new Date(), db = null) {
   const id = typeof subjectId === "string" ? subjectId.trim() : "";
   if (!/^[A-Za-z0-9._:-]{1,128}$/.test(id)) return null;
   const now = at instanceof Date ? at : new Date(at);
-  return (await loadExistingRules(now)).find((rule) => rule.subjectId === id && rule.id.startsWith("xdr-privilege-")) ?? null;
+  if (!Number.isFinite(now.getTime())) throw new Error("Invalid rule-check time");
+  if (db) {
+    // The persistent table is authoritative for deployed API requests.
+    // Never fall back to local files if the database read fails.
+    const { data, error } = await db.from(DENY_TABLE)
+      .select("rule_id,subject_id,expires_at,evidence_alert_ids,evidence_pattern,confidence")
+      .eq("subject_id", id).gt("expires_at", now.toISOString())
+      .limit(1).maybeSingle();
+    if (error) throw new Error("Privilege rule store unavailable");
+    if (!data) return null;
+    if (typeof data.rule_id !== "string" || !data.rule_id.startsWith("xdr-privilege-") ||
+        data.subject_id !== id || !Number.isFinite(Date.parse(data.expires_at)) ||
+        Date.parse(data.expires_at) <= now.getTime()) throw new Error("Invalid privilege rule");
+    return { id: data.rule_id, effect: "deny", subjectId: data.subject_id,
+      expiresAt: data.expires_at, evidenceAlertIds: data.evidence_alert_ids,
+      evidencePattern: data.evidence_pattern, confidence: data.confidence };
+  }
+  return (await loadExistingRules(now)).find((rule) =>
+    rule.subjectId === id && rule.id.startsWith("xdr-privilege-")) ?? null;
+}
+
+async function persistRulesToDatabase(rules) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY are required for --persist");
+  // Only the explicit --persist command can write to production; tests never do.
+  const { createClient } = await import("@supabase/supabase-js");
+  const db = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  const rows = rules.map((rule) => ({
+    subject_id: rule.subjectId,
+    rule_id: rule.id,
+    created_at: rule.createdAt,
+    expires_at: rule.expiresAt,
+    evidence_alert_ids: rule.evidenceAlertIds,
+    evidence_pattern: rule.evidencePattern,
+    confidence: rule.confidence
+  }));
+  if (!rows.length) return;
+  const { error } = await db.from(DENY_TABLE).upsert(rows, { onConflict: "subject_id" });
+  if (error) throw new Error("Failed to persist privilege deny rules");
 }
 
 async function main() {
   const fixture = JSON.parse(await readFile(FIXTURE, "utf8"));
+  const fixtureIdentity = JSON.parse(await readFile(IDENTITY_FILE, "utf8"));
+  if (fixtureIdentity?.schema !== "aleph.xdr.fixture-identity.v1" ||
+      fixtureIdentity.moduleKey !== "privilege" || !Array.isArray(fixtureIdentity.accounts)) {
+    throw new Error("privilege fixture identity evidence format is invalid");
+  }
+  fixtureIdentityByAlert = new Map(fixtureIdentity.accounts.map((entry) => [entry.alertId, entry]));
+  if (fixtureIdentityByAlert.size !== fixture.alerts?.length ||
+      fixture.alerts.some((alert) => !trustedSubject(alert))) {
+    throw new Error("privilege fixture identity evidence is incomplete");
+  }
   if (fixture?.schema !== "aleph.xdr.fixture.v1" || fixture.moduleKey !== "privilege" || !Array.isArray(fixture.alerts)) {
     throw new Error("privilege 시험 경보 파일 형식이 올바르지 않습니다.");
   }
@@ -208,6 +252,9 @@ async function main() {
   if (logLines.length) {
     await mkdir(dirname(LOG_FILE), { recursive: true });
     await appendFile(LOG_FILE, logLines.join("\n") + "\n", "utf8");
+  }
+  if (process.argv.includes("--persist")) {
+    await persistRulesToDatabase([...rulesById.values()]);
   }
 
   console.log("privilege 시험 경보: " + fixture.alerts.length + "건");
