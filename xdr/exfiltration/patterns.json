@@ -1,0 +1,120 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "exfiltration",
+  "attackTechniques": [
+    {
+      "id": "T1041",
+      "name": "Exfiltration Over C2 Channel",
+      "source": "https://attack.mitre.org/techniques/T1041/"
+    },
+    {
+      "id": "T1048",
+      "name": "Exfiltration Over Alternative Protocol",
+      "source": "https://attack.mitre.org/techniques/T1048/"
+    }
+  ],
+  "patterns": [
+    {
+      "id": "new_destination_bulk_transfer",
+      "name": "미관측 목적지로 대량 자료 반출",
+      "techniqueIds": [
+        "T1041",
+        "T1048"
+      ],
+      "condition": "처음 보는 목적지로 실제 외부 자료가 50 MB 이상 전송됐고 규칙 수준 10 이상·유효 출발지와 목적지가 확인됨",
+      "confidence": 0.94,
+      "evidence": "T1048/T1041 관련 경보에서 새 목적지와 큰 외부 전송량이 동일 사건에 확인됨"
+    },
+    {
+      "id": "off_hours_archive_export",
+      "name": "업무 외 시간의 대용량 압축 파일 반출",
+      "techniqueIds": [
+        "T1048"
+      ],
+      "condition": "업무·수업 시간 밖에 압축 파일이 실제로 50 MB 이상 외부 반출됐고 수준 10 이상·유효 출발지와 목적지가 확인됨",
+      "confidence": 0.96,
+      "evidence": "T1048의 대체 전송 경로와 업무 외 시각의 압축 파일 반출이 함께 탐지됨"
+    },
+    {
+      "id": "repeated_large_export",
+      "name": "동일 목적지로 대용량 반복 전송",
+      "techniqueIds": [
+        "T1041",
+        "T1048"
+      ],
+      "condition": "같은 목적지로 5회 이상 반복된 총 50 MB 이상의 외부 전송과 수준 10 이상·유효 주소가 확인됨",
+      "confidence": 0.92,
+      "evidence": "T1041/T1048 관련 경보에 외부 목적지로 큰 양이 여러 차례 이동한 정황이 기록됨"
+    },
+    {
+      "id": "unusual_port_bulk_export",
+      "name": "비정상 포트로 대량 자료 전송",
+      "techniqueIds": [
+        "T1048"
+      ],
+      "condition": "평소와 다른 포트를 통해 실제 자료가 50 MB 이상 전송됐고 수준 10 이상·유효 주소·T1048 근거가 확인됨",
+      "confidence": 0.9,
+      "evidence": "T1048의 비정상 전송 프로토콜·포트 사용과 높은 전송량이 같은 경보에 확인됨"
+    },
+    {
+      "id": "unfamiliar_archive_export",
+      "name": "새 목적지로 연속 압축 파일 반출",
+      "techniqueIds": [
+        "T1048"
+      ],
+      "condition": "압축 파일이 처음 보는 목적지로 50 MB 이상 연속 또는 복수 전송됐고 수준 10 이상·유효 주소가 확인됨",
+      "confidence": 0.94,
+      "evidence": "T1048의 새로운 외부 주소와 압축 자료의 연속·묶음 전송이 함께 관측됨"
+    },
+    {
+      "id": "rapid_full_repository_copy",
+      "name": "짧은 시간에 자료실 전체 복사",
+      "techniqueIds": [
+        "T1041",
+        "T1048"
+      ],
+      "condition": "짧은 시간에 자료실 전체가 외부 주소로 50 MB 이상 복사됐고 수준 10 이상·유효 주소가 확인됨",
+      "confidence": 0.97,
+      "evidence": "T1041/T1048 관련 경보에서 단일 대량 전송으로 전체 자료가 외부로 복사됨"
+    },
+    {
+      "id": "command_channel_bulk_export",
+      "name": "명령 통로를 통한 대용량 반복 유출",
+      "techniqueIds": [
+        "T1041"
+      ],
+      "condition": "명령 통로에서 큰 자료가 외부로 반복 전송되고 50 MB 이상·수준 10 이상·유효 주소가 확인됨",
+      "confidence": 0.97,
+      "evidence": "T1041의 명령·제어 통로를 통한 자료 반출과 반복 대량 송신이 함께 기록됨"
+    },
+    {
+      "id": "multiple_destination_archive_export",
+      "name": "여러 새 목적지로 동일 압축 파일 반출",
+      "techniqueIds": [
+        "T1048"
+      ],
+      "condition": "같은 압축 파일이 처음 보는 목적지 두 곳 이상으로 50 MB 이상 외부 전송됐고 수준 10 이상·유효 주소가 확인됨",
+      "confidence": 0.96,
+      "evidence": "T1048 관련 경보에 압축 자료를 여러 미관측 주소로 중복 반출한 흔적이 남음"
+    },
+    {
+      "id": "suspicious_incomplete_export",
+      "name": "근거 불충분한 자료 반출 징후",
+      "techniqueIds": [
+        "T1041",
+        "T1048"
+      ],
+      "condition": "규칙 수준이 낮거나 전송 성공·목적지·양이 불명확해 차단하지 못하지만 비정상 목적지·실패·압축·전송량 이례 신호가 확인됨",
+      "confidence": 0.68,
+      "evidence": "T1041/T1048 경보에서 의심 정황이 있으나 악의적 외부 반출이 확정되지 않아 조사만 필요함"
+    }
+  ],
+  "decisionThresholds": {
+    "blockMinimumConfidence": 0.85,
+    "alertMinimumConfidence": 0.5,
+    "blockMinimumRuleLevel": 10,
+    "bulkBytesMinimum": 50000000,
+    "repeatedTransferMinimum": 5,
+    "denyRuleTtlMinutes": 15
+  }
+}
