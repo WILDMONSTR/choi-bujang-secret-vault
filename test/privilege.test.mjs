@@ -13,11 +13,16 @@ import { fixtureRequests } from "../scripts/fixture-7.mjs";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "xdr", "fixtures", "privilege.json");
 const PATTERNS_PATH = join(ROOT, "xdr", "privilege", "patterns.json");
+const RESULT_PATH = join(ROOT, "xdr", "privilege", "result.json");
 test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판정한다", async (t) => {
   const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
   assert.equal(fixture.schema, "aleph.xdr.fixture.v1");
   assert.equal(fixture.moduleKey, "privilege");
   assert.ok(fixture.alerts.length > 0);
+  const savedResult = JSON.parse(await readFile(RESULT_PATH, "utf8"));
+  assert.equal(savedResult.schema, "aleph.xdr.result.v1");
+  assert.equal(savedResult.moduleKey, "privilege");
+  const savedDecisions = new Map(savedResult.decisions.map((decision) => [decision.alertId, decision]));
 
   const expectedActions = new Map([
     ["pv-01", "alert"],
@@ -48,17 +53,22 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
     ["pv-26", "record"]
   ]);
   assert.deepEqual([...expectedActions.keys()], fixture.alerts.map((alert) => alert.id));
-  assert.deepEqual(
-    fixture.alerts.reduce((counts, alert) => {
-      counts[expectedActions.get(alert.id)] += 1;
-      return counts;
-    }, { block: 0, alert: 0, record: 0 }),
-    { block: 4, alert: 9, record: 13 }
-  );
+  const expectedCounts = fixture.alerts.reduce((counts, alert) => {
+    counts[expectedActions.get(alert.id)] += 1;
+    return counts;
+  }, { block: 0, alert: 0, record: 0 });
+  assert.deepEqual(expectedCounts, { block: 4, alert: 9, record: 13 });
+  assert.deepEqual(savedResult.counts, expectedCounts, "result.json 집계가 테스트 기대값과 일치해야 합니다");
+  assert.deepEqual(savedResult.decisions.map((decision) => decision.alertId), fixture.alerts.map((alert) => alert.id));
 
   for (const alert of fixture.alerts) {
     await t.test(alert.id, () => {
       const result = decidePrivilege(alert);
+      const saved = savedDecisions.get(alert.id);
+      assert.ok(saved, alert.id + ": result.json에 저장된 판정이 있어야 합니다");
+      assert.equal(saved.action, result.action, alert.id + ": result.json action이 실행 결과와 일치해야 합니다");
+      assert.equal(saved.confidence, result.confidence, alert.id + ": result.json confidence가 실행 결과와 일치해야 합니다");
+      assert.equal(saved.reason, result.reason, alert.id + ": result.json reason이 실행 결과와 일치해야 합니다");
       assert.equal(result.action, expectedActions.get(alert.id), `unexpected classification for ${alert.id}`);
       assert.ok(["block", "alert", "record"].includes(result.action));
       assert.ok(Number.isFinite(result.confidence) && result.confidence >= 0 && result.confidence <= 1);
@@ -80,6 +90,7 @@ test("patterns.json은 관리자 그룹 추가·처음 관측된 관리자 명�
   assert.ok(byId.has("unfamiliar_admin_command"), "처음 관측된 관리자 명령 패턴이 있어야 합니다");
   assert.ok(byId.has("off_hours_privilege_use"), "업무 시간 밖 권한 사용 패턴이 있어야 합니다");
   assert.match(byId.get("unfamiliar_admin_command").condition, /명령 자체가 처음 관측/);
+  assert.match(byId.get("unfamiliar_admin_command").name, /처음 관측된 관리자 명령.*낯선 출발지.*계정/);
   assert.ok(spec.attackTechniques.some((technique) => technique.id === "T1068"));
   assert.ok(spec.attackTechniques.some((technique) => technique.id === "T1078"));
   for (const pattern of spec.patterns) {
