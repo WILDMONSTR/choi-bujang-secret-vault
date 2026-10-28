@@ -3,6 +3,7 @@ import { checkZtnaDeny } from "../xdr/brute-force/respond.mjs";
 import { checkWebInjectionDeny } from "../xdr/web-injection/respond.mjs";
 import { checkKnownCveDeny } from "../xdr/known-cve/respond.mjs";
 import { checkPersistenceDeny } from "../xdr/persistence/respond.mjs";
+import { checkExfiltrationDeny } from "../xdr/exfiltration/respond.mjs";
 import { checkPrivilegeSessionDeny } from "../xdr/privilege/respond.mjs";
 
 // trustedSourceAddress와 request.subjectId는 요청 본문이 아니라 인증·ZTNA 엔진이 검증한 값이어야 합니다.
@@ -25,7 +26,8 @@ export async function decideWithXdr(request, trustedSourceAddress, at = new Date
     [checkZtnaDeny, "xdr-brute-force"],
     [checkWebInjectionDeny, "xdr-web-injection"],
     [checkKnownCveDeny, "xdr-known-cve"],
-    [checkPersistenceDeny, "xdr-persistence"]
+    [checkPersistenceDeny, "xdr-persistence"],
+    [checkExfiltrationDeny, "xdr-exfiltration"]
   ];
   for (const [check, source] of checks) {
     const rule = await check(trustedSourceAddress, at);
