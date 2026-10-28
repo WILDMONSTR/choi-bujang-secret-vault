@@ -28,6 +28,21 @@ function context(config,url,key){
   })};
 }
 
+export async function requireAllowedPrivilegeSession(res,verifiedUserId,db,at=new Date()){
+  try{
+    const denied=await checkPrivilegeSessionDeny(verifiedUserId,at,db);
+    if(denied){
+      sendResourceError(res,403,'XDR_PRIVILEGE_DENIED');
+      return false;
+    }
+    return true;
+  }catch{
+    // A failed security-store lookup must never silently authorize the request.
+    sendResourceError(res,503,'XDR_PRIVILEGE_CHECK_UNAVAILABLE');
+    return false;
+  }
+}
+
 export async function requireResourceIdentity(req,res,config){
   res.setHeader('Cache-Control','no-store, max-age=0');
   res.setHeader('X-Content-Type-Options','nosniff');
@@ -90,20 +105,8 @@ export async function requireResourceIdentity(req,res,config){
     return null;
   }
 
-  // Apply active PRIVILEGE deny rules to the verified identity on every protected API route.
-  // The subject comes only from the verified access token, never the request body.
-  try {
-    const denied=await checkPrivilegeSessionDeny(id.userId,new Date(),ctx.supabase);
-    if(denied){
-      sendResourceError(res,403,'XDR_PRIVILEGE_DENIED');
-      return null;
-    }
-  }catch{
-    // Do not silently bypass the gate if the shared rule store is unavailable.
-    sendResourceError(res,503,'XDR_PRIVILEGE_CHECK_UNAVAILABLE');
-    return null;
-  }
-
+  // The authenticated identity is the only source of the account being checked.
+  if(!await requireAllowedPrivilegeSession(res,id.userId,ctx.supabase))return null;
   return {supabase:ctx.supabase,identity:id};
 }
 
