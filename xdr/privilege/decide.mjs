@@ -268,6 +268,14 @@ function isUnfamiliarAddress(text) {
   return unfamiliar && address;
 }
 
+// 주소의 낯섦과 구분해, 관리자 명령 자체가 처음 관측되거나 낯선 것으로 명시됐는지 확인합니다.
+function hasUnfamiliarAdminCommand(text, adminCommand) {
+  if (!adminCommand) return false;
+  return /(?:처음\s*(?:보는|관측(?:된|됨|되었)?|확인(?:된|됨|되었)?)|미관측|낯선|미확인|새로운)\s*(?:(?:으로|라고)\s*)?(?:관리자\s*)?(?:권한\s*)?(?:명령(?:어)?|command)/i.test(text)
+    || /(?:관리자\s*)?(?:권한\s*)?(?:명령(?:어)?|command).{0,20}(?:처음\s*(?:관측|확인)|미관측|낯선|미확인|새로운|first[ -]?seen|newly observed|unfamiliar|unrecognized|unknown|novel)/i.test(text)
+    || /(?:first[ -]?seen|newly observed|unfamiliar|unrecognized|unknown|novel)\s+(?:(?:administrator|admin|privileged)\s+)?commands?/i.test(text);
+}
+
 // srcip가 숫자 네 부분을 가진 유효한 IPv4인지 확인합니다. 차단 후보는 이 증거가 필수입니다.
 function hasValidSourceIp(alert) {
   const parts = oneLine(alert?.data?.srcip).split(".");
@@ -333,7 +341,7 @@ function normalEvidenceOf(text, alert, flags) {
   // 그룹 변경·미확인 상승·낯선 주소·업무 외 시간·실패·시도·미실행이 있으면 정상 판정을 보류합니다.
   if (flags.groupAddition || flags.groupRemoval || unconfirmedElevation
       || flags.sessionElevation || flags.otherAccount || flags.unfamiliarAddress
-      || flags.offHours || flags.failed || flags.attempted || flags.nonExecution) {
+      || flags.unfamiliarAdminCommand || flags.offHours || flags.failed || flags.attempted || flags.nonExecution) {
     return [];
   }
 
@@ -362,11 +370,9 @@ function normalEvidenceOf(text, alert, flags) {
     evidence.push("로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨");
   }
 
-  // pv-12는 기존 fixture 기준을 유지합니다. 다른 관리자 명령에는 이 예외를 적용하지 않습니다.
-  const isPv12Baseline = alert?.id === "pv-12";
-  // 평소 주소만으로 다른 관리자 명령을 정상 처리하지 않습니다.
-  // 일반적으로 명시적인 승인·허용 근거 또는 읽기 전용·조회·변경 없음 근거가 있어야 합니다.
-  if (flags.adminCommand && !hasExplicitApprovalEvidence(text) && !readOnly && !noChange && !isPv12Baseline) return [];
+  // 평소 주소만으로 관리자 명령을 정상 처리하지 않습니다.
+  // 명시적인 승인·허용 근거 또는 읽기 전용·조회·변경 없음 근거가 있어야 합니다.
+  if (flags.adminCommand && !hasExplicitApprovalEvidence(text) && !readOnly && !noChange) return [];
   return [...new Set(evidence)];
 }
 
@@ -383,6 +389,7 @@ function describeDecisionEvidence(alert, flags, normalEvidence = []) {
   if (flags.nonExecution) evidence.push("명령 미실행 표현 확인");
   if (flags.otherAccount) evidence.push("다른 계정 권한 사용 표현 확인");
   if (flags.unfamiliarAddress) evidence.push("낯선 주소 표현 확인");
+  if (flags.unfamiliarAdminCommand) evidence.push("관리자 명령 자체가 처음 관측되거나 낯선 것으로 명시됨");
   if (flags.offHours) evidence.push("업무·수업 시간 외 표현 확인");
 
   const privilegeSignal = flags.groupAddition || flags.groupRemoval
@@ -457,6 +464,8 @@ export function decide(alert) {
   const offHours = isOffHours(text);
   // 낯선 출발지/주소라는 신호입니다. 이것만으론 차단하지 않습니다.
   const unfamiliarAddress = isUnfamiliarAddress(text);
+  // 주소가 아니라 관리자 명령 자체가 처음 관측됐거나 낯선 것으로 명시됐는지 확인합니다.
+  const unfamiliarAdminCommand = hasUnfamiliarAdminCommand(text, adminCommand);
   // 다른 계정의 권한으로 관리자 명령을 했다는 신호입니다.
   const otherAccount = hasOtherAccountCommand(text, adminCommand);
   // 시도했다는 표현이 있는지 확인합니다.
@@ -477,7 +486,7 @@ export function decide(alert) {
   const flags = {
     groupAddition, groupRemoval, adminCommand, elevation, successfulElevation,
     sessionElevation, failed, attempted, nonExecution, otherAccount,
-    unfamiliarAddress, offHours
+    unfamiliarAddress, unfamiliarAdminCommand, offHours
   };
   // 3단계: 명시적으로 정상이라고 볼 근거가 있는지 확인합니다.
   const normalEvidence = normalEvidenceOf(text, alert, flags);
@@ -543,7 +552,7 @@ export function decide(alert) {
 
   // 우선순위 8: 낯선 주소 또는 다른 계정의 관리자 명령은 alert입니다.
   // 낯선 주소 또는 다른 계정의 관리자 명령은 단독으로 차단하지 않고 alert로 남깁니다.
-  if (otherAccount || (adminCommand && unfamiliarAddress)) {
+  if (unfamiliarAdminCommand || otherAccount || (adminCommand && unfamiliarAddress)) {
     return classify("unfamiliar_admin_command", 0.68);
   }
   // 우선순위 9: 업무 시간 밖 권한 사용은 조사 대상이라 alert입니다. 시간대만으로 block하지 않습니다.
