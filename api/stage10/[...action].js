@@ -16,9 +16,12 @@ const handlers = {
 };
 
 export default async function handler(req, res) {
-  const raw = req.query?.action;
-  const action = Array.isArray(raw) ? raw.join('/') : typeof raw === 'string' ? raw : '';
-  const selected = handlers[action];
+  // Vercel does not reliably populate req.query.action for catch-all API routes.
+  // Route by the actual pathname; query-string parameters must not select a handler.
+  const pathname = new URL(req.url, 'https://internal.invalid').pathname;
+  const action = pathname.startsWith('/api/stage10/')
+    ? pathname.slice('/api/stage10/'.length) : '';
+  const selected = Object.hasOwn(handlers, action) ? handlers[action] : null;
   if (!selected) return sendResourceError(res, 404, 'NOT_FOUND');
   return selected(req, res);
 }
