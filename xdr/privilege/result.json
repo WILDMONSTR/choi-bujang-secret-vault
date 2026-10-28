@@ -70,9 +70,9 @@
     },
     {
       "alertId": "pv-12",
-      "action": "alert",
-      "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 정상 사용을 뒷받침하는 명시적 승인 근거가 없어 alert로 분류함. 이상 징후가 명시되지 않았다는 사실이나 평소 주소라는 표현만으로 정상이라고 판단하지 않음. 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 경보 설명에 평소·정상·승인된 활동 맥락이 명시됨; 관리자 명령 실행 또는 실행 실패 표현 확인; rule.level 10 미만이므로 차단 기준 미충족; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-13",
@@ -161,7 +161,7 @@
   ],
   "counts": {
     "block": 4,
-    "alert": 9,
-    "record": 13
+    "alert": 8,
+    "record": 14
   }
 }
