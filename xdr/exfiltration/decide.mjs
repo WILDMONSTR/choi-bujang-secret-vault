@@ -214,7 +214,7 @@ export function decide(alert) {
   }
   const suspicious = unfamiliar || offHours || compressed || repeated || unusualPort
     || commandChannel || wholeWorkspace || multipleDestinations
-    || /\b(?:전송량|반출|대용량|backup|백업|전송)\b|평소보다|부분만|일부만|실패/i.test(desc)
+    || /전송량|반출|대용량|backup|백업|전송|평소보다|부분만|일부만|실패|파일\s*수가?\s*(?:한\s*번\s*)?늘|파일\s*수\s*증가/i.test(desc)
     || (outbound && (technique('T1041') || technique('T1048')) && bytes >= 1000000);
   if (suspicious) {
     return determine('suspicious_incomplete_export', 0.68, '반출 성공·위험도 또는 복합 증거가 부족하여 조사');
