@@ -9,6 +9,7 @@ import { decide as decidePrivilege } from "../xdr/privilege/decide.mjs";
 import { decide as existingDecide } from "../src/decider.mjs";
 import { decideWithXdr } from "../src/xdr-ztna-gate.mjs";
 import { fixtureRequests } from "../scripts/fixture-7.mjs";
+import { requireAllowedPrivilegeSession } from "../src/resource-access.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "xdr", "fixtures", "privilege.json");
@@ -159,6 +160,7 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
       mkdir(join(temp, "xdr", "privilege"), { recursive: true })
     ]);
     await copyFile(FIXTURE_PATH, join(temp, "xdr", "fixtures", "privilege.json"));
+    await copyFile(join(ROOT, "xdr", "privilege", "fixture-identity.json"), join(temp, "xdr", "privilege", "fixture-identity.json"));
     await copyFile(IDENTITY_PATH, join(temp, "xdr", "privilege", "fixture-identity.json"));
     await copyFile(join(ROOT, "xdr", "privilege", "decide.mjs"), join(temp, "xdr", "privilege", "decide.mjs"));
     await copyFile(join(ROOT, "xdr", "privilege", "respond.mjs"), join(temp, "xdr", "privilege", "respond.mjs"));
@@ -263,4 +265,47 @@ test("original Wazuh fixture and separate trusted identity evidence remain consi
     assert.equal(identities.accounts[i].srcuser,alert.data.srcuser);
     assert.equal(identities.accounts[i].source,"trusted-directory");
   }
+});
+
+test("original alert content remains intact and trusted identity evidence is separate", async () => {
+  const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
+  const identities = JSON.parse(await readFile(join(ROOT,"xdr","privilege","fixture-identity.json"),"utf8"));
+  assert.equal(fixture.alerts.length,26);
+  assert.ok(fixture.alerts.every((alert) => !Object.hasOwn(alert,"identity")));
+  assert.equal(identities.accounts.length,26);
+  assert.deepEqual(identities.accounts.map((x)=>x.alertId),fixture.alerts.map((x)=>x.id));
+  for (let i=0;i<26;i++) assert.equal(identities.accounts[i].srcuser,fixture.alerts[i].data.srcuser);
+});
+
+test("authenticated HTTP resource gate denies only active account, permits normal, fails closed", async () => {
+  const now = new Date("2026-10-28T00:00:00Z");
+  const checks = [];
+  function fakeDb(rule,failed=false) {
+    return {from(table){
+      assert.equal(table,"xdr_privilege_session_rules");
+      return {select(){return this;},eq(key,value){checks.push([key,value]);return this;},
+        gt(){return this;},limit(){return this;},
+        async maybeSingle(){return failed?{error:{message:"unavailable"}}:{data:rule,error:null};}};
+    }};
+  }
+  function fakeRes() {
+    return {statusCode:0,payload:null,status(v){this.statusCode=v;return this;},json(v){this.payload=v;return this;}};
+  }
+  const rule={rule_id:"xdr-privilege-verified",subject_id:"aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+    expires_at:"2026-10-28T00:15:00Z",evidence_alert_ids:["pv-04"],
+    evidence_pattern:"admin_group_added_then_admin_command",confidence:0.96};
+  let res=fakeRes();
+  assert.equal(await requireAllowedPrivilegeSession(res,rule.subject_id,fakeDb(rule),now),false);
+  assert.equal(res.statusCode,403);
+  assert.equal(res.payload.error,"XDR_PRIVILEGE_DENIED");
+  res=fakeRes();
+  assert.equal(await requireAllowedPrivilegeSession(res,"bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",fakeDb(null),now),true);
+  assert.equal(res.statusCode,0);
+  res=fakeRes();
+  assert.equal(await requireAllowedPrivilegeSession(res,rule.subject_id,fakeDb(null),now),true);
+  res=fakeRes();
+  assert.equal(await requireAllowedPrivilegeSession(res,rule.subject_id,fakeDb(null,true),now),false);
+  assert.equal(res.statusCode,503);
+  assert.equal(res.payload.error,"XDR_PRIVILEGE_CHECK_UNAVAILABLE");
+  assert.ok(checks.some(([key,value])=>key==="subject_id"&&value===rule.subject_id));
 });
