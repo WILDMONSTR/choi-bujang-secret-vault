@@ -4,9 +4,9 @@
   "decisions": [
     {
       "alertId": "pv-01",
-      "action": "alert",
-      "confidence": 0.68,
-      "reason": "admin_group_addition: 단독 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "remote_admin_group_change: 원격 출발지의 고위험 관리자 그룹 추가 — 확인 근거: 관리자 그룹 추가 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-02",
@@ -16,9 +16,9 @@
     },
     {
       "alertId": "pv-03",
-      "action": "alert",
-      "confidence": 0.68,
-      "reason": "unfamiliar_admin_command: 처음 관측된 관리자 명령 또는 낯선 출발지·계정 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 낯선 주소 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "off_hours_new_source_admin_command: 업무 외 시간 신규 출발지 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 낯선 주소 표현 확인; 업무·수업 시간 외 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-04",
@@ -34,9 +34,9 @@
     },
     {
       "alertId": "pv-06",
-      "action": "alert",
-      "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 권한 상승·변경 표현 확인; 낯선 주소 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "action": "block",
+      "confidence": 0.91,
+      "reason": "new_source_admin_session_elevation: 신규 출발지에서 관리자 세션 권한 획득 — 확인 근거: 권한 상승·변경 표현 확인; 낯선 주소 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-07",
@@ -46,15 +46,15 @@
     },
     {
       "alertId": "pv-08",
-      "action": "alert",
-      "confidence": 0.68,
-      "reason": "unfamiliar_admin_command: 처음 관측된 관리자 명령 또는 낯선 출발지·계정 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 다른 계정 권한 사용 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "action": "block",
+      "confidence": 0.92,
+      "reason": "cross_account_admin_command: 다른 계정 권한으로 실행한 관리자 명령 — 확인 근거: 관리자 명령 실행 또는 실행 실패 표현 확인; 다른 계정 권한 사용 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-09",
-      "action": "alert",
-      "confidence": 0.68,
-      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 그룹 제거 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "rapid_admin_group_reentry: 1분 내 관리자 그룹 탈퇴 후 재가입 — 확인 근거: 관리자 그룹 추가 표현 확인; 관리자 그룹 제거 표현 확인; rule.level 10 이상 확인; data.srcip이 유효한 IPv4 주소임; rule.mitre에 T1068 또는 T1078이 있음"
     },
     {
       "alertId": "pv-10",
@@ -64,9 +64,9 @@
     },
     {
       "alertId": "pv-11",
-      "action": "record",
-      "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 경보 설명에 대상이 관리자 그룹이 아니라고 명시됨"
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: MITRE T1068/T1078 권한 활동으로 분류된 경보지만 승인 근거와 공격 성공을 입증할 신호가 충분하지 않아 단독 alert로 조사함. 경보 설명에 대상이 관리자 그룹이 아니라고 명시됨"
     },
     {
       "alertId": "pv-12",
@@ -76,9 +76,9 @@
     },
     {
       "alertId": "pv-13",
-      "action": "record",
-      "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. 읽기 전용 또는 조회 작업이 명시됨; 권한·그룹 변경이 없었다고 명시됨; 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: MITRE T1068/T1078 권한 활동으로 분류된 경보지만 승인 근거와 공격 성공을 입증할 신호가 충분하지 않아 단독 alert로 조사함. 읽기 전용 또는 조회 작업이 명시됨; 권한·그룹 변경이 없었다고 명시됨; 로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨"
     },
     {
       "alertId": "pv-14",
@@ -88,9 +88,9 @@
     },
     {
       "alertId": "pv-15",
-      "action": "record",
-      "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. data.group이 관리자 그룹이 아닌 대상으로 확인됨"
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: MITRE T1068/T1078 권한 활동으로 분류된 경보지만 승인 근거와 공격 성공을 입증할 신호가 충분하지 않아 단독 alert로 조사함. data.group이 관리자 그룹이 아닌 대상으로 확인됨"
     },
     {
       "alertId": "pv-16",
@@ -100,9 +100,9 @@
     },
     {
       "alertId": "pv-17",
-      "action": "record",
-      "confidence": 0.1,
-      "reason": "ordinary_account_activity: 정상 계정·그룹 활동 — 확인 근거: 명시적인 정상 활동 근거가 확인되어 record로 분류함. data.group이 관리자 그룹이 아닌 대상으로 확인됨"
+      "action": "alert",
+      "confidence": 0.68,
+      "reason": "ambiguous_privilege_activity: 불충분하거나 실패한 권한 사용 시도 — 확인 근거: MITRE T1068/T1078 권한 활동으로 분류된 경보지만 승인 근거와 공격 성공을 입증할 신호가 충분하지 않아 단독 alert로 조사함. data.group이 관리자 그룹이 아닌 대상으로 확인됨"
     },
     {
       "alertId": "pv-18",
@@ -160,8 +160,8 @@
     }
   ],
   "counts": {
-    "block": 4,
-    "alert": 9,
-    "record": 13
+    "block": 9,
+    "alert": 8,
+    "record": 9
   }
 }
