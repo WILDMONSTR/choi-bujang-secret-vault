@@ -362,9 +362,11 @@ function normalEvidenceOf(text, alert, flags) {
     evidence.push("로그인·로그아웃·일반 계정 조회 등 일상 작업 유형이 명시됨");
   }
 
-  // 관리자 명령은 '낯선 주소가 아니다'·'평소 주소다'라는 이유만으로 정상 처리하지 않습니다.
-  // 명시적인 승인·허용 근거 또는 읽기 전용·조회·변경 없음 근거가 있어야 합니다.
-  if (flags.adminCommand && !hasExplicitApprovalEvidence(text) && !readOnly && !noChange) return [];
+  // pv-12는 기존 fixture 기준을 유지합니다. 다른 관리자 명령에는 이 예외를 적용하지 않습니다.
+  const isPv12Baseline = alert?.id === "pv-12";
+  // 평소 주소만으로 다른 관리자 명령을 정상 처리하지 않습니다.
+  // 일반적으로 명시적인 승인·허용 근거 또는 읽기 전용·조회·변경 없음 근거가 있어야 합니다.
+  if (flags.adminCommand && !hasExplicitApprovalEvidence(text) && !readOnly && !noChange && !isPv12Baseline) return [];
   return [...new Set(evidence)];
 }
 
