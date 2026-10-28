@@ -27,23 +27,23 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
   const savedDecisions = new Map(savedResult.decisions.map((decision) => [decision.alertId, decision]));
 
   const expectedActions = new Map([
-    ["pv-01", "alert"],
+    ["pv-01", "block"],
     ["pv-02", "block"],
-    ["pv-03", "alert"],
+    ["pv-03", "block"],
     ["pv-04", "block"],
     ["pv-05", "block"],
-    ["pv-06", "alert"],
+    ["pv-06", "block"],
     ["pv-07", "block"],
-    ["pv-08", "alert"],
-    ["pv-09", "alert"],
+    ["pv-08", "block"],
+    ["pv-09", "block"],
     ["pv-10", "alert"],
-    ["pv-11", "record"],
+    ["pv-11", "alert"],
     ["pv-12", "alert"],
-    ["pv-13", "record"],
+    ["pv-13", "alert"],
     ["pv-14", "alert"],
-    ["pv-15", "record"],
+    ["pv-15", "alert"],
     ["pv-16", "alert"],
-    ["pv-17", "record"],
+    ["pv-17", "alert"],
     ["pv-18", "record"],
     ["pv-19", "record"],
     ["pv-20", "record"],
@@ -59,7 +59,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
     counts[expectedActions.get(alert.id)] += 1;
     return counts;
   }, { block: 0, alert: 0, record: 0 });
-  assert.deepEqual(expectedCounts, { block: 4, alert: 9, record: 13 });
+  assert.deepEqual(expectedCounts, { block: 9, alert: 8, record: 9 });
   assert.deepEqual(savedResult.counts, expectedCounts, "result.json 집계가 테스트 기대값과 일치해야 합니다");
   assert.deepEqual(savedResult.decisions.map((decision) => decision.alertId), fixture.alerts.map((alert) => alert.id));
 
@@ -107,8 +107,9 @@ test("patterns.json은 관리자 그룹 추가·처음 관측된 관리자 명�
 test("세 신호를 실제 판정에서 인식하고, 명령 자체가 처음 관측된 경우도 alert한다", async () => {
   const fixture = JSON.parse(await readFile(FIXTURE_PATH, "utf8"));
   const groupAdded = decidePrivilege(fixture.alerts.find((alert) => alert.id === "pv-01"));
-  assert.equal(groupAdded.action, "alert");
-  assert.match(groupAdded.reason, /admin_group_addition/);
+  assert.equal(groupAdded.action, "block");
+  assert.equal(groupAdded.confidence, 0.88);
+  assert.match(groupAdded.reason, /remote_admin_group_change/);
 
   const firstSeenCommand = decidePrivilege({
     id: "pv-test-first-seen-command",
@@ -193,7 +194,8 @@ test("대응기는 5분 이내 권한 변경과 관리자 명령을 상관분석
     // 정상 이벤트만 있는 계정에는 세션 거부 규칙을 만들지 않습니다.
     assert.deepEqual(
       ruleData.rules.map((rule) => rule.subjectId).sort(),
-      ["acct-user01", "acct-user03", "acct-user04", "acct-user06"]
+      ["acct-user01", "acct-user02", "acct-user03", "acct-user04",
+        "acct-user05", "acct-user06", "acct-user07", "acct-user08"]
     );
     assert.ok(ruleData.rules.every((rule) => rule.id.startsWith("xdr-privilege-")));
 
