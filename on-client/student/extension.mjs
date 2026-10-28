@@ -1091,10 +1091,6 @@ export function createStudentView() {
         const text = safeText(value, 120);
         return text && Number.isFinite(Date.parse(text)) ? text : '';
       };
-        if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
-        if (typeof value === 'boolean') return String(value);
-        return safeText(value, 160);
-      };
 
       const allowedStatuses = new Set(['idle', 'loading', 'prepared', 'executing', 'pending', 'succeeded', 'denied', 'failed', 'unknown', 'error', 'expired']);
       const rawStatus = safeId(resource.status);
