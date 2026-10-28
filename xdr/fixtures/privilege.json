@@ -8,10 +8,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user01",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 12,
         "description": "user01 이 원격 주소에서 관리자 그룹에 추가됐습니다.",
@@ -30,10 +26,6 @@
       "timestamp": "2026-09-27T09:15:40+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user01",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 12,
@@ -54,10 +46,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user02",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 11,
         "description": "수업 시간 밖에 user02 가 처음 보는 주소에서 관리자 명령을 실행했습니다.",
@@ -75,10 +63,6 @@
       "timestamp": "2026-09-27T10:19:08+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user03",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 12,
@@ -98,10 +82,6 @@
       "timestamp": "2026-09-27T11:06:21+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user04",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 10,
@@ -123,10 +103,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user05",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 12,
         "description": "user05 세션이 관리자 권한으로 바뀌었고 요청 주소는 처음 봅니다.",
@@ -144,10 +120,6 @@
       "timestamp": "2026-09-27T14:16:29+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user06",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 11,
@@ -169,10 +141,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user07",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 12,
         "description": "user07 이 다른 계정의 권한으로 관리자 명령을 실행했습니다.",
@@ -190,10 +158,6 @@
       "timestamp": "2026-09-27T15:33:07+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user08",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 10,
@@ -215,10 +179,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user01",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 6,
         "description": "수업 시간에 권한 상승 창이 한 번 뜨고 취소됐습니다.",
@@ -236,10 +196,6 @@
       "timestamp": "2026-09-27T10:14:33+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user02",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 7,
@@ -260,10 +216,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user03",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 5,
         "description": "평소 주소에서 관리자 명령이 한 번 실행됐습니다.",
@@ -281,10 +233,6 @@
       "timestamp": "2026-09-27T11:21:16+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user04",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 6,
@@ -304,10 +252,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user05",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 8,
         "description": "수업 중 권한 상승이 1건 있고 이어서 명령은 없습니다.",
@@ -325,10 +269,6 @@
       "timestamp": "2026-09-27T13:17:05+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user06",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 6,
@@ -349,10 +289,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user07",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 7,
         "description": "관리자 명령이 실패 1건으로 끝났습니다.",
@@ -370,10 +306,6 @@
       "timestamp": "2026-09-27T15:19:41+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user08",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 5,
@@ -394,10 +326,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user01",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 3,
         "description": "user01 이 로그인했습니다.",
@@ -413,10 +341,6 @@
       "timestamp": "2026-09-27T09:35:19+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user01",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 3,
@@ -434,10 +358,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user02",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 2,
         "description": "비밀번호를 변경했습니다.",
@@ -453,10 +373,6 @@
       "timestamp": "2026-09-27T10:52:06+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-admin01",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 3,
@@ -474,10 +390,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-admin01",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 3,
         "description": "admin01 이 로그아웃했습니다.",
@@ -493,10 +405,6 @@
       "timestamp": "2026-09-27T12:20:03+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user03",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 2,
@@ -514,10 +422,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-user04",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 3,
         "description": "자료실을 열었습니다.",
@@ -534,10 +438,6 @@
       "agent": {
         "name": "choi-bujang-pc"
       },
-      "identity": {
-        "subjectId": "acct-svc-lab",
-        "source": "trusted-directory"
-      },
       "rule": {
         "level": 3,
         "description": "svc-lab 이 평소 예약 작업을 확인했습니다.",
@@ -553,10 +453,6 @@
       "timestamp": "2026-09-27T15:41:08+09:00",
       "agent": {
         "name": "choi-bujang-pc"
-      },
-      "identity": {
-        "subjectId": "acct-user05",
-        "source": "trusted-directory"
       },
       "rule": {
         "level": 2,

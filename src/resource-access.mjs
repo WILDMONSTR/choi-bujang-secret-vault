@@ -1,4 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
+import {checkPrivilegeSessionDeny} from '../xdr/privilege/respond.mjs';
 import {createLoginVerifier} from './verify-login.mjs';
 import {isTrustedBrowserOrigin,readSessionCookies} from './session-cookies.mjs';
 
@@ -25,6 +26,21 @@ function context(config,url,key){
   return cached={url,key,supabase,verifyLogin:createLoginVerifier({
     config,supabaseSecretKey:key,supabaseClient:supabase
   })};
+}
+
+export async function requireAllowedPrivilegeSession(res,verifiedUserId,db,at=new Date()){
+  try{
+    const denied=await checkPrivilegeSessionDeny(verifiedUserId,at,db);
+    if(denied){
+      sendResourceError(res,403,'XDR_PRIVILEGE_DENIED');
+      return false;
+    }
+    return true;
+  }catch{
+    // A failed security-store lookup must never silently authorize the request.
+    sendResourceError(res,503,'XDR_PRIVILEGE_CHECK_UNAVAILABLE');
+    return false;
+  }
 }
 
 export async function requireResourceIdentity(req,res,config){
@@ -89,6 +105,8 @@ export async function requireResourceIdentity(req,res,config){
     return null;
   }
 
+  // The authenticated identity is the only source of the account being checked.
+  if(!await requireAllowedPrivilegeSession(res,id.userId,ctx.supabase))return null;
   return {supabase:ctx.supabase,identity:id};
 }
 
