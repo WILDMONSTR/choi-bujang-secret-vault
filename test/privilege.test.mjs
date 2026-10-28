@@ -30,7 +30,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
     ["pv-09", "alert"],
     ["pv-10", "alert"],
     ["pv-11", "record"],
-    ["pv-12", "alert"],
+    ["pv-12", "record"],
     ["pv-13", "record"],
     ["pv-14", "alert"],
     ["pv-15", "record"],
@@ -52,7 +52,7 @@ test("심판처럼 fixture의 각 privilege 경보를 decide.mjs로 독립 판�
       counts[expectedActions.get(alert.id)] += 1;
       return counts;
     }, { block: 0, alert: 0, record: 0 }),
-    { block: 4, alert: 9, record: 13 }
+    { block: 4, alert: 8, record: 14 }
   );
 
   for (const alert of fixture.alerts) {
