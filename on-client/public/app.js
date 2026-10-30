@@ -1262,6 +1262,181 @@ async function loadStudentModule() {
   renderAllStudent();
 }
 
+
+// ---------- Local PC observations (Windows read-only; never use demo values) ----------
+const PC_WINDOW_MS = 10 * 60 * 1000;
+const PC_POLL_MS = 15000;
+const PC_REASONS = Object.freeze({
+  UNSUPPORTED_PLATFORM: 'Windows 환경이 아닙니다',
+  POWERSHELL_NOT_FOUND: 'Windows PowerShell을 실행할 수 없습니다',
+  MEASUREMENT_TIMEOUT: '일반 권한 조회 시간이 초과됐습니다',
+  MEASUREMENT_FAILED: '일반 권한 조회가 실패했습니다',
+  INVALID_RESPONSE: '측정 응답을 읽을 수 없습니다',
+  INVALID_MEASUREMENT: '측정값 또는 단위를 검증하지 못했습니다',
+  CPU_READ_FAILED: 'CPU 정보를 읽을 권한 또는 응답이 없습니다',
+  CPU_VALUE_UNAVAILABLE: 'CPU 사용률을 제공하지 않습니다',
+  MEMORY_READ_FAILED: '메모리 정보를 읽을 권한 또는 응답이 없습니다',
+  MEMORY_VALUE_UNAVAILABLE: '메모리 정보를 제공하지 않습니다',
+  DISK_READ_FAILED: '시스템 디스크 정보를 읽을 수 없습니다',
+  DISK_TARGET_UNAVAILABLE: 'Windows 시스템 드라이브를 확인할 수 없습니다',
+  NETWORK_ERROR: '로컬 앱 서버에 연결할 수 없습니다',
+  TIMEOUT: '로컬 조회 요청 시간이 초과됐습니다',
+  SERVICE_UNAVAILABLE: '로컬 서버에서 조회하지 못했습니다',
+  CONTRACT_MISMATCH: 'PC 상태 응답 형식이 일치하지 않습니다',
+});
+const pcUnknown = (reason) => ({
+  cpu: {status:'unavailable',usedPercent:null,unit:'%',measuredAt:null,reason},
+  memory: {status:'unavailable',usedGiB:null,totalGiB:null,usedPercent:null,unit:'GiB',measuredAt:null,reason},
+  disk: {status:'unavailable',freeGiB:null,totalGiB:null,unit:'GiB',drive:null,measuredAt:null,reason},
+});
+let pcState = { checkedAt:null, ...pcUnknown('MEASUREMENT_FAILED') };
+let pcHistory = [];
+let pcRequestRunning = false;
+let pcAbort = null;
+let pcTimer = null;
+const pcFinite = (n,min,max) => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max;
+const pcDate = (s) => typeof s === 'string' && Number.isFinite(Date.parse(s));
+const pcGood = (m,kind) => m?.status === 'ok' && pcDate(m.measuredAt)
+  && (kind === 'cpu' ? m.unit === '%' && pcFinite(m.usedPercent,0,100)
+    : kind === 'memory' ? m.unit === 'GiB' && pcFinite(m.usedPercent,0,100)
+      && pcFinite(m.totalGiB,.001,Number.MAX_SAFE_INTEGER) && pcFinite(m.usedGiB,0,m.totalGiB)
+    : m.unit === 'GiB' && pcFinite(m.totalGiB,.001,Number.MAX_SAFE_INTEGER)
+      && pcFinite(m.freeGiB,0,m.totalGiB) && /^[A-Za-z]:$/.test(m.drive));
+const pcReason = (metric) => PC_REASONS[metric?.reason] || '조회 또는 값 확인 불가';
+const pcTime = (s) => pcDate(s) ? new Intl.DateTimeFormat('ko-KR',{
+  timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',
+  hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,
+}).format(new Date(s)) + ' KST' : '측정 시각 없음';
+const pcNum = (n,d=1) => Number(n).toFixed(d);
+
+function renderPcCard(kind, valueId, metaId) {
+  const metric = pcState[kind];
+  const value = $(valueId), meta = $(metaId);
+  const unit = kind === 'cpu' ? '%' : 'GiB';
+  if (!pcGood(metric,kind)) {
+    value.textContent = '확인 불가';
+    meta.textContent = '단위 ' + unit + ' · 측정 시각 없음 · ' + pcReason(metric);
+    return;
+  }
+  if (kind === 'cpu') value.textContent = pcNum(metric.usedPercent) + ' %';
+  if (kind === 'memory') value.textContent = pcNum(metric.usedGiB,2) + ' / ' + pcNum(metric.totalGiB,2) + ' GiB';
+  if (kind === 'disk') value.textContent = pcNum(metric.freeGiB,2) + ' GiB';
+  meta.textContent = '실측 · ' + pcTime(metric.measuredAt) +
+    (kind === 'memory' ? ' · 사용률 ' + pcNum(metric.usedPercent) + ' %'
+      : kind === 'disk' ? ' · ' + metric.drive + ' / 전체 ' + pcNum(metric.totalGiB,2) + ' GiB' : ' · 단위 %');
+}
+
+const PC_SVG = 'http://www.w3.org/2000/svg';
+function pcSvg(tag, attrs, text) {
+  const node = document.createElementNS(PC_SVG,tag);
+  for (const [key,value] of Object.entries(attrs)) node.setAttribute(key,String(value));
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+function renderPcTrend() {
+  const svg = $('pc-trend-chart');
+  svg.replaceChildren();
+  for (const percent of [0,50,100]) {
+    const y = 146 - percent * 1.32;
+    svg.append(pcSvg('line',{x1:42,x2:605,y1:y,y2:y,stroke:'#d9dde3','stroke-width':1}));
+    svg.append(pcSvg('text',{x:2,y:y+4,fill:'#5a6472','font-size':11},percent+'%'));
+  }
+  const end = Date.now(), start = end - PC_WINDOW_MS;
+  const history = pcHistory.filter(item => Date.parse(item.checkedAt) >= start);
+  let validCount = 0;
+  for (const [kind,color] of [['cpu','#2357c6'],['memory','#1d7a3e']]) {
+    let segment = [];
+    const draw = () => {
+      if (segment.length === 1) {
+        svg.append(pcSvg('circle',{cx:segment[0].x,cy:segment[0].y,r:3,fill:color}));
+      } else if (segment.length > 1) {
+        svg.append(pcSvg('polyline',{
+          points:segment.map(p => p.x.toFixed(1)+','+p.y.toFixed(1)).join(' '),
+          fill:'none',stroke:color,'stroke-width':2,'stroke-linejoin':'round'
+        }));
+      }
+      segment = [];
+    };
+    for (const item of history) {
+      const m = item[kind];
+      const time = Date.parse(m?.measuredAt);
+      if (!pcGood(m,kind) || time < start || time > end + 1000) { draw(); continue; }
+      validCount++;
+      const pct = m.usedPercent;
+      segment.push({ x:42 + (time - start) / PC_WINDOW_MS * 563, y:146 - pct * 1.32 });
+    }
+    draw();
+  }
+  $('pc-trend-note').textContent = validCount
+    ? '실측한 지점만 표시합니다. 조회 실패·빈 값은 0%로 연결하지 않습니다. (최근 10분)'
+    : '실제 사용률 측정 기록 없음 · 추이 비교 불가';
+}
+
+function renderPcHistory() {
+  const tbody = $('pc-history-body');
+  const rows = pcHistory.slice(-8).reverse();
+  if (!rows.length) {
+    setChildren(tbody,el('tr',{},el('td',{colspan:'4',text:'실제 측정 기록 없음'})));
+    return;
+  }
+  const valueText = (item,kind) => {
+    const m = item[kind];
+    if (!pcGood(m,kind)) return '확인 불가 (' + pcReason(m) + ') · 측정 시각 없음';
+    const value = kind === 'cpu' ? pcNum(m.usedPercent)+' %'
+      : kind === 'memory' ? pcNum(m.usedGiB,2)+' GiB / '+pcNum(m.usedPercent)+' %'
+      : pcNum(m.freeGiB,2)+' GiB ('+m.drive+')';
+    return value + ' · 실측 ' + pcTime(m.measuredAt);
+  };
+  setChildren(tbody,...rows.map(item => el('tr',{},[
+    el('td',{text:pcTime(item.checkedAt) + ' · 조회'}),
+    ...['cpu','memory','disk'].map(kind=>el('td',{text:valueText(item,kind)})),
+  ])));
+}
+
+function renderPcStatus() {
+  renderPcCard('cpu','pc-cpu-value','pc-cpu-meta');
+  renderPcCard('memory','pc-memory-value','pc-memory-meta');
+  renderPcCard('disk','pc-disk-value','pc-disk-meta');
+  const ok = ['cpu','memory','disk'].filter(k => pcGood(pcState[k],k)).length;
+  $('pc-health-value').textContent = pcRequestRunning ? '측정 중' : ok + ' / 3 항목 실측';
+  $('pc-health-meta').textContent = '조회 ' + (pcState.checkedAt ? pcTime(pcState.checkedAt) : '전 · 측정 시각 없음');
+  $('pc-source').textContent = '출처: 로컬 Windows 일반 권한 조회 · 확인된 값만 실측 표시 · 예시 값 없음'
+    + (pcRequestRunning ? ' · 새 측정 중' : '');
+  renderPcTrend();
+  renderPcHistory();
+}
+
+async function loadPcStatus() {
+  if (pcRequestRunning) return;
+  pcRequestRunning = true;
+  pcAbort = new AbortController();
+  renderPcStatus();
+  let next;
+  try {
+    const response = await request('/api/local-pc-status',{signal:pcAbort.signal,timeoutMs:14000});
+    const data = response.data;
+    if (response.ok && data?.source === 'local-windows' && pcDate(data.checkedAt)
+        && ['cpu','memory','disk'].every(k=>data[k] && ['ok','unavailable'].includes(data[k].status))) {
+      next = {checkedAt:data.checkedAt,cpu:data.cpu,memory:data.memory,disk:data.disk};
+    } else {
+      const reason = response.ok ? 'CONTRACT_MISMATCH' : response.error?.code || 'SERVICE_UNAVAILABLE';
+      next = {checkedAt:new Date().toISOString(),...pcUnknown(reason)};
+    }
+  } catch {
+    next = {checkedAt:new Date().toISOString(),...pcUnknown('MEASUREMENT_FAILED')};
+  } finally {
+    pcAbort = null;
+    pcRequestRunning = false;
+  }
+  pcState = next;
+  pcHistory.push(next);
+  const cutoff = Date.now() - PC_WINDOW_MS;
+  pcHistory = pcHistory.filter(x => Date.parse(x.checkedAt) >= cutoff).slice(-45);
+  renderPcStatus();
+}
+
+// ---------- End local PC observations ----------
+
 // ---------- 로드 ----------
 
 const RENDERERS = {
@@ -1333,7 +1508,7 @@ async function loadAll() {
 
 function init() {
   setupNav();
-  $('refresh').addEventListener('click', () => loadAll());
+  $('refresh').addEventListener('click', () => { loadAll(); void loadPcStatus(); });
   $('diag-load').addEventListener('click', () => loadDiagnostics());
   $('diag-copy').addEventListener('click', () => copyDiagnostics());
   $('vulnerabilities-load').addEventListener('click', () => loadVulnerabilities());
@@ -1365,6 +1540,10 @@ function init() {
   renderVulnerabilities();
   renderAllStudent();
   loadStudentModule();
+  renderPcStatus();
+  void loadPcStatus();
+  pcTimer = window.setInterval(() => { void loadPcStatus(); }, PC_POLL_MS);
+  window.addEventListener('pagehide', () => { window.clearInterval(pcTimer); pcAbort?.abort(); });
   loadAll();
 }
 

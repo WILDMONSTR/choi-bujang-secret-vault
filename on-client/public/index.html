@@ -46,6 +46,33 @@
       <section id="view-protection" class="view" role="tabpanel" aria-labelledby="tab-protection">
         <h1>보호 현황</h1>
 
+        <!-- Local PC observations are separate from the provided security-agent status and demo engine. -->
+        <section class="pc-dashboard" aria-labelledby="pc-dashboard-title">
+          <h2 id="pc-dashboard-title">내 PC 상태 <span class="tag tag-student">추가 구현 · 로컬 실측</span></h2>
+          <p class="muted" id="pc-source">실제 측정 전입니다. 예시 값은 표시하지 않습니다.</p>
+          <div class="pc-grid" aria-label="PC 상태 카드 네 개">
+            <section class="card pc-card"><h3>CPU 사용률</h3><p id="pc-cpu-value" class="pc-value">확인 불가</p><p id="pc-cpu-meta" class="muted">측정 시각 없음 · 단위 %</p></section>
+            <section class="card pc-card"><h3>메모리 사용량</h3><p id="pc-memory-value" class="pc-value">확인 불가</p><p id="pc-memory-meta" class="muted">측정 시각 없음 · 단위 GiB</p></section>
+            <section class="card pc-card"><h3>시스템 디스크 여유</h3><p id="pc-disk-value" class="pc-value">확인 불가</p><p id="pc-disk-meta" class="muted">측정 시각 없음 · 단위 GiB</p></section>
+            <section class="card pc-card"><h3>측정 상태</h3><p id="pc-health-value" class="pc-value">확인 불가</p><p id="pc-health-meta" class="muted">조회 전 · KST</p></section>
+          </div>
+          <div class="pc-details">
+            <section class="card" aria-labelledby="pc-trend-title">
+              <h3 id="pc-trend-title">최근 10분 사용률 추이</h3>
+              <p class="muted">CPU <span class="pc-legend pc-cpu-line">■</span> / 메모리 <span class="pc-legend pc-memory-line">■</span> · 같은 % 축에서 비교 · 15초 간격</p>
+              <svg id="pc-trend-chart" viewBox="0 0 620 160" role="img" aria-label="실제 측정값에 기반한 CPU 및 메모리 사용률 추이"></svg>
+              <p class="muted" id="pc-trend-note">실제 측정 기록 없음</p>
+            </section>
+            <section class="card" aria-labelledby="pc-history-title">
+              <h3 id="pc-history-title">최근 측정 기록</h3>
+              <div class="pc-history-scroll">
+                <table class="pc-history-table"><thead><tr><th scope="col">조회 시각 (KST)</th><th scope="col">CPU (%)</th><th scope="col">메모리 (GiB / %)</th><th scope="col">디스크 여유 (GiB)</th></tr></thead>
+                <tbody id="pc-history-body"><tr><td colspan="4">측정 기록 없음</td></tr></tbody></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <div class="grid-2">
           <section class="card provided" aria-labelledby="identity-title">
             <h2 id="identity-title">현재 로그인 <span class="tag">제공</span></h2>
