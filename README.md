@@ -26,7 +26,7 @@ npm run test:package
 npm run build -- --local
 ```
 
-`npm install`과 위 검사는 이 변경을 작성한 시점에 원격 실행 환경에서 실제로 실행하지 않았습니다. 실행 후에만 통과 여부를 기록하세요. 기기 등록·승인 및 서명 검증은 배포 환경에서 로그인한 가상 계정으로 추가 확인해야 합니다. `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 환경변수로 설정하고 값을 GitHub나 채팅에 보내지 마세요.
+`npm install`과 위 검사는 11단계 문서 작성 당시 미실행이었습니다. **2026-10-30 Windows 재검사에서 `npm.cmd install`, 해당 로컬 검사, `npm.cmd run build -- --local`이 통과**했습니다([로그](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40660480138)). 이 결과는 실제 기기 등록·승인 API의 인증된 실측을 대신하지 않습니다. 기기 등록·승인 및 서명 검증은 배포 환경에서 로그인한 가상 계정으로 추가 확인해야 합니다. `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 환경변수로 설정하고 값을 GitHub나 채팅에 보내지 마세요.
 
 
 ## 12단계: 탈환 작전실과 실제 방어 결과
@@ -281,20 +281,22 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 
 ### 제작 4 — 복원 뒤 재검사 순서
 
-다음 순서는 실행 지침입니다. 아래 시험은 이 저장점 작성 중 실제로 실행하지 않았으므로 초기 상태는 모두 미실행입니다. 실행한 뒤에만 결과를 갱신하세요.
+다음 순서는 복원 뒤 재검사를 위한 실행 지침입니다. 원래 작성 당시에는 미실행이었으며, **2026-10-30에 `main` 커밋 `6d1772a4d1ed91c955e098a9e03e6b2813c68265`을 대상으로 Windows GitHub Actions에서 아래 로컬 검사를 실제 재실행**했습니다. 이 검사만으로 실제 복원 성공이나 인증된 API 접근 검증을 주장하지 않습니다.
 
-1. npm install — 미실행
-2. npm run stage10:test — 미실행
-3. npm run decider:test — 미실행
-4. npm run resource-id:test — 미실행
-5. npm run detect:test — 미실행
-6. npm run fixture:7 — 미실행
-7. npm run test:r5 — 미실행
-8. npm run test:package — 미실행
+1. `npm.cmd install` — **통과** (Windows 검사 [실행 #40660480138](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40660480138), 재실행 시)
+2. `npm.cmd run stage10:test` — **통과** (검증된 가상 사본의 복구 단위 시험, 실제 DB 복원 아님)
+3. `npm.cmd run decider:test` — **통과** (가상 판정기)
+4. `npm.cmd run resource-id:test` — **통과** (자원 ID 11건)
+5. `npm.cmd run detect:test` — **통과** (가상 탐지기)
+6. `npm.cmd run fixture:7` — **통과** ([실행 #40991525476](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40991525476), 정상 `allow` / 복합 이상 `step_up`; 가상 입력)
+7. `npm.cmd run test:r5` — **통과** (회귀 테스트 4건)
+8. `npm.cmd run test:package` — **통과** (테스트 3건; 앱 포장 명령이 아님)
 9. 배포에서 A로 로그인해 A 소유의 메모 한 건을 조회합니다. 예상 결과는 HTTP 200입니다.
 10. B로 로그인해 A 소유 메모 ID를 조회합니다. 예상 결과는 HTTP 404 NOT_FOUND이고 메모 내용이 반환되지 않아야 합니다.
 11. B로 로그인해 미리 확인한 백업 한 건만 복원합니다. 응답 ID·소유자 ID·내용 SHA-256을 사본과 대조하고, 다른 메모 및 기존 감사 행이 그대로인지 확인합니다.
 12. 1~9단계의 정상·금지 요청을 다시 실행합니다. 미등록 기기, 허용 범위 밖 경로, 공지 쓰기, 출처가 불명확한 신호, 지역 신호만 다른 경우를 이전 단계의 기대값에 맞춰 확인합니다. 실행하지 않은 항목은 미실행으로 유지합니다.
+
+**2026-10-30 추가 확인:** 기존 `npm.cmd run build -- --local`, 11·12단계 검사도 Windows 실행 #40660480138에서 통과했습니다. 연결된 Supabase에서 `stage10_test_policies`, `stage10_safe_policy_copies`, `stage10_memo_backups`, `stage10_restore_audit`가 각각 **0행**인 것을 읽기 전용으로 확인했습니다. 따라서 위 9~11번의 로그인·교차 소유권·실제 복원은 **미실행(복원 사전 조건 미충족)**이며, 12번의 1~9단계 실서비스 정상·금지 양방향 검증도 **부분 검사/전체 미완료**입니다. 익명 GET 관측 10건은 아래 통합표를 참고하세요. `npm run package-app`, `npm run bundle`, DB 쓰기/복원 명령은 실행하지 않았습니다.
 
 로컬 단위 시험은 실제 Supabase 복원, 배포 API 또는 심판 판정을 증명하지 않습니다. 실제 DB 사본과 환경변수 설정 전에는 복원 성공을 주장할 수 없습니다. 최종 제출 묶음은 준비가 끝난 로컬 저장소에서 npm run bundle로 생성합니다. bundle-notes.json과 artifacts/submission.json은 커밋하지 않습니다.
 
@@ -378,12 +380,27 @@ npm.cmd run bundle
 
 ### 1~11단계 API 증거 통합표 작성 절차
 
-이 표는 각 단계에서 **실제로 실행한 정상 요청과 금지 요청**을 같은 형식으로 모으기 위한 기록 양식입니다. 지금 작성된 문서만으로 1~11단계 요청을 모두 실행한 것은 아니므로, 아래 예시는 양식이며 실제 결과가 아닙니다. 각 개별 API 요청마다 행을 하나씩 추가하고, 실행 전에는 `미실행`으로 둡니다.
+이 표는 각 단계에서 **실제로 실행한 정상 요청과 금지 요청**을 기록합니다. 아래 실측 10건은 [Windows GitHub Actions 실행 #40991525476](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40991525476)에서 공개 Production(`/aleph.json`이 확인한 `6d1772a4d1ed91c955e098a9e03e6b2813c68265`)에 **인증 정보 없는 GET만** 전송해 받은 실제 HTTP 응답입니다. 확인 시각은 HTTP 응답을 기록한 Actions 로그의 UTC 시각이며, 서버 요청 ID 헤더가 없으면 `응답에 없음`으로 표시합니다. `not_run` 행은 인증 계정/기기와 검증된 백업이 없어 실행하지 않은 시험입니다. 가상 판정기/탐지기 시험은 실서비스 HTTP 결과와 별도입니다.
 
 | 검사 커밋 SHA | 단계 | 유형 | 실제 요청 (HTTP 메서드·경로) | 기대 결과 | 실제 API 결과 | 요청 ID | 확인 시각 (UTC ISO 8601) | 증거 출처·상태 |
 |---|---:|---|---|---|---|---|---|---|
-| 제출 시 기록 | 1~11 | 정상 허용 | 미실행 — 실제 요청 경로 기입 | 해당 단계 계약에 정의된 정상 결과 | `not_run` | 응답에 없음 / 미실행 | — | 미실행 |
-| 제출 시 기록 | 1~11 | 금지·거부 | 미실행 — 실제 요청 경로 기입 | 해당 단계 계약에 정의된 거부 결과 | `not_run` | 응답에 없음 / 미실행 | — | 미실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 1-4 | 공개 배포 식별 | `GET /aleph.json` | 200 deployment identity | HTTP 200 | 응답에 없음 | 2026-10-30T02:25:00.928Z | Production 익명 GET 실측; 확인: 단계 12, 배포 SHA 일치 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 1-4 | 정적 자료 부재 | `GET /data.json` | 404 or 410 static data absent | HTTP 404 | 응답에 없음 | 2026-10-30T02:25:01.068Z | Production 익명 GET 실측; 해당 경로 404 (다른 경로 전체 검증 아님) |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5 | 익명 세션 확인 | `GET /api/auth/session` | 200, user null without cookie | HTTP 200 | 응답에 없음 | 2026-10-30T02:25:01.842Z | Production 익명 GET 실측; user=null 확인 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5 | 익명 목록 거부 | `GET /api/notes` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:02.631Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | 익명 단건 거부 | `GET /api/notes/00000000-0000-4000-8000-000000000001` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:03.429Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 6,11 | 익명 기기 상태 거부 | `GET /api/devices/status` | anonymous status or denial (no approval) | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:04.094Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 6,11 | 익명 기기 목록 거부 | `GET /api/devices` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:04.908Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 8 | 익명 공지 거부 | `GET /api/announcements?zoneId=unregistered` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:05.675Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 10 | 익명 정책 미리보기 거부 | `GET /api/stage10/policy-diff` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:06.345Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 11-12 | 익명 작전실 거부 | `GET /api/stage10/operations-status` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:06.428Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5 | 정상 허용 | `GET /api/notes/:id (A 인증)` | 본인 메모만 200 | `not_run` | 응답에 없음 / 미실행 | — | 인증된 시험 요청 미실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | 교차 소유권 거부 | `GET /api/notes/:id (B가 A 메모 요청)` | 404 NOT_FOUND, 본문 미반환 | `not_run` | 응답에 없음 / 미실행 | — | A/B 인증 시험 미실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | 자료 쓰기 거부 | `POST /api/notes; PUT/DELETE /api/notes/:id` | 권한 검증 후 거부/승인 | `not_run` | 응답에 없음 / 미실행 | — | 실서비스 쓰기 요청 미실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 6,11 | 기기 등록·승인 | `POST /api/devices/register; POST /api/devices/approve-self; POST /api/devices/approve` | 기기 세션과 권한별 판정 | `not_run` | 응답에 없음 / 미실행 | — | 인증된 쓰기 요청 미실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 8 | 공지 쓰기 거부 | `POST /api/announcements` | 교사 권한 없으면 거부 | `not_run` | 응답에 없음 / 미실행 | — | 실서비스 쓰기 요청 미실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 9 | 실제 회수 | `실사용 엔진 사건·세션 회수 경로 미제공` | 회수 결과 확인 | `not_run` | 응답에 없음 / 미실행 | — | 탐지 fixture만 실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 10 | 정책·메모 복원 | `POST /api/stage10/policy-restore; POST /api/stage10/memo-restore` | 검증된 사본이 있을 때만 복원 | `not_run` | 응답에 없음 / 미실행 | — | DB 검증 사본 0행, 실제 복원 미실행 |
 
 **기록 순서**
 
