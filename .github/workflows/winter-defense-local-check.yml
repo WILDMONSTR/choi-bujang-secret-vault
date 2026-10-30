@@ -32,6 +32,78 @@ jobs:
           node --version
           npm run check
           node --test test/local-pc-status.test.mjs
+      - name: Run Stage 7 fixture CLI at repository root
+        id: fixture7
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Stop'
+          npm.cmd run fixture:7
+          if($LASTEXITCODE -ne 0){throw ('FIXTURE7_FAILED: exit '+$LASTEXITCODE)}
+      - name: Inspect deployed main with anonymous read-only GET requests
+        id: publicapi
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Stop'
+          $evidence=Join-Path $env:GITHUB_WORKSPACE 'winter-evidence'
+          New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+          $script=Join-Path $env:RUNNER_TEMP 'winter-public-get.mjs'
+          @'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          const out=path.join(process.env.GITHUB_WORKSPACE,'winter-evidence','public-read-only-api.json');
+          // Exact public production host from aleph.config.json; no auth, cookies, tokens or write methods.
+          const base='https://choi-bujang-secret-vault-eosin-zeta.vercel.app';
+          const cases=[
+            {stage:'1-4',path:'/aleph.json',expected:'200 deployment identity'},
+            {stage:'1-4',path:'/data.json',expected:'404 or 410 static data absent'},
+            {stage:'5',path:'/api/auth/session',expected:'200, user null without cookie'},
+            {stage:'5',path:'/api/notes',expected:'401 no-cookie deny'},
+            {stage:'5,8',path:'/api/notes/00000000-0000-4000-8000-000000000001',expected:'401 no-cookie deny'},
+            {stage:'6,11',path:'/api/devices/status',expected:'anonymous status or denial (no approval)'},
+            {stage:'6,11',path:'/api/devices',expected:'401 no-cookie deny'},
+            {stage:'8',path:'/api/announcements?zoneId=unregistered',expected:'401 no-cookie deny'},
+            {stage:'10',path:'/api/stage10/policy-diff',expected:'401 no-cookie deny'},
+            {stage:'11-12',path:'/api/stage10/operations-status',expected:'401 no-cookie deny'}
+          ];
+          const records=[];
+          for (const c of cases) {
+            const record={stage:c.stage,method:'GET',path:c.path,expected:c.expected,checkedAt:new Date().toISOString(),
+              source:'production-main-anonymous-get',deploymentShaExpected:'6d1772a4d1ed91c955e098a9e03e6b2813c68265'};
+            try {
+              const response=await fetch(new URL(c.path,base),{
+                method:'GET',redirect:'manual',cache:'no-store',credentials:'omit',
+                headers:{Accept:'application/json'},signal:AbortSignal.timeout(14000)
+              });
+              record.http=response.status;
+              record.contentType=response.headers.get('content-type')?.split(';')[0]??null;
+              // Only actual application-issued ID; do not relabel proxy / runner IDs as app request IDs.
+              record.requestId=response.headers.get('x-request-id')??null;
+              if(record.contentType==='application/json') {
+                try{
+                  const parsed=await response.json();
+                  if(c.path==='/aleph.json' && parsed && typeof parsed==='object'){
+                    record.alephCommit=typeof parsed.commit==='string'?parsed.commit:null;
+                    record.alephStep=Number.isInteger(parsed.step)?parsed.step:null;
+                  }
+                  const error=parsed?.error;
+                  if(typeof error==='string' && /^[A-Z][A-Z_]{2,79}$/.test(error))record.errorCode=error;
+                  if(error && typeof error==='object' && typeof error.code==='string' && /^[A-Z][A-Z_]{2,79}$/.test(error.code))record.errorCode=error.code;
+                  if(c.path==='/api/auth/session')record.noAuthenticatedUser=(parsed?.user===null);
+                }catch{record.jsonParse='failed'}
+              }else{await response.body?.cancel()}
+              record.verdict='observed_http';
+            }catch(error){
+              record.verdict='no_http_response';
+              record.networkError=error?.name??'UnknownError'; // No secrets or request body.
+            }
+            records.push(record);
+            console.log('PUBLIC_GET '+JSON.stringify(record));
+          }
+          await fs.writeFile(out,JSON.stringify({description:'Actual anonymous GET from GitHub Actions Windows runner; no authenticated actor, no restore, no write operations',records},null,2));
+          // No network errors hidden as HTTP status; the log remains evidence even when a request failed.
+          '@ | Set-Content -Encoding utf8 $script
+          & node $script
+          if($LASTEXITCODE -ne 0){throw ('READONLY_API_PROBE_FAILED: exit '+$LASTEXITCODE)}
       - name: Start real localhost service and check HTTP
         id: http
         working-directory: on-client
@@ -213,9 +285,11 @@ jobs:
         env:
           UNIT_RESULT: ${{ steps.unit.outcome }}
           HTTP_RESULT: ${{ steps.http.outcome }}
+          FIXTURE7_RESULT: ${{ steps.fixture7.outcome }}
+          PUBLICAPI_RESULT: ${{ steps.publicapi.outcome }}
           BROWSER_RESULT: ${{ steps.browser.outcome }}
         run: |
-          Write-Host "Unit: $env:UNIT_RESULT; HTTP: $env:HTTP_RESULT; Browser: $env:BROWSER_RESULT"
-          if($env:UNIT_RESULT -ne 'success' -or $env:HTTP_RESULT -ne 'success' -or $env:BROWSER_RESULT -ne 'success') {
+          Write-Host "Unit: $env:UNIT_RESULT; fixture7: $env:FIXTURE7_RESULT; publicApi: $env:PUBLICAPI_RESULT; HTTP: $env:HTTP_RESULT; Browser: $env:BROWSER_RESULT"
+          if($env:UNIT_RESULT -ne 'success' -or $env:FIXTURE7_RESULT -ne 'success' -or $env:PUBLICAPI_RESULT -ne 'success' -or $env:HTTP_RESULT -ne 'success' -or $env:BROWSER_RESULT -ne 'success') {
             throw 'FIRST_RUN_INCOMPLETE: inspect previous step logs and artifact'
           }
