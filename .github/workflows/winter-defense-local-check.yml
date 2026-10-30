@@ -104,6 +104,194 @@ jobs:
           '@ | Set-Content -Encoding utf8 $script
           & node $script
           if($LASTEXITCODE -ne 0){throw ('READONLY_API_PROBE_FAILED: exit '+$LASTEXITCODE)}
+      - name: Verify anonymous write attempts are denied before mutation
+        id: deniedwrites
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Stop'
+          $evidence=Join-Path $env:GITHUB_WORKSPACE 'winter-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          $script=Join-Path $env:RUNNER_TEMP 'winter-denied-writes.mjs'
+          @'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          const base='https://choi-bujang-secret-vault-eosin-zeta.vercel.app';
+          // No token, cookie, Origin or valid mutation payload. Test ONLY the initial auth gate.
+          const cases=[
+            ['5','POST','/api/notes'],
+            ['5,8','PUT','/api/notes/00000000-0000-4000-8000-000000000001'],
+            ['5,8','DELETE','/api/notes/00000000-0000-4000-8000-000000000001'],
+            ['8','POST','/api/announcements'],
+            ['6,11','POST','/api/devices/register'],
+            ['11','POST','/api/devices/approve'],
+            ['11','POST','/api/devices/approve-self'],
+            ['11-12','POST','/api/devices/revoke'],
+            ['10','POST','/api/stage10/policy-restore'],
+            ['10','POST','/api/stage10/memo-restore'],
+            ['12','POST','/api/stage10/decision-check'],
+            ['12','POST','/api/stage10/detection-check']
+          ];
+          const records=[];
+          for(const [stage,method,route] of cases){
+            const row={stage,method,path:route,checkedAt:new Date().toISOString(),source:'production-no-credentials-write-auth-gate',expected:'401/403 denied; no mutation requested',requestId:null};
+            try{
+              const response=await fetch(new URL(route,base),{
+                method,body:method==='DELETE'?undefined:'{}',redirect:'manual',cache:'no-store',credentials:'omit',
+                headers:{'Content-Type':'application/json',Accept:'application/json'},signal:AbortSignal.timeout(15000)
+              });
+              row.http=response.status;
+              row.contentType=response.headers.get('content-type')?.split(';')[0]??null;
+              row.requestId=response.headers.get('x-request-id')??null;
+              if(row.contentType==='application/json'){
+                try{
+                  const json=await response.json();
+                  if(typeof json?.error==='string'&&/^[A-Z][A-Z_]{2,79}$/.test(json.error))row.errorCode=json.error;
+                }catch{row.jsonParse='failed'}
+              }else{await response.body?.cancel()}
+              row.verdict=(response.status===401||response.status===403)?'denied_as_expected':'unexpected_http_status';
+            }catch(error){
+              row.verdict='no_http_response';row.networkError=error.name??'NetworkError';
+            }
+            records.push(row);
+            console.log('DENIED_WRITE '+JSON.stringify(row));
+          }
+          const evidenceFile=path.join(process.env.GITHUB_WORKSPACE,'winter-evidence','production-denied-write-attempts.json');
+          await fs.writeFile(evidenceFile,JSON.stringify({scope:'No auth, no cookies, no Origin; request gate only; NO authenticated mutation test',records},null,2));
+          if(records.some(r=>r.verdict!=='denied_as_expected'))throw Error('ANONYMOUS_WRITE_GATE_UNEXPECTED_RESULT');
+          '@ | Set-Content -Encoding utf8 $script
+          & node $script
+          if($LASTEXITCODE -ne 0){throw ('DENIED_WRITE_PROBE_FAILED '+$LASTEXITCODE)}
+      - name: Run isolated unmodified memo API handlers with in-memory A B
+        id: isolatedab
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Stop'
+          $evidence=Join-Path $env:GITHUB_WORKSPACE 'winter-evidence'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          $script=Join-Path $env:RUNNER_TEMP 'winter-isolated-handler.mjs'
+          @'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          import { createContext, SourceTextModule, SyntheticModule } from 'node:vm';
+          const A='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', B='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+          const idA='11111111-1111-4111-8111-111111111111', idB='22222222-2222-4222-8222-222222222222';
+          const notes=[
+            {id:idA,title:'synthetic-A',content:'synthetic-A',zone_id:'personal',owner_id:A},
+            {id:idB,title:'synthetic-B',content:'synthetic-B',zone_id:'personal',owner_id:B}
+          ];
+          const observations=[];
+          const mockDb={
+            from(table){
+              assert.equal(table,'learning_notes');
+              const filters=[],data={operation:'select',newRow:null};
+              const matching=()=>notes.filter(n=>filters.every(([k,v])=>n[k]===v));
+              const q={
+                select(){return q},
+                eq(k,v){filters.push([k,v]);return q},
+                order(){return Promise.resolve({data:matching(),error:null})},
+                maybeSingle(){
+                  const row=matching()[0]??null;
+                  if(row&&data.operation==='update')Object.assign(row,data.newRow);
+                  if(row&&data.operation==='delete')notes.splice(notes.indexOf(row),1);
+                  return Promise.resolve({data:row?{...row}:null,error:null});
+                },
+                single(){
+                  if(data.operation!=='insert')throw Error('UNSUPPORTED_MOCK_SINGLE');
+                  const row={id:data.newRow.id??'33333333-3333-4333-8333-333333333333',...data.newRow};
+                  notes.push(row);return Promise.resolve({data:{...row},error:null});
+                },
+                insert(row){data.operation='insert';data.newRow=row;return q},
+                update(row){data.operation='update';data.newRow=row;return q},
+                delete(){data.operation='delete';return q}
+              };
+              return q;
+            }
+          };
+          const stubs={
+            '../aleph.config.json':{default:{identityProvider:{issuer:'https://invalid.local'}}},
+            '../../aleph.config.json':{default:{identityProvider:{issuer:'https://invalid.local'}}},
+            '../src/resource-access.mjs':{
+              requireResourceIdentity:async req=>({supabase:mockDb,identity:{userId:req.__syntheticUserId}}),
+              requireZoneMembership:async (db,userId,zoneId,options={})=>{
+                if(zoneId==='personal'&&!options.zoneType)return {zone:{zone_id:'personal'},membership:{user_id:userId,role:'student'}};
+                if(zoneId==='section-fixture'&&options.zoneType==='section'&&!options.roles?.includes('instructor'))return {zone:{zone_id:'section-fixture'},membership:{user_id:userId,role:'student'}};
+                return null;
+              },
+              sendResourceError:(res,status,error)=>res.status(status).json({error})
+            },
+            '../../src/resource-access.mjs':null,
+            '../src/require-approved-device.mjs':{requireApprovedDevice:async()=>true},
+            '../../src/require-approved-device.mjs':null,
+            '../src/resource-id.mjs':{
+              formatResourceId:(type,id)=>type+':'+id
+            },
+            '../../src/resource-id.mjs':{
+              formatResourceId:(type,id)=>type+':'+id,
+              parseResourceId:(raw,type)=>{
+                if(typeof raw!=='string')return null;
+                const id=raw.startsWith(type+':')?raw.slice(type.length+1):raw;
+                return /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)?id:null;
+              }
+            }
+          };
+          stubs['../../src/resource-access.mjs']=stubs['../src/resource-access.mjs'];
+          stubs['../../src/require-approved-device.mjs']=stubs['../src/require-approved-device.mjs'];
+          const ctx=createContext({});
+          async function load(file){
+            const source=await fs.readFile(file,'utf8');
+            const module=new SourceTextModule(source,{identifier:file,context:ctx});
+            await module.link(async spec=>{
+              const exported=stubs[spec];if(!exported)throw Error('UNMOCKED_DEPENDENCY '+spec);
+              return new SyntheticModule(Object.keys(exported),function(){
+                for(const [k,v] of Object.entries(exported))this.setExport(k,v);
+              },{context:ctx});
+            });
+            await module.evaluate();
+            return module.namespace.default;
+          }
+          const list=await load('api/notes.js');
+          const item=await load('api/notes/[id].js');
+          const announcements=await load('api/announcements.js');
+          function makeRes(){
+            return {statusCode:200,body:null,headers:{},setHeader(k,v){this.headers[k]=v;return this},
+              status(code){this.statusCode=code;return this},json(value){this.body=value;return this},end(){return this}};
+          }
+          async function run(label,handler,user,method,route,id,body,expected){
+            const res=makeRes();
+            const req={method,url:route,headers:{},query:id?{id}:{},body,__syntheticUserId:user};
+            await handler(req,res);
+            observations.push({name:label,method,path:route,actor:user===A?'A-synthetic':'B-synthetic',http:res.statusCode,
+              errorCode:res.body?.error??null,recordCount:notes.length,checkedAt:new Date().toISOString(),
+              source:'isolated-handler-memory-stub-not-production'});
+            assert.equal(res.statusCode,expected,label);
+            console.log('ISOLATED_HANDLER '+JSON.stringify(observations.at(-1)));
+            return res;
+          }
+          await run('A owns A read',item,A,'GET','/api/notes/'+idA,idA,null,200);
+          await run('B cannot read A',item,B,'GET','/api/notes/'+idA,idA,null,404);
+          await run('A cannot read B',item,A,'GET','/api/notes/'+idB,idB,null,404);
+          await run('B cannot edit A',item,B,'PUT','/api/notes/'+idA,idA,{title:'tampered',body:'tampered'},404);
+          await run('B cannot delete A',item,B,'DELETE','/api/notes/'+idA,idA,null,404);
+          assert.equal(notes.find(n=>n.id===idA)?.content,'synthetic-A','A content unchanged by B');
+          const listA=await run('A own list',list,A,'GET','/api/notes',null,null,200);
+          assert.deepEqual(listA.body.map(n=>n.id),[idA]);
+          const listB=await run('B own list',list,B,'GET','/api/notes',null,null,200);
+          assert.deepEqual(listB.body.map(n=>n.id),[idB]);
+          await run('Student cannot write announcement',announcements,A,'POST','/api/announcements',null,{zoneId:'section-fixture',title:'synthetic',content:'synthetic'},403);
+          await run('A updates own memo',item,A,'PUT','/api/notes/'+idA,idA,{title:'synthetic-A2',body:'synthetic-A2'},200);
+          assert.equal(notes.find(n=>n.id===idA)?.content,'synthetic-A2');
+          await run('A creates own memo',list,A,'POST','/api/notes',null,{title:'synthetic-A3',body:'synthetic-A3'},201);
+          assert.equal(notes.length,3);
+          await run('A removes own memo',item,A,'DELETE','/api/notes/'+idA,idA,null,204);
+          assert.equal(notes.some(n=>n.id===idA),false);
+          assert.equal(notes.find(n=>n.id===idB)?.content,'synthetic-B','B unchanged');
+          const file=path.join(process.env.GITHUB_WORKSPACE,'winter-evidence','isolated-owner-handler-results.json');
+          await fs.writeFile(file,JSON.stringify({method:'Original unmodified api/notes.js, api/notes/[id].js and api/announcements.js via Node VM with synthetic auth and in-memory DB; does NOT prove real auth, cookies, Supabase RLS or production',records:observations},null,2));
+          console.log('ISOLATED_HANDLER_SUMMARY '+JSON.stringify({tests:observations.length,passed:observations.length,db:'in-memory-only'}));
+          '@ | Set-Content -Encoding utf8 $script
+          & node --experimental-vm-modules $script
+          if($LASTEXITCODE -ne 0){throw ('ISOLATED_HANDLER_FAILED '+$LASTEXITCODE)}
       - name: Start real localhost service and check HTTP
         id: http
         working-directory: on-client
@@ -287,9 +475,11 @@ jobs:
           HTTP_RESULT: ${{ steps.http.outcome }}
           FIXTURE7_RESULT: ${{ steps.fixture7.outcome }}
           PUBLICAPI_RESULT: ${{ steps.publicapi.outcome }}
+          DENIED_WRITES_RESULT: ${{ steps.deniedwrites.outcome }}
+          ISOLATED_AB_RESULT: ${{ steps.isolatedab.outcome }}
           BROWSER_RESULT: ${{ steps.browser.outcome }}
         run: |
-          Write-Host "Unit: $env:UNIT_RESULT; fixture7: $env:FIXTURE7_RESULT; publicApi: $env:PUBLICAPI_RESULT; HTTP: $env:HTTP_RESULT; Browser: $env:BROWSER_RESULT"
-          if($env:UNIT_RESULT -ne 'success' -or $env:FIXTURE7_RESULT -ne 'success' -or $env:PUBLICAPI_RESULT -ne 'success' -or $env:HTTP_RESULT -ne 'success' -or $env:BROWSER_RESULT -ne 'success') {
+          Write-Host "Unit: $env:UNIT_RESULT; fixture7: $env:FIXTURE7_RESULT; publicApi: $env:PUBLICAPI_RESULT; deniedWrites: $env:DENIED_WRITES_RESULT; isolatedAB: $env:ISOLATED_AB_RESULT; HTTP: $env:HTTP_RESULT; Browser: $env:BROWSER_RESULT"
+          if($env:UNIT_RESULT -ne 'success' -or $env:FIXTURE7_RESULT -ne 'success' -or $env:PUBLICAPI_RESULT -ne 'success' -or $env:DENIED_WRITES_RESULT -ne 'success' -or $env:ISOLATED_AB_RESULT -ne 'success' -or $env:HTTP_RESULT -ne 'success' -or $env:BROWSER_RESULT -ne 'success') {
             throw 'FIRST_RUN_INCOMPLETE: inspect previous step logs and artifact'
           }
