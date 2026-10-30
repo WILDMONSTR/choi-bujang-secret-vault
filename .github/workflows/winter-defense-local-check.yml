@@ -1,0 +1,186 @@
+name: Winter Defense Windows First Run
+on:
+  push:
+    branches:
+      - test/winter-defense-first-run-20261030
+    paths:
+      - .github/workflows/winter-defense-local-check.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  first-run:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout exact test branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Use original Node version
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.19.0'
+      - name: Run student and PC unit checks
+        working-directory: on-client
+        continue-on-error: true
+        run: |
+          node --version
+          npm run check
+          node --test test/local-pc-status.test.mjs
+      - name: Start real localhost service and check HTTP
+        working-directory: on-client
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Stop'
+          $evidence=Join-Path $env:GITHUB_WORKSPACE 'winter-evidence'
+          New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+          $env:ON_PORT='5190'
+          $s=Start-Process -FilePath (Get-Command node).Source -ArgumentList 'src/server.mjs' -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput (Join-Path $evidence 'server-out.log') -RedirectStandardError (Join-Path $evidence 'server-error.log')
+          Set-Content (Join-Path $env:RUNNER_TEMP 'winter-server.pid') $s.Id
+          $base='http://127.0.0.1:5190'
+          $ready=$false
+          for($i=0;$i -lt 25;$i++){
+            Start-Sleep -Seconds 1
+            try { $x=Invoke-WebRequest -Uri $base -UseBasicParsing -SkipHttpErrorCheck -TimeoutSec 3; if($x.StatusCode -eq 200){$ready=$true;break} } catch {}
+            if($s.HasExited){throw 'SERVER_EXITED: read server-error.log'}
+          }
+          if(-not $ready){throw 'SERVER_START_TIMEOUT: localhost:5190 did not become ready'}
+          $results=@()
+          foreach($route in @('/','/index.html','/app.js','/style.css','/student/extension.mjs','/api/diagnostics','/api/me','/api/local-pc-status')){
+            try {
+              $r=Invoke-WebRequest -Uri ($base+$route) -UseBasicParsing -SkipHttpErrorCheck -TimeoutSec 30
+              $row=[ordered]@{path=$route;http=[int]$r.StatusCode}
+              if($route.StartsWith('/api/')){
+                $j=$r.Content|ConvertFrom-Json
+                $row.ok=$j.ok
+                $row.mode=$j.meta.mode
+                if($j.error){$row.errorCode=$j.error.code;$row.errorMessage=$j.error.message}
+                if($route -eq '/api/local-pc-status'){
+                  $row.source=$j.data.source
+                  $row.cpu=$j.data.cpu.status
+                  $row.memory=$j.data.memory.status
+                  $row.disk=$j.data.disk.status
+                  $row.cpuReason=$j.data.cpu.reason
+                  $row.memoryReason=$j.data.memory.reason
+                  $row.diskReason=$j.data.disk.reason
+                  $row.cpuMeasuredAt=$j.data.cpu.measuredAt
+                  $row.memoryMeasuredAt=$j.data.memory.measuredAt
+                  $row.diskMeasuredAt=$j.data.disk.measuredAt
+                }
+              }
+              $results += $row
+              Write-Host ($row|ConvertTo-Json -Compress)
+            }catch{
+              $results += [ordered]@{path=$route;error=$_.Exception.Message}
+              Write-Host ('REQUEST_FAILED '+$route+' '+$_.Exception.Message)
+            }
+          }
+          $results|ConvertTo-Json -Depth 6|Set-Content -Encoding utf8 (Join-Path $evidence 'http-results.json')
+          foreach($route in @('/','/index.html','/app.js','/style.css','/student/extension.mjs')){
+            if(-not @($results|Where-Object { $_.path -eq $route -and $_.http -eq 200 }).Count){throw ('STATIC_GET_FAILED '+$route)}
+          }
+          if(-not @($results|Where-Object {$_.path -eq '/api/local-pc-status' -and $_.http -eq 200 -and $_.ok -eq $true -and $_.source -eq 'local-windows'}).Count){throw 'PC_READ_ENDPOINT_FAILED'}
+          if(@($results|Where-Object {$_.path -eq '/api/me' -and $_.http -eq 200}).Count){throw 'SDP_FALSE_CONNECTED'}
+      - name: Browser visit screenshot and keyboard refresh
+        working-directory: on-client
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Stop'
+          $evidence=Join-Path $env:GITHUB_WORKSPACE 'winter-evidence'
+          New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+          $pf86=[Environment]::GetFolderPath('ProgramFilesX86')
+          $b=@(
+            (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+            (Join-Path $pf86 'Google\Chrome\Application\chrome.exe'),
+            (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
+            (Join-Path $pf86 'Microsoft\Edge\Application\msedge.exe')
+          )|Where-Object {Test-Path $_}|Select-Object -First 1
+          if(-not $b){throw 'BROWSER_NOT_FOUND'}
+          Write-Host ('BROWSER '+$b)
+          $profile=Join-Path $env:RUNNER_TEMP 'winter-cdp-profile'
+          $browser=Start-Process -FilePath $b -ArgumentList @('--headless=new','--no-first-run','--disable-gpu','--disable-background-networking','--remote-allow-origins=*','--remote-debugging-port=9222',"--user-data-dir=$profile",'about:blank') -PassThru
+          Set-Content (Join-Path $env:RUNNER_TEMP 'winter-browser.pid') $browser.Id
+          $ready=$false
+          for($i=0;$i -lt 20;$i++){
+            Start-Sleep -Seconds 1
+            try{$v=Invoke-RestMethod 'http://127.0.0.1:9222/json/version' -TimeoutSec 2;if($v.Browser){$ready=$true;break}}catch{}
+          }
+          if(-not $ready){throw 'BROWSER_DEBUG_PORT_TIMEOUT'}
+          $script=Join-Path $env:RUNNER_TEMP 'winter-browser.mjs'
+          @'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          const evidence=path.join(process.env.GITHUB_WORKSPACE,'winter-evidence');
+          const targets=await (await fetch('http://127.0.0.1:9222/json/list')).json();
+          const target=targets.find(x=>x.type==='page'&&x.webSocketDebuggerUrl);
+          if(!target)throw Error('BROWSER_TARGET_MISSING');
+          const ws=new WebSocket(target.webSocketDebuggerUrl);
+          await new Promise((yes,no)=>{
+            const timer=setTimeout(()=>no(Error('BROWSER_WEBSOCKET_TIMEOUT')),10000);
+            ws.addEventListener('open',()=>{clearTimeout(timer);yes()},{once:true});
+            ws.addEventListener('error',()=>{clearTimeout(timer);no(Error('BROWSER_WEBSOCKET_FAILED'))},{once:true});
+          });
+          let id=0;const pending=new Map();
+          ws.addEventListener('message',event=>{
+            const p=JSON.parse(event.data);const t=pending.get(p.id);
+            if(t){pending.delete(p.id);clearTimeout(t.timer);p.error?t.reject(Error(p.error.message)):t.resolve(p.result)}
+          });
+          const call=(method,params={})=>new Promise((resolve,reject)=>{
+            const key=++id,timer=setTimeout(()=>{pending.delete(key);reject(Error('CDP_TIMEOUT '+method))},20000);
+            pending.set(key,{resolve,reject,timer});ws.send(JSON.stringify({id:key,method,params}));
+          });
+          const evalInPage=async expression=>{
+            const p=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});
+            if(p.exceptionDetails)throw Error('BROWSER_SCRIPT_ERROR '+p.exceptionDetails.text);
+            return p.result?.value;
+          };
+          const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
+          const snapshot='(()=>({title:document.title,cards:document.querySelectorAll(".pc-card").length,heading:document.querySelector("#pc-dashboard-title")?.textContent,cpu:document.querySelector("#pc-cpu-value")?.textContent,memory:document.querySelector("#pc-memory-value")?.textContent,disk:document.querySelector("#pc-disk-value")?.textContent,health:document.querySelector("#pc-health-value")?.textContent,mode:document.querySelector("#mode-badge")?.textContent,history:document.querySelector("#pc-history-body")?.textContent?.slice(0,250)}))()';
+          try{
+            await call('Page.enable');
+            await call('Runtime.enable');
+            await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
+            await call('Page.navigate',{url:'http://127.0.0.1:5190/'});
+            await sleep(8500);
+            const before=await evalInPage(snapshot);
+            await fs.writeFile(path.join(evidence,'browser-before.json'),JSON.stringify(before,null,2));
+            const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});
+            await fs.writeFile(path.join(evidence,'winter-defense-first-run.png'),Buffer.from(shot.data,'base64'));
+            const focus=await evalInPage('(()=>{const b=document.querySelector("#refresh");b.focus();return document.activeElement===b&&!b.disabled})()');
+            if(!focus)throw Error('KEYBOARD_BUTTON_NOT_FOCUSABLE');
+            await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+            await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+            await sleep(6500);
+            const after=await evalInPage(snapshot);
+            await fs.writeFile(path.join(evidence,'browser-after-keyboard.json'),JSON.stringify({keyboardFocus:focus,...after},null,2));
+            const shot2=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});
+            await fs.writeFile(path.join(evidence,'winter-defense-after-refresh.png'),Buffer.from(shot2.data,'base64'));
+            console.log('BEFORE '+JSON.stringify(before));
+            console.log('AFTER_KEYBOARD '+JSON.stringify(after));
+            if(before.cards!==4)throw Error('FOUR_CARDS_NOT_FOUND');
+            if(!before.heading?.includes('내 PC 상태'))throw Error('DASHBOARD_HEADING_NOT_FOUND');
+            if(!before.mode?.includes('연결 없음'))throw Error('SDP_DISCONNECTED_NOT_SHOWN');
+            if(after.cards!==4)throw Error('DASHBOARD_LOST_AFTER_REFRESH');
+          }finally{ws.close()}
+          '@|Set-Content -Encoding utf8 $script
+          & node $script
+          if($LASTEXITCODE -ne 0){throw ('BROWSER_TEST_EXIT '+$LASTEXITCODE)}
+      - name: Stop temporary processes
+        if: always()
+        run: |
+          foreach($name in @('winter-browser.pid','winter-server.pid')){
+            $file=Join-Path $env:RUNNER_TEMP $name
+            if(Test-Path $file){$value=(Get-Content $file -Raw).Trim();if($value -match '^[0-9]+$'){Stop-Process -Id ([int]$value) -ErrorAction SilentlyContinue}}
+          }
+      - name: Upload actual logs and browser PNGs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: winter-defense-first-run-evidence
+          path: winter-evidence/
+          if-no-files-found: warn
+          retention-days: 7
