@@ -26,7 +26,7 @@ npm run test:package
 npm run build -- --local
 ```
 
-`npm install`과 위 검사는 이 변경을 작성한 시점에 원격 실행 환경에서 실제로 실행하지 않았습니다. 실행 후에만 통과 여부를 기록하세요. 기기 등록·승인 및 서명 검증은 배포 환경에서 로그인한 가상 계정으로 추가 확인해야 합니다. `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 환경변수로 설정하고 값을 GitHub나 채팅에 보내지 마세요.
+`npm install`과 위 검사는 11단계 문서 작성 당시 미실행이었습니다. **2026-10-30 Windows 재검사에서 `npm.cmd install`, 해당 로컬 검사, `npm.cmd run build -- --local`이 통과**했습니다([로그](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40660480138)). 이 결과는 실제 기기 등록·승인 API의 인증된 실측을 대신하지 않습니다. 기기 등록·승인 및 서명 검증은 배포 환경에서 로그인한 가상 계정으로 추가 확인해야 합니다. `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 환경변수로 설정하고 값을 GitHub나 채팅에 보내지 마세요.
 
 
 ## 12단계: 탈환 작전실과 실제 방어 결과
@@ -281,20 +281,24 @@ GitHub 웹에서는 저장소의 `main` 브랜치에서 **Code** 검색을 사�
 
 ### 제작 4 — 복원 뒤 재검사 순서
 
-다음 순서는 실행 지침입니다. 아래 시험은 이 저장점 작성 중 실제로 실행하지 않았으므로 초기 상태는 모두 미실행입니다. 실행한 뒤에만 결과를 갱신하세요.
+다음 순서는 복원 뒤 재검사를 위한 실행 지침입니다. 원래 작성 당시에는 미실행이었으며, **2026-10-30에 `main` 커밋 `6d1772a4d1ed91c955e098a9e03e6b2813c68265`을 대상으로 Windows GitHub Actions에서 아래 로컬 검사를 실제 재실행**했습니다. 이 검사만으로 실제 복원 성공이나 인증된 API 접근 검증을 주장하지 않습니다.
 
-1. npm install — 미실행
-2. npm run stage10:test — 미실행
-3. npm run decider:test — 미실행
-4. npm run resource-id:test — 미실행
-5. npm run detect:test — 미실행
-6. npm run fixture:7 — 미실행
-7. npm run test:r5 — 미실행
-8. npm run test:package — 미실행
+1. `npm.cmd install` — **통과** (Windows 검사 [실행 #40660480138](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40660480138), 재실행 시)
+2. `npm.cmd run stage10:test` — **통과** (검증된 가상 사본의 복구 단위 시험, 실제 DB 복원 아님)
+3. `npm.cmd run decider:test` — **통과** (가상 판정기)
+4. `npm.cmd run resource-id:test` — **통과** (자원 ID 11건)
+5. `npm.cmd run detect:test` — **통과** (가상 탐지기)
+6. `npm.cmd run fixture:7` — **통과** ([실행 #40991525476](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40991525476), 정상 `allow` / 복합 이상 `step_up`; 가상 입력)
+7. `npm.cmd run test:r5` — **통과** (회귀 테스트 4건)
+8. `npm.cmd run test:package` — **통과** (테스트 3건; 앱 포장 명령이 아님)
 9. 배포에서 A로 로그인해 A 소유의 메모 한 건을 조회합니다. 예상 결과는 HTTP 200입니다.
 10. B로 로그인해 A 소유 메모 ID를 조회합니다. 예상 결과는 HTTP 404 NOT_FOUND이고 메모 내용이 반환되지 않아야 합니다.
 11. B로 로그인해 미리 확인한 백업 한 건만 복원합니다. 응답 ID·소유자 ID·내용 SHA-256을 사본과 대조하고, 다른 메모 및 기존 감사 행이 그대로인지 확인합니다.
 12. 1~9단계의 정상·금지 요청을 다시 실행합니다. 미등록 기기, 허용 범위 밖 경로, 공지 쓰기, 출처가 불명확한 신호, 지역 신호만 다른 경우를 이전 단계의 기대값에 맞춰 확인합니다. 실행하지 않은 항목은 미실행으로 유지합니다.
+
+**2026-10-30 후속 확인:** 실제 익명 POST /api/stage10/policy-restore, /memo-restore에 각각 HTTP 401 `UNAUTHORIZED`가 돌아왔습니다([실행 #40992735708](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40992735708)). 복원 성공은 아닙니다. 격리된 원본 메모 API 핸들러에서는 A의 메모에 대한 B의 GET·PUT·DELETE가 모두 `404 NOT_FOUND`이고 A의 조회·생성·수정·삭제는 `200/201/200/204`였습니다. 이 결과는 실제 A/B 계정 쿠키를 사용하지 않았습니다.
+
+**2026-10-30 추가 확인:** 기존 `npm.cmd run build -- --local`, 11·12단계 검사도 Windows 실행 #40660480138에서 통과했습니다. 연결된 Supabase에서 `stage10_test_policies`, `stage10_safe_policy_copies`, `stage10_memo_backups`, `stage10_restore_audit`가 각각 **0행**인 것을 읽기 전용으로 확인했습니다. 따라서 위 9~11번의 로그인·교차 소유권·실제 복원은 **미실행(복원 사전 조건 미충족)**이며, 12번의 1~9단계 실서비스 정상·금지 양방향 검증도 **부분 검사/전체 미완료**입니다. 익명 GET 관측 10건은 아래 통합표를 참고하세요. `npm run package-app`, `npm run bundle`, DB 쓰기/복원 명령은 실행하지 않았습니다.
 
 로컬 단위 시험은 실제 Supabase 복원, 배포 API 또는 심판 판정을 증명하지 않습니다. 실제 DB 사본과 환경변수 설정 전에는 복원 성공을 주장할 수 없습니다. 최종 제출 묶음은 준비가 끝난 로컬 저장소에서 npm run bundle로 생성합니다. bundle-notes.json과 artifacts/submission.json은 커밋하지 않습니다.
 
@@ -378,12 +382,50 @@ npm.cmd run bundle
 
 ### 1~11단계 API 증거 통합표 작성 절차
 
-이 표는 각 단계에서 **실제로 실행한 정상 요청과 금지 요청**을 같은 형식으로 모으기 위한 기록 양식입니다. 지금 작성된 문서만으로 1~11단계 요청을 모두 실행한 것은 아니므로, 아래 예시는 양식이며 실제 결과가 아닙니다. 각 개별 API 요청마다 행을 하나씩 추가하고, 실행 전에는 `미실행`으로 둡니다.
+이 표는 **2026-10-30**에 확인한 실제 Production HTTP 응답과 원본 핸들러 격리 실행을 증거 종류별로 구분합니다. Production은 `/aleph.json`으로 확인한 `6d1772a4d1ed91c955e098a9e03e6b2813c68265`에 대한 [Windows 검사 #40991525476](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40991525476) 및 [#40992735708](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40992735708)입니다. **익명 GET 10건과 인증 정보 없는 쓰기 거부 12건**은 실제 네트워크 요청이며, 쓰기 검사에서는 쿠키·토큰·Origin과 유효한 변경 본문을 전달하지 않아 모두 인증 단계에서 거부됐습니다. 반면 **A/B 핸들러 11건**은 원본 API 핸들러를 VM으로 실행하되 사용자 인증과 데이터베이스를 메모리로 대체한 격리 시험으로, 실제 운영 계정 로그인·기기 쿠키·Supabase RLS 검증을 대신하지 않습니다. 결과 시각은 실제 로그의 UTC ISO 8601입니다. 요청 ID가 없으면 `응답에 없음`이라고 적습니다. 인증된 운영 시험과 실제 복원은 별도 사전 조건 때문에 **차단됨(미수행)**으로 표시합니다.
 
-| 검사 커밋 SHA | 단계 | 유형 | 실제 요청 (HTTP 메서드·경로) | 기대 결과 | 실제 API 결과 | 요청 ID | 확인 시각 (UTC ISO 8601) | 증거 출처·상태 |
+| 검사 커밋 SHA | 단계 | 유형 | 실제 요청 (HTTP 메서드·경로) | 기대 결과 | 실제 HTTP 또는 격리 호출 결과 | 요청 ID | 확인 시각 (UTC ISO 8601) | 증거 출처·상태 |
 |---|---:|---|---|---|---|---|---|---|
-| 제출 시 기록 | 1~11 | 정상 허용 | 미실행 — 실제 요청 경로 기입 | 해당 단계 계약에 정의된 정상 결과 | `not_run` | 응답에 없음 / 미실행 | — | 미실행 |
-| 제출 시 기록 | 1~11 | 금지·거부 | 미실행 — 실제 요청 경로 기입 | 해당 단계 계약에 정의된 거부 결과 | `not_run` | 응답에 없음 / 미실행 | — | 미실행 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 1-4 | 공개 배포 식별 | `GET /aleph.json` | 200 deployment identity | HTTP 200 | 응답에 없음 | 2026-10-30T02:25:00.928Z | Production 익명 GET 실측; 확인: 단계 12, 배포 SHA 일치 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 1-4 | 정적 자료 부재 | `GET /data.json` | 404 or 410 static data absent | HTTP 404 | 응답에 없음 | 2026-10-30T02:25:01.068Z | Production 익명 GET 실측; 해당 경로 404 (다른 경로 전체 검증 아님) |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5 | 익명 세션 확인 | `GET /api/auth/session` | 200, user null without cookie | HTTP 200 | 응답에 없음 | 2026-10-30T02:25:01.842Z | Production 익명 GET 실측; user=null 확인 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5 | 익명 목록 거부 | `GET /api/notes` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:02.631Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | 익명 단건 거부 | `GET /api/notes/00000000-0000-4000-8000-000000000001` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:03.429Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 6,11 | 익명 기기 상태 거부 | `GET /api/devices/status` | anonymous status or denial (no approval) | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:04.094Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 6,11 | 익명 기기 목록 거부 | `GET /api/devices` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:04.908Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 8 | 익명 공지 거부 | `GET /api/announcements?zoneId=unregistered` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:05.675Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 10 | 익명 정책 미리보기 거부 | `GET /api/stage10/policy-diff` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:06.345Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 11-12 | 익명 작전실 거부 | `GET /api/stage10/operations-status` | 401 no-cookie deny | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:25:06.428Z | Production 익명 GET 실측; UNAUTHORIZED |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5 | 인증 없는 쓰기 거부 | `POST /api/notes` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.5467599Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | 인증 없는 쓰기 거부 | `PUT /api/notes/00000000-0000-4000-8000-000000000001` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.5970232Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | 인증 없는 쓰기 거부 | `DELETE /api/notes/00000000-0000-4000-8000-000000000001` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.6312450Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 8 | 인증 없는 쓰기 거부 | `POST /api/announcements` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.6686631Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 6,11 | 인증 없는 쓰기 거부 | `POST /api/devices/register` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.7003568Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 11 | 인증 없는 쓰기 거부 | `POST /api/devices/approve` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.7519482Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 11 | 인증 없는 쓰기 거부 | `POST /api/devices/approve-self` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.7864442Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 11-12 | 인증 없는 쓰기 거부 | `POST /api/devices/revoke` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.8135198Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 10 | 인증 없는 쓰기 거부 | `POST /api/stage10/policy-restore` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.8673894Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 10 | 인증 없는 쓰기 거부 | `POST /api/stage10/memo-restore` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.9023175Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 12 | 인증 없는 쓰기 거부 | `POST /api/stage10/decision-check` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.9544126Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 12 | 인증 없는 쓰기 거부 | `POST /api/stage10/detection-check` | 인증 단계에서 거부 | HTTP 401 `UNAUTHORIZED` | 응답에 없음 | 2026-10-30T02:37:34.9986546Z | Production 실요청, 무자격·빈 본문; DB 변경 요청 성공 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | A owns A read | `GET /api/notes/11111111-1111-4111-8111-111111111111` | 격리 핸들러 응답 계약 | 격리 `res.status(200)` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3927684Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | B cannot read A | `GET /api/notes/11111111-1111-4111-8111-111111111111` | 격리 핸들러 응답 계약 | 격리 `res.status(404)` `NOT_FOUND` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3930676Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | A cannot read B | `GET /api/notes/22222222-2222-4222-8222-222222222222` | 격리 핸들러 응답 계약 | 격리 `res.status(404)` `NOT_FOUND` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3933234Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | B cannot edit A | `PUT /api/notes/11111111-1111-4111-8111-111111111111` | 격리 핸들러 응답 계약 | 격리 `res.status(404)` `NOT_FOUND` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3935809Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | B cannot delete A | `DELETE /api/notes/11111111-1111-4111-8111-111111111111` | 격리 핸들러 응답 계약 | 격리 `res.status(404)` `NOT_FOUND` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3938405Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | A own list | `GET /api/notes` | 격리 핸들러 응답 계약 | 격리 `res.status(200)` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3940826Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | B own list | `GET /api/notes` | 격리 핸들러 응답 계약 | 격리 `res.status(200)` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3942923Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | Student cannot write announcement | `POST /api/announcements` | 격리 핸들러 응답 계약 | 격리 `res.status(403)` `INSTRUCTOR_REQUIRED` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3945337Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | A updates own memo | `PUT /api/notes/11111111-1111-4111-8111-111111111111` | 격리 핸들러 응답 계약 | 격리 `res.status(200)` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3948512Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | A creates own memo | `POST /api/notes` | 격리 핸들러 응답 계약 | 격리 `res.status(201)` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3951373Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | A removes own memo | `DELETE /api/notes/11111111-1111-4111-8111-111111111111` | 격리 핸들러 응답 계약 | 격리 `res.status(204)` | 해당 없음 (서버 요청 아님) | 2026-10-30T02:37:35.3953949Z | 원본 핸들러 + 가상 A/B·메모리 DB; 운영 인증 시험 아님 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 5,8 | 운영 A/B 권한·소유권 | `실제 A/B 인증 세션의 GET/POST/PUT/DELETE /api/notes[/:id]` | 200/201/204 및 교차 404 | **차단됨 (미수행)** | 응답에 없음 / 미수행 | — | 사전 조건 부재: 실제 인증 쿠키·별도 시험 계정 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 6,11 | 운영 기기 승인·회수 | `인증된 POST /api/devices/register; /approve-self; /approve; /revoke` | 인증된 기기별 승인·거부 | **차단됨 (미수행)** | 응답에 없음 / 미수행 | — | 사전 조건 부재: 유효한 시험 계정·기기 세션 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 8 | 운영 교사 권한 | `인증된 POST /api/announcements` | 학생 403, 강사 201 | **차단됨 (미수행)** | 응답에 없음 / 미수행 | — | 사전 조건 부재: 격리 403만 검증; 실제 강사·학생 인증 세션 없음 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 9,12 | 운영 엔진 회수 | `실제 세션 회수·심판 기록 연계` | 실제 원천 회수 결과 확인 | **차단됨 (미수행)** | 응답에 없음 / 미수행 | — | 사전 조건 부재: 실제 원천·실행 결과 조회 미연결 |
+| `6d1772a4d1ed91c955e098a9e03e6b2813c68265` | 10 | 실제 복원 | `인증된 POST /api/stage10/policy-restore; /memo-restore` | 검증된 사본에서 복원, 감사 기록 증가 | **차단됨 (미수행)** | 응답에 없음 / 미수행 | — | 사전 조건 부재: DB의 시험 정책·안전 사본·메모 백업·복원 감사 0행 |
+
+**2026-10-30 운영 쓰기·격리 추가 재검사:** [실행 #40992735708](https://github.com/WILDMONSTR/choi-bujang-secret-vault/actions/runs/40992735708)에서 인증 없는 쓰기 요청 12건이 모두 HTTP 401 `UNAUTHORIZED`였고, `api/notes.js`, `api/notes/[id].js`, `api/announcements.js` 원본 핸들러를 가상 A/B와 **메모리 DB**에서 직접 호출한 11건은 전부 기대값과 일치했습니다. 이는 실제 Supabase 인증·RLS 통합 시험은 아닙니다. Production 요청 전후 Supabase `learning_notes`는 5행, 복원 관련 4개 테이블은 0행으로 확인됐습니다. 실제 복원 성공, 기기 등록·승인·회수 또는 운영 로그인 성공을 주장하지 않습니다. 실서비스의 정상·거부 양방향 검증을 마치려면 별도 시험 계정의 인증 세션과 검증된 사전 백업이 필요합니다. 검사 중 앱 포장, DB 데이터 생성/수정/삭제, 배포·프로덕션 코드 변경은 수행하지 않았습니다.
 
 **기록 순서**
 
