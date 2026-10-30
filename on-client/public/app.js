@@ -1267,6 +1267,7 @@ async function loadStudentModule() {
 const PC_WINDOW_MS = 10 * 60 * 1000;
 const PC_POLL_MS = 15000;
 const PC_REASONS = Object.freeze({
+  NOT_MEASURED: '아직 측정하지 않았습니다',
   UNSUPPORTED_PLATFORM: 'Windows 환경이 아닙니다',
   POWERSHELL_NOT_FOUND: 'Windows PowerShell을 실행할 수 없습니다',
   MEASUREMENT_TIMEOUT: '일반 권한 조회 시간이 초과됐습니다',
@@ -1289,7 +1290,7 @@ const pcUnknown = (reason) => ({
   memory: {status:'unavailable',usedGiB:null,totalGiB:null,usedPercent:null,unit:'GiB',measuredAt:null,reason},
   disk: {status:'unavailable',freeGiB:null,totalGiB:null,unit:'GiB',drive:null,measuredAt:null,reason},
 });
-let pcState = { checkedAt:null, ...pcUnknown('MEASUREMENT_FAILED') };
+let pcState = { checkedAt:null, ...pcUnknown('NOT_MEASURED') };
 let pcHistory = [];
 let pcRequestRunning = false;
 let pcAbort = null;
