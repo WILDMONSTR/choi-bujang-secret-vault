@@ -25,6 +25,7 @@ jobs:
         with:
           node-version: '24.19.0'
       - name: Run student and PC unit checks
+        id: unit
         working-directory: on-client
         continue-on-error: true
         run: |
@@ -32,6 +33,7 @@ jobs:
           npm run check
           node --test test/local-pc-status.test.mjs
       - name: Start real localhost service and check HTTP
+        id: http
         working-directory: on-client
         continue-on-error: true
         run: |
@@ -86,12 +88,34 @@ jobs:
           if(-not @($results|Where-Object {$_.path -eq '/api/local-pc-status' -and $_.http -eq 200 -and $_.ok -eq $true -and $_.source -eq 'local-windows'}).Count){throw 'PC_READ_ENDPOINT_FAILED'}
           if(@($results|Where-Object {$_.path -eq '/api/me' -and $_.http -eq 200}).Count){throw 'SDP_FALSE_CONNECTED'}
       - name: Browser visit screenshot and keyboard refresh
+        id: browser
         working-directory: on-client
         continue-on-error: true
         run: |
           $ErrorActionPreference='Stop'
           $evidence=Join-Path $env:GITHUB_WORKSPACE 'winter-evidence'
           New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+          # Runner may terminate child processes after each step; start the Node host in THIS browser step.
+          $env:ON_PORT='5190'
+          $localReady=$false
+          try {
+            $test=Invoke-WebRequest -Uri 'http://127.0.0.1:5190/' -UseBasicParsing -TimeoutSec 3 -SkipHttpErrorCheck
+            $localReady=($test.StatusCode -eq 200)
+          } catch { }
+          if(-not $localReady) {
+            $server=Start-Process -FilePath (Get-Command node).Source -ArgumentList 'src/server.mjs' -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput (Join-Path $evidence 'browser-server-out.log') -RedirectStandardError (Join-Path $evidence 'browser-server-error.log')
+            Set-Content (Join-Path $env:RUNNER_TEMP 'winter-server.pid') $server.Id
+            for($i=0;$i -lt 25;$i++){
+              Start-Sleep -Seconds 1
+              try {
+                $test=Invoke-WebRequest -Uri 'http://127.0.0.1:5190/' -UseBasicParsing -TimeoutSec 3 -SkipHttpErrorCheck
+                if($test.StatusCode -eq 200){$localReady=$true;break}
+              } catch {}
+              if($server.HasExited){throw 'BROWSER_SERVER_EXITED'}
+            }
+          }
+          if(-not $localReady){throw 'BROWSER_SERVER_START_TIMEOUT'}
+          Write-Host 'BROWSER_LOCAL_SERVER_READY HTTP 200'
           $pf86=[Environment]::GetFolderPath('ProgramFilesX86')
           $b=@(
             (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
@@ -184,3 +208,14 @@ jobs:
           path: winter-evidence/
           if-no-files-found: warn
           retention-days: 7
+      - name: Mark workflow unsuccessful if any check failed
+        if: always()
+        env:
+          UNIT_RESULT: ${{ steps.unit.outcome }}
+          HTTP_RESULT: ${{ steps.http.outcome }}
+          BROWSER_RESULT: ${{ steps.browser.outcome }}
+        run: |
+          Write-Host "Unit: $env:UNIT_RESULT; HTTP: $env:HTTP_RESULT; Browser: $env:BROWSER_RESULT"
+          if($env:UNIT_RESULT -ne 'success' -or $env:HTTP_RESULT -ne 'success' -or $env:BROWSER_RESULT -ne 'success') {
+            throw 'FIRST_RUN_INCOMPLETE: inspect previous step logs and artifact'
+          }
