@@ -544,7 +544,187 @@ function statusRenderNotifications(notifications) {
   return section;
 }
 
-export function createStudentView() {
+
+// ---- 마지막 6단계: 제공 PC 조회 API를 재사용하는 학생 관제 요약 ----
+// 기존 13~22단계 render* 함수와 제공 수집기·공통 UI는 변경하지 않는다.
+// 조회는 사용자가 누를 때만 수행한다. 실제 관제 판정이나 공격 탐지로 쓰지 않는다.
+function createKeshevDashboard(api, onChange) {
+  const state = {status: 'idle', data: null, code: '', history: []};
+  const reasonText = Object.freeze({
+    permission_denied: '일반 사용자 권한으로 읽을 수 없습니다. 관리자 권한으로 바꾸지 말고 담당자에게 확인하세요.',
+    unsupported: '현재 운영체제에서 지원하지 않는 조회입니다.',
+    timeout: '조회 시간이 초과됐습니다. 실행 창을 확인하고 직접 다시 조회하세요.',
+    cancelled: '조회가 취소됐습니다. 필요하면 직접 다시 조회하세요.',
+    query_failed: 'Windows 또는 PC 조회에 실패했습니다. 실행 창과 현재 권한을 확인하세요.',
+    invalid_response: '조회 응답 형식을 검증하지 못했습니다.',
+    invalid_sample: 'CPU 표본 간 차이를 계산할 수 없었습니다. 다시 조회하세요.',
+  });
+  const node = (tag, value, cls) => {
+    const element = document.createElement(tag);
+    if (value !== undefined) element.textContent = String(value);
+    if (cls) element.className = cls;
+    return element;
+  };
+  const good = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+  const count = n => Number.isSafeInteger(n) && n >= 0;
+  const pct = n => good(n) && n <= 100;
+  const gb = n => (n / 1073741824).toFixed(1) + ' GB';
+  const at = time => new Date(time).toLocaleString('ko-KR');
+  const limitedCode = code => typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,59}$/.test(code) ? code : 'UNKNOWN_ERROR';
+  const notify = (restoreFocus = false) => {
+    if (typeof onChange === 'function') onChange();
+    if (restoreFocus) document.querySelector('[data-keshev-refresh]')?.focus({preventScroll: true});
+  };
+
+  async function readPc() {
+    if (state.status === 'loading') return;
+    state.status = 'loading'; state.data = null; state.code = '';
+    notify(true);
+    try {
+      if (typeof api?.get !== 'function') throw Error('STUDENT_API_UNAVAILABLE');
+      // 이미 제공된, 허용된 읽기 전용 경로. 직접 fetch/PowerShell/새 수집기는 없다.
+      const response = await api.get('/api/pc/status');
+      if (response?.ok !== true) throw Error(limitedCode(response?.error?.code));
+      const data = response.data;
+      const measured = typeof data?.measuredAt === 'string' ? Date.parse(data.measuredAt) : NaN;
+      if (data?.schema !== 'aleph.on.pc-status.v1' || data.source !== 'local-pc'
+          || !Number.isFinite(measured) || Math.abs(Date.now() - measured) > 60000
+          || !data.metrics || typeof data.metrics !== 'object') throw Error('PC_RESULT_UNVERIFIED');
+      state.data = data; state.status = 'ok';
+      const cpu = data.metrics.cpu?.state === 'ok' && pct(data.metrics.cpu.usagePercent) ? data.metrics.cpu.usagePercent : null;
+      const mem = data.metrics.memory;
+      const used = mem?.state === 'ok' && good(mem.usedBytes) && good(mem.totalBytes) && mem.totalBytes > 0 && mem.usedBytes <= mem.totalBytes ? mem.usedBytes : null;
+      const disk = data.metrics.disk;
+      const free = disk?.state === 'ok' && good(disk.freeBytes) && good(disk.totalBytes) && disk.totalBytes > 0 && disk.freeBytes <= disk.totalBytes ? disk.freeBytes : null;
+      // 결과를 저장해도 현재 화면의 측정 여부 판단은 새 조회 자료로만 한다.
+      if (cpu !== null || used !== null || free !== null) {
+        if (!state.history.some(row => row.time === data.measuredAt)) {
+          state.history.push({time: data.measuredAt, cpu, used, free});
+          if (state.history.length > 8) state.history.shift();
+        }
+      }
+    } catch (error) {
+      state.status = 'error'; state.data = null; state.code = limitedCode(error?.message);
+    } finally {
+      notify(true);
+    }
+  }
+
+  function metric(key, label) {
+    if (state.status !== 'ok') return label + ': 확인 불가 · ' + (state.status === 'loading' ? '조회 중' : state.status === 'idle' ? '아직 조회하지 않음' : state.code + ' · 다시 조회하세요');
+    const item = state.data.metrics[key];
+    if (item?.state !== 'ok') {
+      const reason = typeof item?.reason === 'string' ? item.reason : 'invalid_response';
+      return label + ': 확인 불가 · ' + (reasonText[reason] ?? '이번 조회에서 확인하지 못했습니다. 다시 조회하세요.');
+    }
+    const stamp = ' · 실측 ' + at(state.data.measuredAt);
+    if (key === 'cpu' && pct(item.usagePercent)) return label + ': ' + item.usagePercent.toFixed(1) + '% 사용' + stamp + ' · 표본 ' + (count(item.sampleMs) ? item.sampleMs + ' ms' : '기간 확인 불가');
+    if (key === 'memory' && good(item.usedBytes) && good(item.totalBytes) && item.totalBytes > 0 && item.usedBytes <= item.totalBytes) return label + ': ' + gb(item.usedBytes) + ' / ' + gb(item.totalBytes) + stamp;
+    if (key === 'disk' && good(item.freeBytes) && good(item.totalBytes) && item.totalBytes > 0 && item.freeBytes <= item.totalBytes) return label + ': 여유 ' + gb(item.freeBytes) + ' / ' + gb(item.totalBytes) + stamp;
+    if (key === 'network' && count(item.interfaceCount) && count(item.ipv4Count)) return label + ': 인터페이스 ' + item.interfaceCount + '개 · IPv4 구성 ' + item.ipv4Count + '개' + stamp;
+    if (key === 'firewall' && Array.isArray(item.profiles) && item.profiles.length === 3 &&
+        ['Domain', 'Private', 'Public'].every(name => item.profiles.some(p => p.name === name && typeof p.enabled === 'boolean'))) {
+      return label + ': ' + ['Domain', 'Private', 'Public'].map(name => {
+        const profile = item.profiles.find(p => p.name === name);
+        return name + ' ' + (profile.enabled ? '켜짐' : '꺼짐');
+      }).join(' · ') + stamp;
+    }
+    if (key === 'events' && count(item.warningCount) && count(item.errorCount) && item.warningCount + item.errorCount <= 5000 &&
+        item.sampleLimit === 5000 && typeof item.truncated === 'boolean') {
+      return label + ': 최근 24시간 경고 ' + item.warningCount + '건 · 오류 ' + item.errorCount + '건' +
+        (item.truncated ? ' · 일부 집계(최대 5,000건)' : '') + stamp;
+    }
+    return label + ': 확인 불가 · 조회 응답의 값이나 단위를 검증하지 못했습니다.';
+  }
+
+  function block(title) {
+    const section = node('section', undefined, 'card');
+    section.append(node('h4', title));
+    return section;
+  }
+  function appendLines(parent, lines) {
+    for (const line of lines) parent.append(node('p', line, 'muted'));
+  }
+
+  function render(resource) {
+    const root = node('section');
+    root.setAttribute('data-keshev-dashboard', 'v1');
+    root.append(node('h3', '겨울철방어 · 개인 관제 대시보드'));
+    root.append(node('p', '제공 PC 실측과 학생이 만든 요약을 구분합니다. 4개 상태 카드 아래에 추이와 조회 기록이 나옵니다.', 'muted'));
+    const cards = node('div', undefined, 'grid-2');
+
+    const functions = block('① 기능 점검표');
+    appendLines(functions, [
+      '기록 보기: 기존 보안 기록 메뉴 이용 · 실제 원천 기록 여부는 별도 확인',
+      '내 PC 상태: 0.2.21 제공 수집기 재사용 · ' + (state.status === 'ok' ? '이번 조회 응답 확인' : '실측 결과 ' + (state.status === 'loading' ? '조회 중' : '미확인')),
+      '위험 알림: 기존 XDR 원천을 확인해야 함 · Windows 경고 건수로 공격을 판정하지 않음',
+      '권장 순서: PC 조회 → 기록 확인 → 근거·알림 확인',
+    ]);
+
+    const pc = block('② 내 PC 상태');
+    appendLines(pc, [metric('cpu', 'CPU'), metric('memory', '메모리'), metric('disk', '디스크')]);
+    pc.append(node('p', '출처: 제공 /api/pc/status · 읽기 전용 · 일반 사용자 권한 · 예시 숫자 사용 안 함', 'muted'));
+
+    const connection = block('③ 연결과 기록');
+    appendLines(connection, [metric('network', '네트워크 구성'), metric('firewall', 'Windows 방화벽'), metric('events', 'Windows System·Application 기록')]);
+    connection.append(node('p', 'Windows 경고·오류 건수는 침해 또는 공격 탐지 결과가 아닙니다.', 'state state-empty'));
+    const mode = typeof resource?.mode === 'string' ? resource.mode : '';
+    connection.append(node('p', mode === 'disconnected' ? 'SDP 미연결 · 로컬 PC 조회 성공과 별개' :
+      mode === 'demo' ? 'SDP 예시 모드 · 실제 연결 아님' :
+      mode === 'connected' ? '업무 원천 연결 모드 · 실제 SDP 연결 여부는 제공 연결 화면에서 별도 확인' :
+      'SDP 연결 확인 불가 · PC 조회와 별개', 'muted'));
+
+    const app = block('④ 내 앱 · 조회');
+    const button = node('button', '다시 조회', 'btn');
+    button.type = 'button'; button.setAttribute('data-keshev-refresh', '');
+    button.disabled = state.status === 'loading';
+    button.addEventListener('click', readPc);
+    app.append(button);
+    const line = state.status === 'idle' ? '조회 대기 · 「다시 조회」를 눌러 실제 PC 값을 확인하세요.' :
+      state.status === 'loading' ? '실제 PC 조회 중… 이전 값을 현재 값으로 표시하지 않습니다.' :
+      state.status === 'ok' ? '실측 응답 확인 · ' + at(state.data.measuredAt) + ' · 항목별 확인 불가는 그대로 표시' :
+      '이번 조회 실패(' + state.code + ') · 기존 앱 실행 상태를 확인하고 다시 조회하세요.';
+    const statusLine = node('p', line, state.status === 'error' ? 'state state-error' : state.status === 'loading' ? 'state state-loading' : 'state state-empty');
+    statusLine.setAttribute('role', 'status');
+    app.append(statusLine, node('p', 'AI 연결은 별도 「AI 연결」 화면에서 확인합니다. 로컬 PC 조회로 AI·SDP 성공을 추정하지 않습니다.', 'muted'));
+    cards.append(functions, pc, connection, app);
+    root.append(cards);
+
+    const trend = node('section');
+    trend.append(node('h4', '측정 추이 · CPU와 메모리 사용량 비교'));
+    const samples = state.history;
+    if (samples.length < 2) {
+      trend.append(node('p', '비교 가능한 실측이 부족합니다. 직접 「다시 조회」를 2회 이상 눌러 주세요. 자동 조회나 예시 값으로 채우지 않습니다.', 'state state-empty'));
+    } else {
+      const previous = samples[samples.length - 2], latest = samples[samples.length - 1];
+      const diff = (a, b, unit, convert = n => n) => a === null || b === null ? '확인 불가 · 해당 실측값 누락' :
+        (convert(b - a) >= 0 ? '+' : '') + convert(b - a).toFixed(1) + ' ' + unit;
+      trend.append(node('p', '비교 시각: ' + at(previous.time) + ' → ' + at(latest.time)));
+      trend.append(node('p', 'CPU 변화: ' + diff(previous.cpu, latest.cpu, '%p') + ' · 단기 표본 간 비교(원인 판정 아님)'));
+      trend.append(node('p', '메모리 사용량 변화: ' + diff(previous.used, latest.used, 'GB', n => n / 1073741824)));
+    }
+    const record = node('section');
+    record.append(node('h4', '측정 기록 · 최근 최대 8회'));
+    record.append(node('p', '이 목록은 이 브라우저 세션의 이전 실측 기록이며 현재 상태를 대신하지 않습니다. 새로 실행하면 초기화됩니다.', 'muted'));
+    if (!samples.length) {
+      record.append(node('p', '기록 없음 · 실제 PC 조회 후 기록됩니다.', 'state state-empty'));
+    } else {
+      const list = node('ul', undefined, 'plain-list');
+      for (const item of [...samples].reverse()) {
+        list.append(node('li', at(item.time) + ' · CPU ' + (item.cpu === null ? '확인 불가' : item.cpu.toFixed(1) + '%') +
+          ' · 메모리 ' + (item.used === null ? '확인 불가' : gb(item.used)) +
+          ' · 디스크 여유 ' + (item.free === null ? '확인 불가' : gb(item.free))));
+      }
+      record.append(list);
+    }
+    root.append(trend, record);
+    return root;
+  }
+  return Object.freeze({render});
+}
+
+export function createStudentView({ api, onChange } = {}) {
+  const keshevDashboard = createKeshevDashboard(api, onChange);
   return {
     // 입력 { me, devices, sessions } 는 각각 { status, mode, data?, error? }. 호출할 때마다 새 DOM 요소 하나를 만들어
     // 돌려주므로(이전 값을 저장·재사용하지 않음) 다시 불러오면 이전 사용자·기기·세션 표시는 통째로 교체된다.
@@ -767,6 +947,7 @@ export function createStudentView() {
       const modeNote = identityModeNote({ mode: resource.mode, status: 'ok' });
       if (modeNote) heading.appendChild(eventNode('span', ' ' + modeNote.text, modeNote.className));
       view.appendChild(heading);
+      view.appendChild(keshevDashboard.render(resource));
       view.appendChild(statusRenderDevices(resource.devices));
       view.appendChild(statusRenderSessions(resource.sessions));
       view.appendChild(statusRenderNotifications(resource.notifications));
