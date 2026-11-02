@@ -671,7 +671,7 @@ function createKeshevDashboard(api, onChange) {
   // SVG 차트: 두 번 이상 실측한 샘플만 표시하고 누락된 지점을 건너 연결하지 않는다.
   // 축 단위/시각 및 접근성용 설명을 제공하며 예시 점이나 임의 보정 값은 넣지 않는다.
   function trendChart(history, key, label, unit, fixedMaximum, color) {
-    const panel = node('section');
+    const panel = node('section', undefined, 'card');
     panel.append(node('h5', label + ' 추이 (' + unit + ')'));
     const values = history.map(row => key === 'cpu' ? row.cpu
       : row.used === null ? null : row.used / 1073741824);
@@ -782,7 +782,7 @@ function createKeshevDashboard(api, onChange) {
       trend.append(node('p', 'CPU 변화: ' + diff(previous.cpu, latest.cpu, '%p') + ' · 단기 표본 간 비교(원인 판정 아님)'));
       trend.append(node('p', '메모리 사용량 변화: ' + diff(previous.used, latest.used, 'GB', n => n / 1073741824)));
     }
-    const record = node('section');
+    const record = node('section', undefined, 'card');
     record.append(node('h4', '측정 기록 · 최근 최대 8회'));
     record.append(node('p', '이 목록은 이 브라우저 세션의 이전 실측 기록이며 현재 상태를 대신하지 않습니다. 새로 실행하면 초기화됩니다.', 'muted'));
     if (!samples.length) {
