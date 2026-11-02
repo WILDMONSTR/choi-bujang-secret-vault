@@ -599,7 +599,7 @@ function createKeshevDashboard(api, onChange) {
       // 결과를 저장해도 현재 화면의 측정 여부 판단은 새 조회 자료로만 한다.
       if (cpu !== null || used !== null || free !== null) {
         if (!state.history.some(row => row.time === data.measuredAt)) {
-          state.history.push({time: data.measuredAt, cpu, used, free});
+          state.history.push({time: data.measuredAt, cpu, used, free, total: used === null ? null : mem.totalBytes});
           if (state.history.length > 8) state.history.shift();
         }
       }
@@ -646,11 +646,86 @@ function createKeshevDashboard(api, onChange) {
     for (const line of lines) parent.append(node('p', line, 'muted'));
   }
 
+
+  // 0.2.21 제공 수집기의 실제 결과만 시각화한다. 인라인 CSS나 추가 서버·수집기 없음.
+  // <progress>는 현재 확인된 비율에만 값을 주며 실패·대기 시에는 생성하지 않는다.
+  function progressMetric(host, key, label) {
+    if (state.status !== 'ok') return;
+    const m = state.data.metrics[key];
+    if (m?.state !== 'ok') return;
+    let value = null;
+    if (key === 'cpu' && pct(m.usagePercent)) value = m.usagePercent;
+    if (key === 'memory' && good(m.usedBytes) && good(m.totalBytes) && m.totalBytes > 0 && m.usedBytes <= m.totalBytes)
+      value = m.usedBytes / m.totalBytes * 100;
+    if (key === 'disk' && good(m.freeBytes) && good(m.totalBytes) && m.totalBytes > 0 && m.freeBytes <= m.totalBytes)
+      value = m.freeBytes / m.totalBytes * 100;
+    if (value === null) return;
+    const bar = node('progress');
+    bar.max = 100;
+    bar.value = value;
+    bar.setAttribute('aria-label', label + (key === 'disk' ? ' 여유 비율' : ' 사용률') + ' · 실측 ' + at(state.data.measuredAt));
+    const caption = node('p', label + ' ' + (key === 'disk' ? '여유 ' : '사용 ') + value.toFixed(1) + '% · 실측 ' + at(state.data.measuredAt), 'muted');
+    host.append(bar, caption);
+  }
+
+  // SVG 차트: 두 번 이상 실측한 샘플만 표시하고 누락된 지점을 건너 연결하지 않는다.
+  // 축 단위/시각 및 접근성용 설명을 제공하며 예시 점이나 임의 보정 값은 넣지 않는다.
+  function trendChart(history, key, label, unit, fixedMaximum, color) {
+    const panel = node('section');
+    panel.append(node('h5', label + ' 추이 (' + unit + ')'));
+    const values = history.map(row => key === 'cpu' ? row.cpu
+      : row.used === null ? null : row.used / 1073741824);
+    const valid = values.map((v, i) => v !== null && good(v) && (key !== 'cpu' || pct(v)) ? i : -1).filter(i => i >= 0);
+    if (valid.length < 2) {
+      panel.append(node('p', '확인 불가 · ' + label + '의 서로 다른 두 시각 실측이 필요합니다.', 'state state-empty'));
+      return panel;
+    }
+    const n = history.length;
+    const maximum = fixedMaximum ?? Math.max(1, ...history.map(row => good(row.total) && row.total > 0 ? row.total / 1073741824 : 0), ...valid.map(i => values[i]));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const W = 620, H = 198, L = 61, R = 16, T = 15, B = 42;
+    const plotW = W - L - R, plotH = H - T - B;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', H);
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', label + ' 실제 조회값 추이, 단위 ' + unit + ', ' + valid.length + '개 측정점');
+    const el = (tag, attributes = {}, value) => {
+      const child = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (const [name, item] of Object.entries(attributes)) child.setAttribute(name, String(item));
+      if (value !== undefined) child.textContent = String(value);
+      return child;
+    };
+    svg.append(el('title', {}, label + ' 실측 추이'));
+    svg.append(el('desc', {}, '측정 시각별 ' + label + '의 실제 수치. 확인 불가 지점은 연결하지 않음. 아래 측정 기록에서 단위와 시각을 확인할 수 있습니다.'));
+    const x = i => L + i * plotW / Math.max(1, n - 1);
+    const y = v => T + plotH * (1 - Math.min(1, v / maximum));
+    for (const factor of [0, 0.5, 1]) {
+      const yy = y(maximum * factor);
+      svg.append(el('line', {x1:L, y1:yy, x2:W-R, y2:yy, stroke:'#cbd5e1', 'stroke-width':1}));
+      svg.append(el('text', {x:L-7,y:yy+4,'text-anchor':'end','font-size':12,fill:'#475569'}, (maximum * factor).toFixed(key === 'cpu' ? 0 : 1)));
+    }
+    svg.append(el('text', {x:L, y:H-8, 'text-anchor':'start','font-size':12,fill:'#475569'}, new Date(history[0].time).toLocaleTimeString('ko-KR')));
+    svg.append(el('text', {x:W-R,y:H-8, 'text-anchor':'end','font-size':12,fill:'#475569'}, new Date(history[n-1].time).toLocaleTimeString('ko-KR')));
+    // 이웃한 두 시각에서 모두 측정된 경우만 선을 잇는다.
+    for (let i = 1; i < n; i++) {
+      if (!valid.includes(i-1) || !valid.includes(i)) continue;
+      svg.append(el('line', {x1:x(i-1),y1:y(values[i-1]),x2:x(i),y2:y(values[i]),stroke:color,'stroke-width':3,'stroke-linecap':'round'}));
+    }
+    for (const i of valid) {
+      const dot = el('circle', {cx:x(i),cy:y(values[i]),r:4.5,fill:color,stroke:'#ffffff','stroke-width':1.5});
+      dot.append(el('title', {}, at(history[i].time) + ' · ' + values[i].toFixed(1) + ' ' + unit + ' · 실제 측정'));
+      svg.append(dot);
+    }
+    panel.append(svg, node('p', '실측 ' + valid.length + '개 점 · ' + at(history[0].time) + ' ~ ' + at(history[n-1].time) + ' · ' + unit + ' · 짧은 표본은 공격 판단 근거가 아닙니다.', 'muted'));
+    return panel;
+  }
+
   function render(resource) {
     const root = node('section');
     root.setAttribute('data-keshev-dashboard', 'v1');
     root.append(node('h3', '겨울철방어 · 개인 관제 대시보드'));
-    root.append(node('p', '제공 PC 실측과 학생이 만든 요약을 구분합니다. 4개 상태 카드 아래에 추이와 조회 기록이 나옵니다.', 'muted'));
+    root.append(node('p', '제공 PC 실측과 학생이 만든 시각화를 구분합니다. 먼저 상태 카드 4개(화면 너비에 따라 2열×2행)를 표시하고, 아래에 실제 측정 추이 그래프와 기록을 표시합니다.', 'muted'));
     const cards = node('div', undefined, 'grid-2');
 
     const functions = block('① 기능 점검표');
@@ -662,7 +737,10 @@ function createKeshevDashboard(api, onChange) {
     ]);
 
     const pc = block('② 내 PC 상태');
-    appendLines(pc, [metric('cpu', 'CPU'), metric('memory', '메모리'), metric('disk', '디스크')]);
+    for (const [key, label] of [['cpu', 'CPU'], ['memory', '메모리'], ['disk', '디스크']]) {
+      pc.append(node('p', metric(key, label), 'muted'));
+      progressMetric(pc, key, label);
+    }
     pc.append(node('p', '출처: 제공 /api/pc/status · 읽기 전용 · 일반 사용자 권한 · 예시 숫자 사용 안 함', 'muted'));
 
     const connection = block('③ 연결과 기록');
@@ -718,6 +796,8 @@ function createKeshevDashboard(api, onChange) {
       }
       record.append(list);
     }
+    trend.append(trendChart(samples, 'cpu', 'CPU 사용률', '%', 100, '#2357c6'));
+    trend.append(trendChart(samples, 'memory', '메모리 사용량', 'GB', null, '#087f70'));
     root.append(trend, record);
     return root;
   }
