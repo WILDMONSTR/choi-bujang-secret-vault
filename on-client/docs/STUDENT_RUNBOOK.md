@@ -2,13 +2,16 @@
 
 > 이 문서는 `on-client` 학생 앱의 **현재 코드로 확인한 실행 방법**을 기록한다. 앱 실행, 외부 SDP·XDR 연결, CLCO AI 응답, ALEPH 과제 판정은 각각 다른 확인 항목이다. 제공 설명서 `README.md`와 `docs/STUDENT_LAUNCH_GUIDE.md`는 덮어쓰지 않는다.
 
+> **현재 버전 안내(2026-11-02):** GitHub `main`의 앱 버전은 **0.2.21**이다. 아래 21단계 작성 당시의 **0.2.14** 기록과 과거 미실행 판정은 당시 증거로 보존하며 현재 버전의 성공으로 소급하지 않는다. Git이 없는 Windows PC에서는 GitHub ZIP과 PowerShell로 실행할 수 있다. 완성본 발표는 **[겨울철방어 최종 시연·제출 정리](KESHEV_FINAL_DEMO_GUIDE_20261102.md)**를 먼저 따른다.
+
 ## 1. 목적·기능·지원 범위
 
 **겨울철방어**는 자기 계정·기기·세션, 업무 앱 접근 판정, 보안 기록과 XDR 경보, 근거에 따른 AI 설명, 보안 조치의 요청·결과 상태, 공개 승인된 설치 패키지의 OSV 조회 결과를 **구분해 표시하는 학생용 로컬 보안 Agent 앱**이다. 실제 접근 제어·XDR 판정과 조치 집행의 권한은 학생 화면에 없으며 연결된 원천 서버/운영자에게 있다.
 
 | 구분 | 코드에서 확인한 사실 | 실행 확인 상태 |
 |---|---|---|
-| 앱 메타데이터 | `package.json`: `alekov-client-starter`, `0.2.14`, `type: module`; `engines.node: 24.19.0` | GitHub 원문 확인, PC 실행 미확인 |
+| **현재 앱 메타데이터** | `on-client/package.json`: `alekov-client-starter`, **`0.2.21`**, `type: module`; `engines.node: 24.19.0` | 현재 GitHub `main`에서 확인. 사용자 PC에 설치된 ZIP은 별도 확인 |
+| **21단계 당시 앱 메타데이터(과거 기록)** | `package.json`: `alekov-client-starter`, `0.2.14`, `type: module`; `engines.node: 24.19.0` | 당시 코드 확인, 사용자 PC 당시 실행 미확인. 현재 버전으로 혼동하지 않음 |
 | 실행 도구 | `tools/start-alekov.ps1`는 Node.js 22~24를 허용하고 24.19.0을 수업 기준으로 안내 | 스크립트 원문 확인, 사용자의 Node 버전 미확인 |
 | 패키지 | `package.json`에 외부 `dependencies`·`devDependencies`가 없고 `on-client/package-lock.json`도 현재 저장소에서 발견되지 않음 | 저장소 파일 확인; 별도 `npm install`을 필수 절차로 제시하지 않음 |
 | 실행 환경 | Windows PowerShell 실행 도구, Node.js, PC 브라우저; 서버의 기본 바인딩은 `127.0.0.1` | 코드상 지원·구성 확인, 사용자 PC 정상 실행 미확인 |
