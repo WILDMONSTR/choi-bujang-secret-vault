@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
+          fetch-depth: 0
       - name: Fetch pinned official archive, validate, preserve student files
         shell: bash
         run: |
@@ -65,7 +66,7 @@ jobs:
           tools/start-alekov.ps1
           """.split()
           assert len(PATHS) == 38 and len(set(PATHS)) == 38
-          parent = subprocess.check_output(["git","rev-parse","HEAD^"],text=True).strip()
+          parent = subprocess.check_output(["git","merge-base","HEAD","origin/main"],text=True).strip()
           assert parent == BASE, "Branch base changed; refuse update"
           assert not subprocess.check_output(["git","status","--porcelain"],text=True).strip()
           old = pathlib.Path("on-client/package.json").read_bytes()
