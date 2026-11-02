@@ -33,6 +33,8 @@ node -p "require('./package.json').version"
 
 ## 3. 공식 0.2.21 업데이트 (별도 ZIP 준비 불필요)
 
+**2026-11-02 기준 GitHub `main`은 이미 0.2.21이다. 새로 `git clone`했다면 업데이트를 다시 실행할 필요 없이 4장으로 넘어간다.** 아래 절차는 업데이트 이전(0.2.14 등) 버전의 기존 로컬 폴더에만 필요하다. 먼저 `node -p "require('./package.json').version"`으로 확인한다.
+
 제공된 파일 `update-alekov-0.2.21(2).ps1` 자체가 공식 ZIP의 주소·파일 크기·SHA-256을 고정해 두고, **적용 시 공식 ZIP을 직접 내려받아 검증**한다. 인터넷 연결이 필요하다. 기존 작업 폴더가 아닌 새로 clone한 폴더를 사용해도 된다.
 
 먼저 업데이트 파일을 Windows의 다운로드 폴더에 저장했는지 확인한다. 다른 위치에 저장했다면 아래 `$updater` 경로만 실제 위치에 맞춘다. 작업 폴더는 `on-client`다.
@@ -43,7 +45,7 @@ Test-Path -LiteralPath $updater
 powershell -NoProfile -ExecutionPolicy Bypass -File $updater -Project (Get-Location).Path
 ```
 
-`Test-Path` 결과가 `True`여야 한다. 첫 실행은 **미리보기**이므로 파일을 바꾸지 않는다. `DRY_RUN_READY`와 변경할 제공 파일 목록을 확인하고, **앱 실행 창을 Ctrl+C로 종료한 뒤** 다음을 실행한다.
+`Test-Path` 결과가 `True`여야 한다. 첫 실행은 **미리보기**이므로 파일을 바꾸지 않는다. 이미 최신이면 `ALREADY_LATEST`를 확인하고 종료한다. 기존 버전이면 `DRY_RUN_READY`와 변경할 제공 파일 목록을 확인하고, **앱 실행 창을 Ctrl+C로 종료한 뒤** 다음을 실행한다.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File $updater -Project (Get-Location).Path -Apply
@@ -109,7 +111,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 ## 8. 다른 사람도 같은 결과를 만드는 확인 순서
 
 1. GitHub에서 clone → `on-client` 진입 → `node --version`, `package.json` 버전 확인.
-2. 첨부 업데이트 스크립트 **미리보기** → `-Apply` → 0.2.21/해시 검증 → 다시 미리보기에서 `ALREADY_LATEST`.
+2. 버전이 이미 `0.2.21`이면 업데이트를 생략한다. 구버전 폴더만 첨부 업데이트 스크립트 **미리보기** → `-Apply` → 0.2.21/해시 검증 → 다시 미리보기에서 `ALREADY_LATEST`.
 3. `start-alekov.ps1` 실행 → 브라우저 주소 접속 → 세 탭 확인 → 계정 연결과 AI 앱 승인 각각 점검.
 4. PC 상태가 실제로 조회된다면 항목별 단위·측정 시각을 기록. 실패·SDP 미연결·AI 연결 불명은 그대로 기록.
 5. 앱 종료·재실행 → 오류 발생 시 6장 표와 화면의 도움정보를 비교.
@@ -118,4 +120,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 
 저장소: https://github.com/WILDMONSTR/choi-bujang-secret-vault
 
-**현재 검증 범위(2026-11-02):** GitHub 0.2.14 코드, 제공 업데이트 스크립트의 버전·해시·파일 변경 규칙을 분석했다. 0.2.21 공식 ZIP 다운로드, Windows 로컬 상태 실측, 실제 브라우저 동작, 운영 AI 연결 복구 성공 여부는 **확인하지 못했다**. 위의 예상 결과를 완료 증거로 제출하지 않는다.
+**현재 검증 범위(2026-11-02):** 공식 0.2.21 ZIP(463,517바이트, SHA-256 `289a109cfc38e7963b9f973a381cf81aec552c0f1ffca59c9a354585e7c511da`)을 GitHub Actions 실행 환경에서 받아 검증하고, 제공 파일 38개를 `main`에 반영했다(PR #15). `student/` 파일 변경은 0개였다. **Windows 로컬 상태 실측, 실제 PC 브라우저 동작, 운영 AI 연결 복구 성공 여부는 여전히 확인하지 못했다.** ZIP 다운로드 검증을 사용자 PC에서의 실행 성공으로 해석하지 않는다.
