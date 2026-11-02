@@ -121,3 +121,40 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 저장소: https://github.com/WILDMONSTR/choi-bujang-secret-vault
 
 **현재 검증 범위(2026-11-02):** 공식 0.2.21 ZIP(463,517바이트, SHA-256 `289a109cfc38e7963b9f973a381cf81aec552c0f1ffca59c9a354585e7c511da`)을 GitHub Actions 실행 환경에서 받아 검증하고, 제공 파일 38개를 `main`에 반영했다(PR #15). `student/` 파일 변경은 0개였다. **Windows 로컬 상태 실측, 실제 PC 브라우저 동작, 운영 AI 연결 복구 성공 여부는 여전히 확인하지 못했다.** ZIP 다운로드 검증을 사용자 PC에서의 실행 성공으로 해석하지 않는다.
+
+
+## 9. 마지막 6단계: 0.2.21 학생 관제 대시보드 (2026-11-02)
+
+**실행 위치:** 새로 clone한 저장소의 `on-client` 폴더. GitHub `main`이 0.2.21이라면 추가 업데이트를 실행하지 않습니다. 일반 PowerShell 권한으로 실행합니다. `npm.cmd start`로 직접 서버를 켜면 계정 연결용 개인 Native Host 자동 준비가 빠질 수 있으므로, 계정·AI 연결을 확인할 때는 아래 제공 실행 도구를 권장합니다.
+
+```powershell
+git clone https://github.com/WILDMONSTR/choi-bujang-secret-vault.git
+cd .\choi-bujang-secret-vault\on-client
+node --version
+node -p "require('./package.json').version"
+npm run check
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
+```
+
+브라우저에서 `http://127.0.0.1:5189/` → **보호 현황** → 상단의 **겨울철방어 · 개인 관제 대시보드**를 확인합니다. 아래 4개 카드는 설명용 숫자를 넣지 않는 학생 추가 요약입니다. 별도의 제공 **내 PC 상태** 카드는 그대로 남아 있습니다.
+
+1. **기능 점검표**: 기존 보안 기록, PC 상태, 위험 알림을 별도 출처로 구분합니다. 표의 안내는 해당 기능의 실제 원천 조회 성공을 대신하지 않습니다.
+2. **내 PC 상태**: CPU %, 메모리 GB, 디스크 여유 GB와 항목별 실측 시각·단위를 표시합니다. 새 수집기나 Windows 명령을 학생 파일에서 실행하지 않고 기존 읽기 전용 `studentApi.get('/api/pc/status')` 결과만 사용합니다.
+3. **연결과 기록**: 네트워크 인터페이스/IPv4 개수, 방화벽 Domain·Private·Public 설정, 최근 24시간 Windows System·Application 경고/오류 건수를 표시합니다. **Windows 경고·오류 건수는 침해 또는 공격 탐지 결과가 아닙니다.** 현재 SDP 연결 여부는 별도입니다. `disconnected`면 **SDP 미연결**, `demo`면 예시로 표시하고, `connected` 모드라도 실제 SDP 성공은 제공 연결 화면을 따로 확인해야 합니다.
+4. **내 앱 · 조회**: `다시 조회`를 누를 때만 새 요청을 보내며 조회 중 표시·버튼 잠금·오류 후 다음 행동을 안내합니다. 키보드 **Tab → Enter 또는 Space**로 실행할 수 있습니다.
+
+4개 카드 **아래**에는 **측정 추이**(직전 두 실측의 CPU 변화 단위 %p·메모리 사용량 변화 단위 GB)와 **측정 기록**(최대 8회)이 있습니다. 새 측정값이 하나도 없거나 해당 항목만 실패하면 '확인 불가' 또는 '비교 부족'으로 표시합니다. 지난 기록은 **이 브라우저 세션의 과거 실측**이며 현재 값을 대신하지 않습니다. 페이지 새로고침·재시작 시 기록은 초기화됩니다. 그래프 없이 수치 비교를 쓰는 이유는 제공 CSS와 공통 UI를 손대지 않고 데이터 출처·시각을 명확히 보이기 위해서입니다.
+
+**실패 확인:** 조회를 누르기 전에는 `아직 조회하지 않음`이어야 합니다. 조회 중에는 `조회 중`으로, 실패 후에는 `이번 조회 실패` 및 오류 코드·다시 조회 안내로 바뀝니다. 일반 권한으로 읽지 못한 개별 항목은 `확인 불가`와 권한 사유를 표시합니다. 예시 값·마지막 성공 값을 현재 실측처럼 대체하지 않습니다. 이 문서에 적은 문구는 **예상 화면 확인 기준**이며 사용자 PC에서의 실측값은 기록하지 않았습니다.
+
+### 처음 사용하는 사람의 연결 실패 분기
+
+- **`npm.cmd start`에서 AI가 안 되면:** 실행 중인 서버를 Ctrl+C로 종료 → `start-alekov.ps1`로 재실행 → '계정 연결 확인'에서 로그인 확인 → 별도 'AI 연결'의 앱 승인 → '현재 API 연결 점검'. 앱이 열리는 것과 AI 연결은 별개입니다.
+- **`ALEKOV_CONNECT_OUTCOME_UNKNOWN`:** 승인했더라도 최종 연결 결과를 확인할 수 없다는 의미. `상태 다시 확인` 한 번 → `연결 도움정보 보기`로 코드·시각·phase 확인 → 계속되면 담당자에게 전달. 연결됐다고 표시하거나 임의 키를 넣지 않습니다.
+- **`SDP 미연결`:** PC 실측은 별개로 볼 수 있습니다. SDP/업무 원천을 사용하려면 운영자가 발급한 별도 설정이 필요합니다. `sudo`·관리자 PowerShell·방화벽 변경을 시도하지 않습니다.
+
+### 제출용 확인
+
+Git 저장소 **최상위**로 돌아온 후 `git status --short`, `git diff --stat`, `git rev-parse HEAD`, `git remote -v`를 확인합니다. 변경된 파일을 읽고 비밀값이 없을 때 필요한 파일만 커밋·push합니다. `git push`가 거절되면 원격 변경이나 권한부터 확인하며 `--force`는 사용하지 않습니다. `npm run package-app`은 실행하지 않고 새 포장 스크립트도 만들지 않습니다.
+
+사용자 PC에서 실제로 측정한 값이나 AI 연결 성공, SDP 연결 성공을 이 문서 작성·커밋만으로 인증하지 않습니다.
