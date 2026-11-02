@@ -213,3 +213,24 @@ AI 사건 설명은 로컬 서버의 `src/ai/service.mjs` 또는 자격 보관�
 **실행 재현(일반 권한):** 새 clone → `on-client` 폴더 → `node -p "require('./package.json').version"`이 `0.2.21`인지 확인 → `npm run check` → `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1` → `http://127.0.0.1:5189/`에서 '보호 현황'의 4개 카드 확인 → '다시 조회' 두 번 → 추이와 기록 확인 → 오류·권한 부족 시 '확인 불가' 문구 확인 → PowerShell Ctrl+C 종료. 포장 명령은 실행하지 않는다.
 
 **중요한 검증 한계:** 이 기록은 코드·모의 테스트와 GitHub 변경 목록의 증거이며, **사용자의 실제 Windows PC에서 실측하거나 AI/SDP 연결을 복구했다는 증거가 아니다**. 실제 결과는 해당 PC 실행 확인 후에만 기록한다. 이전 22단계의 자동 채점 재통과도 별도 검사 없이는 주장하지 않는다.
+
+
+## 11. 그래프 카드 보완 및 확인 (0.2.21)
+
+**수정 대상:** `student/extension.mjs`의 `createKeshevDashboard` 내부 UI만 변경. `public/app.js`, `public/style.css`, `src/` 전체, 기존 13~22단계 `render*` 8개와 `student/appearance.json`은 변경하지 않는다.
+
+| 구역 | 표시 데이터/형식 | 성공·실패 구별 |
+|---|---|---|
+| 상단 4개 카드 | 기존 기능 점검표, 실측 PC, 연결·Windows 기록, 수동 조회 버튼(2열×2행) | 제공 수집기와 학생 표시 분리, SDP/AI 연결 별도 |
+| 내 PC 카드 | CPU 사용률 %, 메모리 사용/전체 GB, 디스크 여유/전체 GB, 각각 `<progress>` 막대 | 값과 단위를 검증한 경우만 막대 생성. 실패/권한 부족은 `확인 불가`와 이유 |
+| 아래 CPU 그래프 카드 | SVG 실제 CPU 사용률 시계열, 세로축 % (0~100), 가로축 실측 시각 | 2개 이상 서로 다른 실측 시각이 있어야 점 표시 |
+| 아래 메모리 그래프 카드 | SVG 실제 사용량 시계열, 세로축 GB (0~기록된 전체 메모리), 가로축 실측 시각 | 메모리 누락 표본과 연결선 보간 금지 |
+| 측정 기록 | 이 브라우저 세션의 최대 8개 실측, CPU %·메모리 GB·디스크 여유 GB·시각 | 재시작 시 초기화. 조회 실패 후 과거 실측 표시를 현재 결과로 오인하지 않도록 명시 |
+
+**사용자 선택:** 새 수집기 대신 기존 `/api/pc/status` 조회 재사용. 시각화는 표준 DOM `<progress>` 및 `<svg>`를 학생 영역에서만 생성하며, 상태별 값은 서버 응답이 `aleph.on.pc-status.v1`과 `source=local-pc`, 최근 60초 내 측정으로 검증된 경우에만 활용한다. 추가 시스템 접근·관리자 권한·방화벽 변경·침투 재현·포장 명령 실행은 없다.
+
+**수동 검증:** PowerShell의 기존 `on-client`에서 `node --check .\student\extension.mjs` → `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1` → 브라우저 `http://127.0.0.1:5189/`의 **보호 현황 → 학생 상태·알림 표시**에서 직접 **다시 조회**를 두 번 누른다. 측정이 모두 성공하면 CPU·메모리·디스크 3개 막대, 아래의 CPU·메모리 그래프 카드, 실측 시각이 있는 기록을 볼 수 있다. 개별 항목이 실패하면 해당 막대는 없어야 한다. 계정·AI 연결 성공은 사용자 PC에서 별도로 확인한 사실이며 그래프 코드의 자동 검증으로 대체하지 않는다.
+
+**Git 없이 파일을 갱신하는 순서:** 기존 서버 Ctrl+C 중지 → GitHub main ZIP을 별도 위치에서 압축 해제 → 기존 폴더의 `student/extension.mjs`, `docs/KESHEV_FIRST_RUN_20261102.md`, `docs/STUDENT_RUNBOOK.md`만 최신 파일로 교체 → 기존 폴더에서 실행. 새 폴더로 옮기면 프로젝트 식별이 바뀔 수 있으므로 연결 성공한 기존 폴더·개인 설정을 유지한다. 커밋 번호는 GitHub main 브랜치 화면을 근거로 확인한다.
+
+**검증 한계:** 소스 및 모의 DOM 렌더 검증 결과와 사용자 Windows PC에서 측정한 실제 CPU·메모리 값은 다르다. 보고서에 임의 수치나 예시 그래프를 실제 측정으로 적지 않는다.
