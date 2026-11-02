@@ -1,0 +1,107 @@
+name: One-time verified ALEKOV 0.2.21 update
+on:
+  push:
+    branches:
+      - alekov-verified-upgrade-0-2-21
+    paths:
+      - .github/workflows/alekov-update-verified.yml
+permissions:
+  contents: write
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Fetch pinned official archive, validate, preserve student files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, io, json, pathlib, subprocess, urllib.request, zipfile
+          BASE = "db8a5c33eef87e8d1df951c23084b7616e24ef78"
+          OFFICIAL_URL = "https://aleph-workbench-downloads.vercel.app/alekov-starter-0.2.21.zip"
+          EXPECTED_ZIP_HASH = "289a109cfc38e7963b9f973a381cf81aec552c0f1ffca59c9a354585e7c511da"
+          EXPECTED_ZIP_SIZE = 463517
+          PATHS = """
+          .on-starter-manifest.json
+          README.md
+          docs/FINAL_PRODUCT_GUIDE.md
+          docs/IMPLEMENTATION_CONTRACT.md
+          docs/PACKAGE_APP.md
+          docs/PC_SAAS_REFERENCE.md
+          docs/PC_SAAS_SOURCES.md
+          docs/STUDENT_LAUNCH_GUIDE.md
+          docs/STUDENT_PROMPTS.md
+          examples/pc-saas/README.md
+          examples/pc-saas/student-extension.mjs
+          package.json
+          public/ai-connect.mjs
+          public/app.js
+          public/index.html
+          public/pc-status-view.mjs
+          public/student-appearance.mjs
+          public/style.css
+          src/ai/connection.mjs
+          src/connection/manager.mjs
+          src/connection/native-context.mjs
+          src/connection/native-login.mjs
+          src/engine/student-engine-ipc.mjs
+          src/engine/student-engine-worker.mjs
+          src/engine/trusted-app-assembly.mjs
+          src/pc-status.mjs
+          src/server.mjs
+          src/student-appearance-files.mjs
+          src/student-appearance.mjs
+          tools/app-credentials.ps1
+          tools/export-student-package.mjs
+          tools/install-packaged-app.ps1
+          tools/native-host-registry.ps1
+          tools/package-app-support.mjs
+          tools/package-app.mjs
+          tools/package-finish-materials.mjs
+          tools/provided-runtime.mjs
+          tools/start-alekov.ps1
+          """.split()
+          assert len(PATHS) == 38 and len(set(PATHS)) == 38
+          parent = subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()
+          assert parent == BASE, "Branch base changed; refuse update"
+          assert not subprocess.check_output(["git","status","--porcelain"],text=True).strip()
+          old = pathlib.Path("on-client/package.json").read_bytes()
+          assert hashlib.sha256(old).hexdigest() == "ce6a2925d620b2055510bc509061b30e5726d3bd9041fa6d687adc5ca7c45d81"
+          assert json.loads(old)["version"] == "0.2.14"
+          request = urllib.request.Request(OFFICIAL_URL,headers={"User-Agent":"ALEKOV-verified-updater/1.0","Accept":"application/zip"})
+          with urllib.request.urlopen(request,timeout=90) as response:
+              assert response.geturl() == OFFICIAL_URL, "Unexpected redirect"
+              archive = response.read(EXPECTED_ZIP_SIZE + 1)
+          assert len(archive) == EXPECTED_ZIP_SIZE, "Wrong ZIP size"
+          assert hashlib.sha256(archive).hexdigest() == EXPECTED_ZIP_HASH, "Wrong ZIP SHA256"
+          print("Verified official ZIP size and SHA256",EXPECTED_ZIP_HASH)
+          updated = {}
+          with zipfile.ZipFile(io.BytesIO(archive)) as z:
+              assert z.testzip() is None
+              for path in PATHS:
+                  entry = "on-client/"+path
+                  assert z.namelist().count(entry) == 1, "Missing/duplicate official path: "+entry
+                  member = z.getinfo(entry)
+                  assert not member.is_dir() and member.file_size < 2_000_000
+                  updated[path] = z.read(member)
+          assert json.loads(updated["package.json"])["version"] == "0.2.21"
+          root = pathlib.Path("on-client")
+          for path, data in updated.items():
+              dest = root/path
+              assert not dest.is_symlink() and not any(p.is_symlink() for p in dest.parents)
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              dest.write_bytes(data)
+          subprocess.run(["git","add","--",*[str(root/path) for path in PATHS]],check=True)
+          changed = set(subprocess.check_output(["git","diff","--cached","--name-only"],text=True).splitlines())
+          expected = {"on-client/"+p for p in PATHS}
+          assert changed == expected, "Unexpected changed file list: "+repr(changed ^ expected)
+          assert not any(x.startswith("on-client/student/") for x in changed)
+          subprocess.run(["git","config","user.name","ALEKOV verified updater"],check=True)
+          subprocess.run(["git","config","user.email","41898282+github-actions[bot]@users.noreply.github.com"],check=True)
+          subprocess.run(["git","commit","-m","chore: apply official SHA256-verified ALEKOV 0.2.21 starter"],check=True)
+          subprocess.run(["git","push","origin","HEAD:alekov-verified-upgrade-0-2-21"],check=True)
+          print("Updated 38 official files; student files untouched.")
+          PY
