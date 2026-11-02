@@ -544,12 +544,393 @@ function statusRenderNotifications(notifications) {
   return section;
 }
 
-export function createStudentView() {
+// ---- 겨울철방어 관제 대시보드 ----
+// 제공 API를 추가 호출하지 않는다. 학생 렌더러에 전달된 현재 응답만 요약한다.
+const DASHBOARD_HOUR_MS = 60 * 60 * 1000;
+const dashboardTime = value => new Date(value).toLocaleString('ko-KR', {
+  timeZone: 'Asia/Seoul', hour12: false,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit',
+}) + ' KST';
+const dashboardReady = resource => resource?.status === 'ok'
+  && ['connected', 'demo'].includes(resource.mode);
+
+function dashboardSource(resource, path) {
+  const source = resource?.mode === 'demo' ? '예시 · 실제 조회 아님'
+    : dashboardReady(resource) ? '실제 조회 · 원천 서버 응답'
+      : resource?.mode === 'disconnected' ? '미연결 · 실제 값 없음' : '확인 불가 · 실제 값 없음';
+  return eventNode('p', source + ' · 출처: ' + path, resource?.mode === 'demo' ? 'tag tag-demo' : 'muted');
+}
+
+function dashboardCard(title, value, note, resource, path) {
+  const card = eventNode('section', undefined, 'card');
+  card.setAttribute('data-dashboard-card', title);
+  const metric = eventNode('p', value);
+  metric.style.fontSize = '1.25rem';
+  metric.style.fontWeight = '700';
+  card.append(eventNode('h4', title), metric, eventNode('p', note, 'muted'), dashboardSource(resource, path));
+  return card;
+}
+
+function dashboardListSummary(resource, kind) {
+  if (resource?.status === 'loading') return ['불러오는 중', '조회가 끝나기 전에는 이전 수치를 표시하지 않습니다.'];
+  if (!dashboardReady(resource) || !Array.isArray(resource.data)) {
+    return ['확인 불가', '조회 실패·미연결은 0건이나 정상 상태가 아닙니다.'];
+  }
+  const known = kind === 'device' ? ['compliant', 'noncompliant', 'unknown'] : ['active', 'expired', 'revoked', 'unknown'];
+  if (resource.data.some(item => !eventIsRecord(item) || !known.includes(item.status))) {
+    return ['확인 불가', '상태를 해석할 수 없는 항목이 있습니다.'];
+  }
+  const unknown = resource.data.filter(item => item.status === 'unknown').length;
+  const warning = resource.data.filter(item => IDENTITY_WARNING_STATUS.has(item.status)).length;
+  return [`조회 ${resource.data.length}건`, `주의 ${warning}건 · 상태 미확인 ${unknown}건 · ${kind === 'device' ? 'OS 보안 센서 실측 아님' : '현재 반환된 연결 범위만 표시'}`];
+}
+
+function dashboardNotificationsReady(status, events) {
+  return [status.devices, status.sessions, events].every(item => dashboardReady(item)
+    && Array.isArray(item.data) && item.mode === status.mode)
+    && Array.isArray(status.notifications);
+}
+
+function dashboardCards(identity, status, events) {
+  const cards = eventNode('div', undefined, 'grid-2');
+  cards.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
+  const me = identity.me;
+  const engineValue = me?.status === 'loading' ? '불러오는 중'
+    : me?.mode === 'demo' && me.status === 'ok' ? '예시 모드'
+      : me?.mode === 'disconnected' ? '연결 없음'
+        : status.mode === 'connected' && dashboardReady(me) ? '응답 연결됨' : '확인 불가';
+  const devices = dashboardListSummary(status.devices, 'device');
+  const sessions = dashboardListSummary(status.sessions, 'session');
+  const ready = dashboardNotificationsReady(status, events);
+  cards.append(
+    dashboardCard('엔진 연결', engineValue, '현재 신원 조회 기준 · 다른 기능의 연결 성공을 보장하지 않습니다.', me, '/api/me'),
+    dashboardCard('기기 상태', ...devices, status.devices, '/api/devices'),
+    dashboardCard('세션 상태', ...sessions, status.sessions, '/api/sessions'),
+    dashboardCard('주의 알림', ready ? `화면 알림 ${status.notifications.length}건` : '확인 불가',
+      ready ? '기기·세션·기록 및 조회 오류 안내 · 실제 경보 총계 아님'
+        : '일부 자료를 확인하지 못했습니다. 아래 상세 안내를 확인하세요.',
+      { status: ready ? 'ok' : 'unknown', mode: status.mode }, '현재 화면의 상태·기록'),
+  );
+  return cards;
+}
+
+function dashboardTrend(events, selectedHour, selectHour) {
+  const section = eventNode('section');
+  section.setAttribute('data-dashboard-trend', '');
+  section.append(eventNode('h4', '시간대별 추이'), eventNode('p',
+    '현재 필터의 전달 기록만 집계 · 한국시간(KST) · 기록이 있는 최근 12개 시간대 · 전체 누적 통계 아님', 'muted'));
+  const hours = new Map();
+  let invalid = 0;
+  for (const event of events) {
+    const timestamp = eventTimestamp(event);
+    if (!Number.isFinite(timestamp)) { invalid += 1; continue; }
+    const hour = Math.floor(timestamp / DASHBOARD_HOUR_MS) * DASHBOARD_HOUR_MS;
+    if (!hours.has(hour)) hours.set(hour, { access: 0, xdr: 0, other: 0 });
+    const bin = hours.get(hour);
+    bin[['access', 'xdr'].includes(event.kind) ? event.kind : 'other'] += 1;
+  }
+  const entries = [...hours.entries()].sort((a, b) => a[0] - b[0]);
+  if (entries.length) section.appendChild(eventNode('p',
+    '기록 시각 범위: ' + dashboardTime(entries[0][0]) + ' ~ ' + dashboardTime(entries.at(-1)[0] + DASHBOARD_HOUR_MS)
+    + ' (끝 시각 제외). 빈 시간대의 수치를 추정하지 않습니다.', 'muted'));
+  else section.appendChild(eventNode('p', '추이를 만들 수 있는 기록이 없습니다.', 'state state-empty'));
+  if (invalid) section.appendChild(eventNode('p', `시각 확인 불가 ${invalid}건은 추이에서 제외하며 아래 기록 목록에는 남깁니다.`, 'muted'));
+  const bins = entries.slice(-12);
+  const max = Math.max(1, ...bins.map(([, b]) => b.access + b.xdr + b.other));
+  for (const [hour, bin] of bins) {
+    const row = eventNode('div', undefined, 'card');
+    const total = bin.access + bin.xdr + bin.other;
+    const button = eventNode('button', dashboardTime(hour) + ` · ${total}건 · 기록 보기`, 'btn');
+    button.type = 'button';
+    button.setAttribute('aria-pressed', String(selectedHour === hour));
+    button.setAttribute('data-dashboard-hour', String(hour));
+    button.addEventListener('click', () => selectHour(hour));
+    const meter = eventNode('meter');
+    meter.min = 0;
+    meter.max = max;
+    meter.value = total;
+    meter.setAttribute('aria-label', dashboardTime(hour) + ` 전달 기록 ${total}건`);
+    meter.textContent = `${total}건`;
+    meter.style.width = '100%';
+    row.append(button, meter, eventNode('p', `접속 ${bin.access}건 · XDR ${bin.xdr}건 · 기타 ${bin.other}건`, 'muted'));
+    section.appendChild(row);
+  }
+  const reset = eventNode('button', '시간대 선택 해제 · 전체 전달 기록 보기', 'btn');
+  reset.type = 'button';
+  reset.disabled = selectedHour === null;
+  reset.addEventListener('click', () => selectHour(null));
+  section.appendChild(reset);
+  return section;
+}
+
+function renderEventRecords(input, reflectedAt) {
+  const resource = eventIsRecord(input) ? input : { status: 'unknown' };
+  const view = eventNode('div');
+  const heading = eventNode('h3', '접속 기록·XDR 경보');
+  const modeNote = identityModeNote(resource);
+  if (modeNote) heading.appendChild(eventNode('span', ' ' + modeNote.text, modeNote.className));
+  view.appendChild(heading);
+  view.appendChild(dashboardSource(resource, '/api/events'));
+  view.appendChild(eventNode('p',
+    '서버 조회 시각·전체 조회 범위: 학생 입력에 전달되지 않음. '
+    + (reflectedAt && resource.status === 'ok' ? '화면 자료 반영 시각: ' + dashboardTime(reflectedAt) + ' (이 브라우저)' : '이전 조회 수치를 표시하지 않습니다.'), 'muted'));
+
+  const status = resource.status;
+  const error = eventIsRecord(resource.error) ? resource.error : {};
+  const errorCode = eventScalar(error.code);
+  const errorMessage = eventScalar(error.message) || (typeof resource.error === 'string' ? resource.error : '') || '서버가 오류 메시지를 제공하지 않았습니다.';
+
+  if (status === 'loading') {
+    view.appendChild(eventNode('p', '기록을 불러오는 중입니다.', 'state state-loading'));
+    return view;
+  }
+  if (status === 'CONTRACT_MISMATCH' || errorCode === 'CONTRACT_MISMATCH') {
+    const message = eventScalar(error.message);
+    view.appendChild(eventNode('p', '확인 불가: 응답 형식이 맞지 않아 기록을 표시하지 않습니다.', 'state state-empty'));
+    if (message) view.appendChild(eventNode('p', '세부 정보: ' + message.slice(0, 500), 'muted'));
+    return view;
+  }
+  if (status === 'error') {
+    view.appendChild(eventNode('p', '기록을 불러오지 못했습니다: ' + errorMessage.slice(0, 500), 'state state-error'));
+    return view;
+  }
+  if (status === 'idle') {
+    view.appendChild(eventNode('p', '기록 조회 대기 중입니다.', 'state state-empty'));
+    return view;
+  }
+  if (status !== 'ok') {
+    view.appendChild(eventNode('p', '확인 불가: 기록 조회 상태를 확인할 수 없습니다.', 'state state-empty'));
+    return view;
+  }
+  if (!Array.isArray(resource.data) || !dashboardReady(resource)) {
+    view.appendChild(eventNode('p', '확인 불가: 응답 형식이 맞지 않아 기록을 표시하지 않습니다.', 'state state-empty'));
+    return view;
+  }
+  if (resource.data.length === 0) {
+    view.appendChild(eventNode('p', '현재 응답에 전달된 기록이 없습니다. 전체 기간의 기록이 0건이라는 뜻은 아닙니다.', 'state state-empty'));
+    return view;
+  }
+
+  // 입력 배열의 복사본을 정렬한다. 유효한 시각은 최신순, 시각을 해석할 수 없는 기록은 입력 순서를 유지해 뒤에 둔다.
+  const events = resource.data.map((event, index) => ({
+    event,
+    index,
+    timestamp: eventTimestamp(event),
+  })).sort((left, right) => {
+    const leftValid = Number.isFinite(left.timestamp);
+    const rightValid = Number.isFinite(right.timestamp);
+    if (leftValid && rightValid && left.timestamp !== right.timestamp) return right.timestamp - left.timestamp;
+    if (leftValid !== rightValid) return leftValid ? -1 : 1;
+    return left.index - right.index;
+  }).map(entry => entry.event);
+
+  const filterPanel = eventNode('div', undefined, 'event-filters row');
+  filterPanel.style.margin = '12px 0';
+  const trendArea = eventNode('div');
+  const resultArea = eventNode('div');
+  resultArea.tabIndex = -1;
+  const detailArea = eventNode('div');
+  const filters = { kind: 'all', appId: 'all', access: 'all', hour: null };
+
+  function makeFilter(labelText, field) {
+    const label = eventNode('label', labelText + ' ');
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', labelText);
+    const allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.textContent = '전체';
+    select.appendChild(allOption);
+
+    const values = [];
+    for (const event of events) {
+      const value = eventFilterValue(event, field);
+      if (!values.includes(value)) values.push(value);
+    }
+    for (const value of values) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = eventFilterOptionText(field, value);
+      select.appendChild(option);
+    }
+    select.value = 'all';
+    label.appendChild(select);
+    select.addEventListener('change', () => {
+      filters[field] = select.value;
+      filters.hour = null;
+      renderFilteredRows();
+    });
+    filterPanel.appendChild(label);
+  }
+
+  makeFilter('기록 종류', 'kind');
+  makeFilter('업무 앱', 'appId');
+  makeFilter('접속 상태', 'access');
+
+  function renderFilteredRows() {
+    resultArea.textContent = '';
+    detailArea.textContent = '';
+    const matching = events.filter(event => {
+      return (filters.kind === 'all' || eventFilterValue(event, 'kind') === filters.kind)
+        && (filters.appId === 'all' || eventFilterValue(event, 'appId') === filters.appId)
+        && (filters.access === 'all' || eventFilterValue(event, 'access') === filters.access);
+    });
+    trendArea.replaceChildren(dashboardTrend(matching, filters.hour, hour => {
+      filters.hour = hour;
+      renderFilteredRows();
+      resultArea.focus();
+    }));
+    const visible = matching.filter(event => filters.hour === null
+      || Math.floor(eventTimestamp(event) / DASHBOARD_HOUR_MS) * DASHBOARD_HOUR_MS === filters.hour);
+    resultArea.appendChild(eventNode('h4', '기록 · 시간대를 누른 뒤 사건 상세로 이어집니다'));
+    resultArea.appendChild(eventNode('p', `현재 선택 ${visible.length}건` + (filters.hour === null ? ' · 전체 전달 기록' : ' · ' + dashboardTime(filters.hour) + ' 시간대')));
+
+    if (visible.length === 0) {
+      resultArea.appendChild(eventNode('p', '필터 조건에 맞는 기록이 없습니다.', 'state state-empty'));
+      return;
+    }
+
+    const list = eventNode('ul', undefined, 'plain-list');
+    for (const event of visible) {
+      const record = eventIsRecord(event) ? event : {};
+      const id = eventScalar(record.id) || '확인 불가';
+      const time = eventScalar(record.at) || '시각 확인 불가';
+      const appId = eventAppText(record.appId);
+      const summary = eventScalar(record.summary) || '요약 없음';
+      const row = eventNode('li');
+      row.style.display = 'block';
+      row.setAttribute('data-student-event-id', id);
+      row.appendChild(eventNode('p', '사건 ID: ' + id + ' · 시각: ' + time + ' · 종류: ' + eventKindText(record.kind) + ' · 앱: ' + appId));
+      row.appendChild(eventNode('p', '요약: ' + summary));
+
+      const button = eventNode('button', id + ' 상세', 'btn');
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        detailArea.textContent = '';
+        detailArea.appendChild(dashboardSource(resource, '/api/events'));
+        detailArea.appendChild(eventBuildDetail(record));
+        detailArea.appendChild(eventNode('p', '조치 상태: 기록에 포함된 상태만 표시합니다. 실제 집행·효과는 「보안 기록」 탭의 제공 조치 화면에서 영수증과 관측 결과로 확인하세요.', 'muted'));
+        detailArea.tabIndex = -1;
+        detailArea.focus();
+      });
+      row.appendChild(button);
+      list.appendChild(row);
+    }
+    resultArea.appendChild(list);
+  }
+
+  view.appendChild(filterPanel);
+  view.appendChild(trendArea);
+  view.appendChild(resultArea);
+  view.appendChild(detailArea);
+  renderFilteredRows();
+  return view;
+}
+
+function localPcPanel(state, history, load) {
+  const panel=eventNode('section');
+  panel.setAttribute('data-local-pc','');
+  panel.append(eventNode('h3','겨울철방어 · PC 읽기 전용 관제'),
+    eventNode('p','이 건수는 Windows 경고·오류 기록의 집계이며, 침해나 공격 탐지 결과가 아닙니다. 방화벽·보안 설정을 변경하지 않습니다.','notice'),
+    eventNode('p','앱 서버가 실행되는 컴퓨터의 실제 조회입니다. 예시 모드에서도 PC 수치를 예시로 채우지 않습니다.','muted'));
+  const button=eventNode('button',state.status==='loading'?'조회 중…':'PC 상태 읽기','btn');
+  button.type='button';button.disabled=state.status==='loading';button.addEventListener('click',load);
+  panel.appendChild(button);
+  const data=state.data;
+  const cards=eventNode('div',undefined,'grid-2');
+  cards.style.gridTemplateColumns='repeat(4, minmax(0, 1fr))';cards.style.marginTop='12px';
+  const fallback=state.status==='loading'?'조회 중 · 이전 값을 표시하지 않습니다.':state.error||'아직 조회하지 않았습니다. 「PC 상태 읽기」를 누르세요.';
+  const section=(title,items,render)=>{
+    const card=eventNode('section',undefined,'card');card.style.overflowWrap='anywhere';card.appendChild(eventNode('h4',title));
+    for(const [name,item] of items){
+      card.appendChild(eventNode('p',name));
+      if(!item||item.status!=='ok'){
+        card.appendChild(eventNode('p','확인 불가 · '+(item?.message||fallback),'state state-empty'));
+        if(item?.observedAt)card.appendChild(eventNode('p','조회 시도 시각: '+dashboardTime(item.observedAt),'muted'));
+      }else{
+        card.appendChild(eventNode('p','실제 PC 조회 · 출처: Windows · 이 아래 값의 측정 시각: '+dashboardTime(item.observedAt),'muted'));
+        render(card,item.data);
+      }
+    }
+    return card;
+  };
+  cards.append(section('네트워크 구성',[['현재 인터페이스',data?.network]],(card,rows)=>{
+    if(!rows.length)card.appendChild(eventNode('p','반환된 인터페이스 0개'));
+    for(const row of rows){
+      card.append(eventNode('p',row.name+' · 상태: '+row.status),
+        eventNode('p','IP/접두사: '+(row.addresses.join(', ')||'없음')),
+        eventNode('p','게이트웨이: '+(row.gateways.join(', ')||'없음')),
+        eventNode('p','DNS: '+(row.dns.join(', ')||'없음')));
+    }
+  }),section('방화벽 설정',[['활성 정책(ActiveStore)',data?.firewall]],(card,rows)=>{
+    if(!rows.length)card.appendChild(eventNode('p','프로필 확인 불가 · 반환된 프로필 없음'));
+    for(const row of rows)card.appendChild(eventNode('p',`${row.name} · 활성: ${row.enabled} · 수신: ${row.inbound} · 송신: ${row.outbound}`));
+    card.appendChild(eventNode('p','이 값만으로 PC 전체가 안전하거나 방화벽이 실효적으로 보호한다고 판정하지 않습니다.','muted'));
+  }),section('Windows 기록',[['System',data?.system],['Application',data?.application]],(card,value)=>{
+    card.append(eventNode('p',`경고 ${value.warning}건 · 오류 ${value.error}건`),
+      eventNode('p','집계 구간: '+dashboardTime(value.startUtc)+' ~ '+dashboardTime(value.endUtc),'muted'));
+    if(value.partial)card.appendChild(eventNode('p','일부 조회 · 최신 최대 5,000건만 집계했습니다. 전체 24시간의 총계가 아닙니다.','state state-empty'));
+  }));
+  const sdp=eventNode('section',undefined,'card');sdp.appendChild(eventNode('h4','SDP 연결'));
+  sdp.append(eventNode('p',data?.sdp?.label||'SDP 확인 불가'),eventNode('p',data?.sdp?.reason||fallback,'muted'));
+  if(data?.sdp?.checkedAt)sdp.appendChild(eventNode('p','SDP 조회 시각: '+dashboardTime(data.sdp.checkedAt),'muted'));
+  sdp.appendChild(eventNode('p','PC 조회 성공과 SDP 연결 성공은 별개입니다.','muted'));cards.appendChild(sdp);panel.appendChild(cards);
+  panel.append(eventNode('h4','조회별 추이와 기록'),eventNode('p','이번 브라우저 실행 중 최근 12번의 조회만 보관합니다. 새로고침하면 초기화됩니다. 서로 겹치는 최근 24시간 집계이므로 건수 차이는 새 사건 수가 아닙니다.','muted'));
+  if(!history.length)panel.appendChild(eventNode('p','아직 조회 기록이 없습니다. 예시 추이를 생성하지 않습니다.','state state-empty'));
+  for(const entry of history){
+    const row=eventNode('div',undefined,'card');row.setAttribute('data-pc-history','');
+    row.appendChild(eventNode('p','조회 완료: '+dashboardTime(entry.checkedAt)+' · 실제 실행 컴퓨터: '+entry.platform));
+    for(const key of ['system','application']){
+      const item=entry[key];
+      if(item?.status!=='ok'){row.appendChild(eventNode('p',`${key}: 확인 불가 · ${item?.message||'자료 없음'}`));continue;}
+      const value=item.data;
+      row.appendChild(eventNode('p',`${value.log} · ${dashboardTime(item.observedAt)} · 경고 ${value.warning}건 / 오류 ${value.error}건${value.partial?' · 일부 조회(추이 제외)':''}`));
+      if(!value.partial){
+        const meter=eventNode('meter');meter.min=0;meter.max=5000;meter.value=value.warning+value.error;meter.style.width='100%';
+        meter.setAttribute('aria-label',`${value.log} 경고·오류 합계 ${meter.value}건, 표시 축 0~5000건`);row.appendChild(meter);
+      }
+    }
+    panel.appendChild(row);
+  }
+  return panel;
+}
+
+export function createStudentView({api} = {}) {
+  let pcState={status:'idle'};
+  const pcHistory=[];
+  async function loadPc(){
+    if(pcState.status==='loading')return;
+    pcState={status:'loading'};updateDashboard();
+    try{
+      const result=await api?.get('/api/local-observation');
+      const d=result?.data;
+      if(!result?.ok||d?.source!=='local-os'||!['network','firewall','system','application'].every(k=>['ok','unavailable'].includes(d[k]?.status))||!Number.isFinite(Date.parse(d.checkedAt)))throw Error('PC 조회 응답을 확인할 수 없습니다. 서버를 다시 실행한 뒤 조회하세요.');
+      pcState={status:'ok',data:d};pcHistory.unshift(d);pcHistory.splice(12);
+    }catch{pcState={status:'error',error:'PC 조회에 실패했습니다. 서버 실행·연결 상태를 확인하세요. 이전 값을 현재 값으로 표시하지 않습니다.'};}
+    updateDashboard();
+  }
+
+  // 같은 학생 뷰 안에서만 현재 입력을 공유한다. 새 loading/error 입력은 이전 값을 대체한다.
+  let dashboardMount = null;
+  let currentIdentity = {};
+  let currentStatus = {};
+  let currentEvents = { status: 'loading' };
+  let eventsReflectedAt = null;
+  function updateDashboard() {
+    if (!dashboardMount) return;
+    const previous=eventNode('details');
+    previous.append(eventNode('summary','기존 엔진·보안 기록 대시보드 보기'),
+      dashboardCards(currentIdentity,currentStatus,currentEvents),renderEventRecords(currentEvents,eventsReflectedAt));
+    dashboardMount.replaceChildren(localPcPanel(pcState,pcHistory,loadPc),previous);
+
+  }
   return {
     // 입력 { me, devices, sessions } 는 각각 { status, mode, data?, error? }. 호출할 때마다 새 DOM 요소 하나를 만들어
     // 돌려주므로(이전 값을 저장·재사용하지 않음) 다시 불러오면 이전 사용자·기기·세션 표시는 통째로 교체된다.
     renderIdentity(input) {
-      const { me, devices, sessions } = identityIsRecord(input) ? input : {};
+      currentIdentity = identityIsRecord(input) ? input : {};
+      updateDashboard();
+      const { me, devices, sessions } = currentIdentity;
       const view = identityNode('div');
       view.append(
         identitySection('현재 로그인', me, identityMeBody),
@@ -620,157 +1001,36 @@ export function createStudentView() {
       return view;
     },
     renderEvents(input) {
-      const resource = eventIsRecord(input) ? input : { status: 'unknown' };
-      const view = eventNode('div');
-      const heading = eventNode('h3', '접속 기록·XDR 경보');
-      const modeNote = identityModeNote(resource);
-      if (modeNote) heading.appendChild(eventNode('span', ' ' + modeNote.text, modeNote.className));
-      view.appendChild(heading);
-
-      const status = resource.status;
-      const error = eventIsRecord(resource.error) ? resource.error : {};
-      const errorCode = eventScalar(error.code);
-      const errorMessage = eventScalar(error.message) || (typeof resource.error === 'string' ? resource.error : '') || '서버가 오류 메시지를 제공하지 않았습니다.';
-
-      if (status === 'loading') {
-        view.appendChild(eventNode('p', '기록을 불러오는 중입니다.', 'state state-loading'));
-        return view;
-      }
-      if (status === 'CONTRACT_MISMATCH' || errorCode === 'CONTRACT_MISMATCH') {
-        const message = eventScalar(error.message);
-        view.appendChild(eventNode('p', '확인 불가: 응답 형식이 맞지 않아 기록을 표시하지 않습니다.', 'state state-empty'));
-        if (message) view.appendChild(eventNode('p', '세부 정보: ' + message.slice(0, 500), 'muted'));
-        return view;
-      }
-      if (status === 'error') {
-        view.appendChild(eventNode('p', '기록을 불러오지 못했습니다: ' + errorMessage.slice(0, 500), 'state state-error'));
-        return view;
-      }
-      if (status === 'idle') {
-        view.appendChild(eventNode('p', '기록 조회 대기 중입니다.', 'state state-empty'));
-        return view;
-      }
-      if (status !== 'ok') {
-        view.appendChild(eventNode('p', '확인 불가: 기록 조회 상태를 확인할 수 없습니다.', 'state state-empty'));
-        return view;
-      }
-      if (!Array.isArray(resource.data)) {
-        view.appendChild(eventNode('p', '확인 불가: 응답 형식이 맞지 않아 기록을 표시하지 않습니다.', 'state state-empty'));
-        return view;
-      }
-      if (resource.data.length === 0) {
-        view.appendChild(eventNode('p', '표시할 기록이 없습니다.', 'state state-empty'));
-        return view;
-      }
-
-      // 입력 배열의 복사본을 정렬한다. 유효한 시각은 최신순, 시각을 해석할 수 없는 기록은 입력 순서를 유지해 뒤에 둔다.
-      const events = resource.data.map((event, index) => ({
-        event,
-        index,
-        timestamp: eventTimestamp(event),
-      })).sort((left, right) => {
-        const leftValid = Number.isFinite(left.timestamp);
-        const rightValid = Number.isFinite(right.timestamp);
-        if (leftValid && rightValid && left.timestamp !== right.timestamp) return right.timestamp - left.timestamp;
-        if (leftValid !== rightValid) return leftValid ? -1 : 1;
-        return left.index - right.index;
-      }).map(entry => entry.event);
-
-      const filterPanel = eventNode('div', undefined, 'event-filters');
-      const resultArea = eventNode('div');
-      const detailArea = eventNode('div');
-      const filters = { kind: 'all', appId: 'all', access: 'all' };
-      const filterSelects = {};
-
-      function makeFilter(labelText, field) {
-        const label = eventNode('label', labelText + ' ');
-        const select = document.createElement('select');
-        select.setAttribute('aria-label', labelText);
-        const allOption = document.createElement('option');
-        allOption.value = 'all';
-        allOption.textContent = '전체';
-        select.appendChild(allOption);
-
-        const values = [];
-        for (const event of events) {
-          const value = eventFilterValue(event, field);
-          if (!values.includes(value)) values.push(value);
-        }
-        for (const value of values) {
-          const option = document.createElement('option');
-          option.value = value;
-          option.textContent = eventFilterOptionText(field, value);
-          select.appendChild(option);
-        }
-        select.value = 'all';
-        label.appendChild(select);
-        filterSelects[field] = select;
-        select.addEventListener('change', () => {
-          filters[field] = select.value;
-          renderFilteredRows();
-        });
-        filterPanel.appendChild(label);
-      }
-
-      makeFilter('기록 종류', 'kind');
-      makeFilter('업무 앱', 'appId');
-      makeFilter('접속 상태', 'access');
-
-      function renderFilteredRows() {
-        resultArea.textContent = '';
-        detailArea.textContent = '';
-        const visible = events.filter(event => {
-          return (filters.kind === 'all' || eventFilterValue(event, 'kind') === filters.kind)
-            && (filters.appId === 'all' || eventFilterValue(event, 'appId') === filters.appId)
-            && (filters.access === 'all' || eventFilterValue(event, 'access') === filters.access);
-        });
-
-        if (visible.length === 0) {
-          resultArea.appendChild(eventNode('p', '필터 조건에 맞는 기록이 없습니다.', 'state state-empty'));
-          return;
-        }
-
-        const list = eventNode('ul', undefined, 'plain-list');
-        for (const event of visible) {
-          const record = eventIsRecord(event) ? event : {};
-          const id = eventScalar(record.id) || '확인 불가';
-          const time = eventScalar(record.at) || '시각 확인 불가';
-          const appId = eventAppText(record.appId);
-          const summary = eventScalar(record.summary) || '요약 없음';
-          const row = eventNode('li');
-          row.setAttribute('data-student-event-id', id);
-          row.appendChild(eventNode('p', '사건 ID: ' + id + ' · 시각: ' + time + ' · 종류: ' + eventKindText(record.kind) + ' · 앱: ' + appId));
-          row.appendChild(eventNode('p', '요약: ' + summary));
-
-          const button = eventNode('button', id + ' 상세');
-          button.type = 'button';
-          button.addEventListener('click', () => {
-            detailArea.textContent = '';
-            detailArea.appendChild(eventBuildDetail(record));
-          });
-          row.appendChild(button);
-          list.appendChild(row);
-        }
-        resultArea.appendChild(list);
-      }
-
-      view.appendChild(filterPanel);
-      view.appendChild(resultArea);
-      view.appendChild(detailArea);
-      renderFilteredRows();
-      return view;
+      currentEvents = eventIsRecord(input) ? input : { status: 'unknown' };
+      eventsReflectedAt = currentEvents.status === 'ok' ? Date.now() : null;
+      updateDashboard();
+      return renderEventRecords(currentEvents, eventsReflectedAt);
     },
     renderStatus(input) {
       const resource = eventIsRecord(input) ? input : {};
+      currentStatus = resource;
       const view = eventNode('div');
+      dashboardMount = eventNode('section');
+      dashboardMount.setAttribute('data-student-dashboard', '');
+      updateDashboard();
+      view.appendChild(dashboardMount);
+      const details = eventNode('details');
+      details.appendChild(eventNode('summary', '기기·세션·알림·진단 상세 보기'));
+      const detailContent = eventNode('div');
+      details.appendChild(detailContent);
+      view.appendChild(details);
       const heading = eventNode('h3', '상태·알림·진단 정보');
       const modeNote = identityModeNote({ mode: resource.mode, status: 'ok' });
       if (modeNote) heading.appendChild(eventNode('span', ' ' + modeNote.text, modeNote.className));
-      view.appendChild(heading);
-      view.appendChild(statusRenderDevices(resource.devices));
-      view.appendChild(statusRenderSessions(resource.sessions));
-      view.appendChild(statusRenderNotifications(resource.notifications));
-      view.appendChild(statusDiagnosticsSection(resource.diagnostics));
+      detailContent.appendChild(heading);
+      detailContent.appendChild(statusRenderDevices(resource.devices));
+      detailContent.appendChild(statusRenderSessions(resource.sessions));
+      if (resource.notifications?.length === 0 && !dashboardNotificationsReady(resource, currentEvents)) {
+        detailContent.appendChild(eventNode('p', '알림 확인 불가: 자료 조회가 끝나지 않았거나 일부 연결을 확인하지 못했습니다.', 'state state-empty'));
+      } else {
+        detailContent.appendChild(statusRenderNotifications(resource.notifications));
+      }
+      detailContent.appendChild(statusDiagnosticsSection(resource.diagnostics));
       return view;
     },
     renderVulnerabilities(input) {

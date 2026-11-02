@@ -1,3 +1,4 @@
+import {collectWindowsObservation} from '../student/windows-observation.mjs';
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
@@ -392,6 +393,20 @@ export function createOnServer(serverOptions={}) {
         const input=await bounded(()=>jsonBody(req,keys,(_key,value)=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)));
         const output=await bounded(signal=>connections[kind](input,{signal}));
         send(output.status,output.body);return;
+      }
+      if(req.method==='GET'&&url.pathname==='/api/local-observation'){
+        // Explicit user-triggered read. PC success is independent of remote SDP status.
+        const local=collectWindowsObservation();
+        const sdp=async()=>{
+          if(!sdpHostEngine)return {status:'disconnected',label:'SDP 미연결',checkedAt:clock().toISOString(),reason:'실제 SDP 호스트가 연결되지 않았습니다. 예시·일반 어댑터 연결은 SDP 증거가 아닙니다.'};
+          try{
+            const identity=assertData('identity',await bounded(signal=>sdpHostEngine.readIdentity({signal})));
+            if(identity.session.status!=='active')throw Error('SDP_SESSION_INACTIVE');
+            return {status:'verified',label:'SDP 조회 확인',checkedAt:clock().toISOString(),reason:'이번 조회에서 실제 SDP 호스트의 활성 세션 응답을 검증했습니다. 지속 연결을 보장하지 않습니다.'};
+          }catch{return {status:'unavailable',label:'SDP 확인 불가',checkedAt:clock().toISOString(),reason:'SDP 실제 조회를 검증하지 못했습니다. PC 조회 결과와 별개입니다.'};}
+        };
+        const [pc,remote]=await Promise.all([local,sdp()]);
+        send(200,{ok:true,data:{...pc,sdp:remote}});return;
       }
       const gets=new Map([['/api/me',['readIdentity','identity']],['/api/apps',['readApps','apps']],['/api/events',['readEvents','events']],['/api/devices',['readDevices','devices']],['/api/sessions',['readSessions','sessions']]]);
       if(req.method==='GET'&&gets.has(url.pathname)){
