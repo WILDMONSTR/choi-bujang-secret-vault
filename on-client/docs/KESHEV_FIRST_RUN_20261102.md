@@ -11,31 +11,35 @@
 - **보호 현황**: 현재 계정·기기·세션, 상태 알림, 별도의 AI 연결, 제공되는 PC 상태 자료를 본다.
 - **업무 앱**: 지정한 앱에 대한 접근 판정을 본다. 허용 판정과 실제 접속 성공은 별개다.
 - **보안 기록**: 제공된 원천의 접속 기록·XDR 사건 및 근거를 본다. Windows System/Application의 경고·오류 건수는 공격 탐지 수치가 아니다.
-- **학생 구현 영역**: 앞선 13~22단계의 학생 작성 화면이다. 이번 업데이트 및 이 안내서 추가는 `student/`를 고치지 않는다.
+- **학생 구현 영역**: 앞선 13~22단계의 학생 작성 화면이다. 공식 0.2.14→0.2.21 업데이트 당시 `student/`를 보존했다. 이후 사용자 지정 대시보드 작업으로 `student/extension.mjs`와 `student/appearance.json`이 별도로 추가·수정됐으며 기존 학생 함수는 유지했다.
 - **SDP 미연결**: 로컬 PC 자료가 보여도 SDP 자격·원천 서버가 없으면 업무 원천은 계속 미연결로 표시해야 한다.
 
 값을 표시할 때는 `실측 · YYYY-MM-DD HH:mm:ss · 단위`, `예시 · 실측 아님`, `확인 불가 · 이유`를 구분한다. CPU는 %, 메모리는 GB 또는 %, 디스크 남은 공간은 GB처럼 **항목별 단위**를 함께 본다. 조회 실패 시 마지막 값이나 임의 예시로 성공처럼 채우지 않는다.
 
-## 2. 처음 내려받기: 한 번만
+## 2. 처음 내려받기 — Git 없는 ZIP 방식 (기본)
 
-1. Windows에 **Git**과 **Node.js**를 설치한다. 수업 검수 기준 Node.js는 **24.19.0**, 제공 실행 도구의 허용 범위는 **22~24**다.
-2. PowerShell을 **일반 사용자 권한**으로 열고, 본인이 프로젝트를 내려받아도 되는 폴더에서 아래 명령을 실행한다.
-3. 기존 작업·제출물은 지우거나 옮기지 않는다. 같은 이름의 폴더가 이미 있으면 그 위치에서 `git status`를 확인하고 무작정 `git clone`을 반복하지 않는다.
+1. **Git 설치는 필요 없다.** Windows에 Node.js를 설치한다. 수업 검수 기준은 **24.19.0**, 제공 도구의 지원 범위는 **22~24**다.
+2. [GitHub 최신 main ZIP](https://github.com/WILDMONSTR/choi-bujang-secret-vault/archive/refs/heads/main.zip)을 다운로드하고 **기존 작업 폴더와 다른 위치**에 압축을 푼다. 보통 `choi-bujang-secret-vault-main` 폴더가 생긴다. 기존 프로젝트·제출물은 지우거나 옮기지 않는다.
+3. 일반 권한 PowerShell에서 압축 해제한 `on-client` 폴더로 이동한다(다른 위치에 풀었다면 경로만 변경).
 
 ```powershell
-git clone https://github.com/WILDMONSTR/choi-bujang-secret-vault.git
-cd .\choi-bujang-secret-vault\on-client
+cd "$HOME\Downloads\choi-bujang-secret-vault-main\on-client"
 node --version
 node -p "require('./package.json').version"
+node --check .\student\extension.mjs
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 ```
 
-`node`를 찾지 못하면 설치 후 PowerShell을 **새로 연다**. 명령 결과의 버전은 PC에서 나온 실제 값으로 기록한다. 이 안내의 숫자를 실측 결과로 복사해 적지 않는다.
+버전 `0.2.21`, 문법 오류 없음, 실행 주소 `http://127.0.0.1:5189/`를 확인한다. Node.js를 찾지 못하면 설치 뒤 새 PowerShell을 연다. 이 문서의 수치를 실측이라고 적지 않는다.
+
+**Git은 선택 사항이다.** Git이 이미 설치된 환경에서만 `git clone https://github.com/WILDMONSTR/choi-bujang-secret-vault.git`으로 받을 수 있다. Git이 없는 ZIP 폴더는 `git rev-parse HEAD`가 불가능하므로 [GitHub 커밋 화면](https://github.com/WILDMONSTR/choi-bujang-secret-vault/commits/main)에서 40자리 SHA와 다운로드 시각을 확인하고, 로컬 Git HEAD 검증을 수행했다고 적지 않는다.
+
 
 ## 3. 공식 0.2.21 업데이트 (별도 ZIP 준비 불필요)
 
-**2026-11-02 기준 GitHub `main`은 이미 0.2.21이다. 새로 `git clone`했다면 업데이트를 다시 실행할 필요 없이 4장으로 넘어간다.** 아래 절차는 업데이트 이전(0.2.14 등) 버전의 기존 로컬 폴더에만 필요하다. 먼저 `node -p "require('./package.json').version"`으로 확인한다.
+**2026-11-02 기준 GitHub `main`은 이미 0.2.21이다. 새 ZIP을 받거나 Git으로 복제했다면 업데이트를 다시 실행할 필요 없이 4장으로 넘어간다.** 아래 절차는 업데이트 이전(0.2.14 등) 버전의 기존 로컬 폴더에만 필요하다. 먼저 `node -p "require('./package.json').version"`으로 확인한다.
 
-제공된 파일 `update-alekov-0.2.21(2).ps1` 자체가 공식 ZIP의 주소·파일 크기·SHA-256을 고정해 두고, **적용 시 공식 ZIP을 직접 내려받아 검증**한다. 인터넷 연결이 필요하다. 기존 작업 폴더가 아닌 새로 clone한 폴더를 사용해도 된다.
+제공된 파일 `update-alekov-0.2.21(2).ps1` 자체가 공식 ZIP의 주소·파일 크기·SHA-256을 고정해 두고, **적용 시 공식 ZIP을 직접 내려받아 검증**한다. 인터넷 연결이 필요하다. 새로 받은 0.2.21 ZIP 폴더에는 다시 적용할 필요가 없다.
 
 먼저 업데이트 파일을 Windows의 다운로드 폴더에 저장했는지 확인한다. 다른 위치에 저장했다면 아래 `$updater` 경로만 실제 위치에 맞춘다. 작업 폴더는 `on-client`다.
 
@@ -67,7 +71,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 
 서버 실행 안내가 보이면 브라우저에서 `http://127.0.0.1:5189/`을 연다. 브라우저에서 `보호 현황`, `업무 앱`, `보안 기록` 탭을 확인한다. 종료는 **서버를 실행한 PowerShell 창에서 Ctrl+C**다. 브라우저 탭만 닫아서는 서버가 종료되지 않는다.
 
-**왜 `npm.cmd start`는 AI 연결에 불리한가?** 0.2.14에서 `npm start`는 `node src/server.mjs`를 직접 켜지만, `tools/start-alekov.ps1`는 그 전에 이 프로젝트용 계정 연결 Native Host 설정을 자동으로 준비한다. 따라서 기본 `npm.cmd start`로 화면이 열려도 AI 계정 연결 기능이 준비됐다고 볼 수 없다. 0.2.21에서도 제공 실행 안내와 실제 연결 상태를 확인한다. `-Demo`는 **실제 연결이 아닌 예시**, `-NoNativeHost`는 **계정 연결을 생략한 확인용**이다.
+**왜 `npm.cmd start`는 AI 연결에 불리한가?** 현재 0.2.21에서 `npm start`는 `node src/server.mjs`를 직접 켜지만, `tools/start-alekov.ps1`는 그 전에 이 프로젝트용 계정 연결 Native Host 설정을 자동으로 준비한다. 따라서 기본 `npm.cmd start`로 화면이 열려도 AI 계정 연결 기능이 준비됐다고 볼 수 없다. 0.2.21에서도 제공 실행 안내와 실제 연결 상태를 확인한다. `-Demo`는 **실제 연결이 아닌 예시**, `-NoNativeHost`는 **계정 연결을 생략한 확인용**이다.
 
 ## 5. 처음 보는 사람용 AI 연결 2단계
 
@@ -106,7 +110,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 | 사용성 | 직접 누르는 `다시 조회`, 조회 중 표시, 오류·다음 행동 안내, Tab/Enter/Space로 조작 |
 | 기능 미제공 | 실제 조회가 없는 항목은 `아직 미구현` 또는 `확인 불가`; 임의 숫자 사용 금지 |
 
-**검증 주의:** 이 문서는 화면 구현의 증거가 아니다. 0.2.21 제공 API를 실제 적용·검사한 다음에 구현 완료 여부를 판단한다. 이번 문서 추가로 기존 `student/` 파일 또는 제공 공통 UI를 수정하지 않는다.
+**검증 주의:** 문서만으로 Windows PC의 실제 화면·실측을 증명할 수 없다. 학생 대시보드는 `student/extension.mjs`에서 구현했고, 제공 공통 화면·서버는 수정하지 않았다. 실제 PC 조회 결과는 해당 PC에서 확인해야 한다.
 
 ## 8. 다른 사람도 같은 결과를 만드는 확인 순서
 
