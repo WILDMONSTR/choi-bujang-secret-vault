@@ -692,6 +692,7 @@ function createKeshevDashboard(api, onChange) {
 
     const trend = node('section');
     trend.append(node('h4', '측정 추이 · CPU와 메모리 사용량 비교'));
+    if (state.status !== 'ok') trend.append(node('p', '현재 실측이 아닙니다. 아래 추이는 이전에 조회된 과거 실측 기록만 비교합니다.', 'state state-empty'));
     const samples = state.history;
     if (samples.length < 2) {
       trend.append(node('p', '비교 가능한 실측이 부족합니다. 직접 「다시 조회」를 2회 이상 눌러 주세요. 자동 조회나 예시 값으로 채우지 않습니다.', 'state state-empty'));
