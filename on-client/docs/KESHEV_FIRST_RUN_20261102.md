@@ -114,33 +114,32 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 
 ## 8. 다른 사람도 같은 결과를 만드는 확인 순서
 
-1. GitHub에서 clone → `on-client` 진입 → `node --version`, `package.json` 버전 확인.
+1. GitHub에서 ZIP 다운로드(기본) 또는 Git 복제(선택) → `on-client` 진입 → `node --version`, `package.json` 버전 `0.2.21` 확인.
 2. 버전이 이미 `0.2.21`이면 업데이트를 생략한다. 구버전 폴더만 첨부 업데이트 스크립트 **미리보기** → `-Apply` → 0.2.21/해시 검증 → 다시 미리보기에서 `ALREADY_LATEST`.
 3. `start-alekov.ps1` 실행 → 브라우저 주소 접속 → 세 탭 확인 → 계정 연결과 AI 앱 승인 각각 점검.
 4. PC 상태가 실제로 조회된다면 항목별 단위·측정 시각을 기록. 실패·SDP 미연결·AI 연결 불명은 그대로 기록.
 5. 앱 종료·재실행 → 오류 발생 시 6장 표와 화면의 도움정보를 비교.
-6. Git 최상위에서 `git status --short`, `git diff --stat`로 변경된 파일을 확인. 비밀 파일이 포함되지 않게 검토한 뒤 필요한 파일만 `git add`, `git commit`, `git push`한다. push가 거절되면 **`--force`를 사용하지 말고** 원격 변경·권한을 먼저 확인한다.
-7. `git rev-parse HEAD`로 **실제 40자리 커밋 번호**를 확인해 저장소 주소와 함께 기록한다. 업로드된 파일 및 커밋이 GitHub에서 보이는지도 확인한다.
+6. **Git 없는 ZIP 이용자**는 GitHub의 `main` 커밋과 ZIP 다운로드 시점을 확인한다. `git status`나 `git rev-parse HEAD` 실행은 요구하지 않는다. **Git 이용자만** 변경 파일과 비밀값 포함 여부를 검토하고 `git status --short` → `git diff --stat` → 변경 파일만 `git add` → `git commit` → `git push`한다. push가 거절되면 **`--force` 없이** 원격 변경과 권한부터 확인한다.
+7. Git 사용자는 `git rev-parse HEAD`로 40자리 SHA를 확인한다. Git 미설치 사용자는 GitHub `main` 커밋 화면에서 SHA를 확인하며 로컬 HEAD를 검증했다고 주장하지 않는다.
 
 저장소: https://github.com/WILDMONSTR/choi-bujang-secret-vault
 
-**현재 검증 범위(2026-11-02):** 공식 0.2.21 ZIP(463,517바이트, SHA-256 `289a109cfc38e7963b9f973a381cf81aec552c0f1ffca59c9a354585e7c511da`)을 GitHub Actions 실행 환경에서 받아 검증하고, 제공 파일 38개를 `main`에 반영했다(PR #15). `student/` 파일 변경은 0개였다. **Windows 로컬 상태 실측, 실제 PC 브라우저 동작, 운영 AI 연결 복구 성공 여부는 여전히 확인하지 못했다.** ZIP 다운로드 검증을 사용자 PC에서의 실행 성공으로 해석하지 않는다.
+**검증 범위(2026-11-02):** 공식 0.2.21 ZIP(463,517바이트, SHA-256 `289a109cfc38e7963b9f973a381cf81aec552c0f1ffca59c9a354585e7c511da`)을 GitHub Actions 환경에서 검증하고 제공 파일 38개를 반영했다(PR #15). **공식 업데이트 당시** `student/` 변경은 0개였으며 이후 학생 대시보드와 그래프를 별도 커밋(PR #16·#17)으로 구현했다. 사용자가 계정 연결·AI 연결·AI 점검 성공을 보고했지만, 이 문서 작성 과정에서 사용자 Windows PC의 실측값이나 화면을 직접 수집·검증한 것은 아니다.
 
 
 ## 9. 마지막 6단계: 0.2.21 학생 관제 대시보드 (2026-11-02)
 
-**실행 위치:** 새로 clone한 저장소의 `on-client` 폴더. GitHub `main`이 0.2.21이라면 추가 업데이트를 실행하지 않습니다. 일반 PowerShell 권한으로 실행합니다. `npm.cmd start`로 직접 서버를 켜면 계정 연결용 개인 Native Host 자동 준비가 빠질 수 있으므로, 계정·AI 연결을 확인할 때는 아래 제공 실행 도구를 권장합니다.
+**실행 위치:** GitHub ZIP을 압축 해제하거나 Git으로 복제한 저장소의 `on-client` 폴더. GitHub `main`이 0.2.21이라면 추가 업데이트를 실행하지 않습니다. 일반 PowerShell 권한으로 실행합니다. `npm.cmd start`로 직접 서버를 켜면 계정 연결용 개인 Native Host 자동 준비가 빠질 수 있으므로, 계정·AI 연결을 확인할 때는 아래 제공 실행 도구를 권장합니다.
 
 ```powershell
-git clone https://github.com/WILDMONSTR/choi-bujang-secret-vault.git
-cd .\choi-bujang-secret-vault\on-client
+# 압축을 푼 on-client 폴더에서 실행 (Git·NPM 필요 없음)
 node --version
 node -p "require('./package.json').version"
-npm run check
+node --check .\student\extension.mjs
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
 ```
 
-브라우저에서 `http://127.0.0.1:5189/` → **보호 현황** → 상단의 **겨울철방어 · 개인 관제 대시보드**를 확인합니다. 아래 4개 카드는 설명용 숫자를 넣지 않는 학생 추가 요약입니다. 카드 4개는 화면 너비에 맞춰 **2열×2행**으로 배치되며, 그 아래 **CPU·메모리 추이 그래프 카드 2개와 측정 기록**이 있습니다. 별도의 제공 **내 PC 상태** 카드는 그대로 남아 있습니다.
+브라우저에서 `http://127.0.0.1:5189/` → **보호 현황** → **학생 상태·알림 표시** 내부의 **겨울철방어 · 개인 관제 대시보드**를 확인합니다. 아래 4개 카드는 설명용 숫자를 넣지 않는 학생 추가 요약입니다. 카드 4개는 화면 너비에 맞춰 **2열×2행**으로 배치되며, 그 아래 **CPU·메모리 추이 그래프 카드 2개와 측정 기록**이 있습니다. 별도의 제공 **내 PC 상태** 카드는 그대로 남아 있습니다.
 
 1. **기능 점검표**: 기존 보안 기록, PC 상태, 위험 알림을 별도 출처로 구분합니다. 표의 안내는 해당 기능의 실제 원천 조회 성공을 대신하지 않습니다.
 2. **내 PC 상태**: CPU %, 메모리 GB, 디스크 여유 GB와 항목별 실측 시각·단위를 표시합니다. **정상 수치가 있는 항목에만 시각적 `<progress>` 진행 막대**(CPU 사용률·메모리 사용률·디스크 여유 비율)를 표시합니다. 새 수집기나 Windows 명령을 학생 파일에서 실행하지 않고 기존 읽기 전용 `studentApi.get('/api/pc/status')` 결과만 사용합니다.
