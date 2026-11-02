@@ -58,9 +58,13 @@ git rev-parse HEAD
 - `git status --short`에 변경 항목이 있으면 어떤 파일인지 먼저 살펴보고 임의로 버리거나 `reset --hard`, `clean -fd` 하지 않는다. 커밋되지 않은 변경은 GitHub에서 `clone`할 때 복제되지 않는다.
 - 원본 폴더의 실제 절대경로와 로컬 미커밋 변경 여부는 학생이 직접 기록한다. 사용자 경로에 이름이나 비밀이 포함돼 있으면 제출 문서에는 경로의 공개 가능한 범위만 적는다.
 
-### 3.2 새 폴더 복제 — 제출용 최종 커밋 확정 후
+### 3.2 Git 없이 ZIP으로 같은 버전 재현 (기본) / Git 복제 (선택)
 
-**저장소의 모든 파일을 받는 위치**는 새 빈 폴더다. PowerShell을 임의의 안전한 작업 위치에서 열고 다음을 실행한다. `$targetCommit`에 **22단계 문서 추가 후 실제로 발급된 40자리 커밋**을 입력한다. 원본 기준 커밋 `86581...`을 최종 커밋인 것처럼 사용하지 않는다.
+**기본 방법 — Git 설치 불필요:** [GitHub `main` 커밋 목록](https://github.com/WILDMONSTR/choi-bujang-secret-vault/commits/main)에서 제출할 **실제 40자리 SHA**를 확인한 뒤, 브라우저 주소 `https://github.com/WILDMONSTR/choi-bujang-secret-vault/archive/<40자리SHA>.zip`의 자리표시자를 그 SHA로 치환해 ZIP을 다운로드한다. GitHub에서 그 SHA가 가리키는 소스가 내려오며, ZIP을 **기존 프로젝트와 다른 폴더**에 푼다. 압축 내부의 `on-client` 폴더에서 PowerShell을 열어 아래의 재현 검사를 진행한다. 기존 프로젝트·학생 제출물·개인 Native Host 설정은 이동하거나 덮어쓰지 않는다.
+
+Git이 없는 ZIP 폴더에는 `.git` 폴더가 없으므로 `git status`·`git rev-parse HEAD`를 호출할 수 없다. **GitHub 커밋 URL과 다운로드한 SHA는 확인할 수 있지만, 로컬 Git HEAD 일치 검증은 수행하지 못한 것으로 표기**한다. 기존 파일 보존과 새 폴더 실행은 별개로 확인한다.
+
+**선택 방법 — Git이 이미 설치된 PC:** Git의 완전한 커밋 일치까지 검사하려면 아래 명령을 사용한다. 이 경우에만 `$targetCommit`에 실제 40자리 SHA를 지정한다. 원본 기준 `86581...`을 최신 커밋으로 착각하지 않는다.
 
 ```powershell
 $repro = Join-Path $HOME 'winter-defense-stage22-repro'
@@ -80,12 +84,13 @@ git -C $repro status --short
 
 ### 3.3 런타임·문법·브라우저·종료·재실행 — 새 폴더에서만
 
-**PowerShell 작업 폴더는 `$repro/on-client`**이다. `on-client`의 외부 npm 의존성은 선언되지 않아 강제 `npm install`을 설치 절차에 추가하지 않는다.
+**PowerShell 작업 폴더는 새로 받은 `on-client`**이다. Git으로 복제했다면 `$repro/on-client`이며, ZIP인 경우 압축을 푼 폴더 안의 `on-client`에서 PowerShell을 열고 `$repro = (Resolve-Path ..).Path`를 먼저 실행한다. `on-client`는 외부 npm 의존성을 선언하지 않으므로 설치·NPM 명령이 불필요하다.
 
 ```powershell
 Set-Location (Join-Path $repro 'on-client')
 node --version
-npm run check
+node -p "require('./package.json').version"
+node --check .\student\extension.mjs
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -NoNativeHost -Port 5190
 ```
 
@@ -96,7 +101,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -No
 - 외부 SDP/XDR·AI 연결이 필요한 기능은 담당자의 승인과 새 환경 신원 확인을 거쳐 따로 시험한다. 이 재현 문서 작성 과정에서 실제 유료 AI 호출·보안 조치·OSV 외부 조회·계정 승인 요청은 실행하지 않는다.
 - 별도의 예제 검사가 필요하다면 제공 `-Demo` 옵션을 쓰고 `mode=demo`와 **예제 자료**로 기록한다. 예제 성공을 연결 성공으로 집계하지 않는다.
 
-`npm run check` 성공은 학생 파일 문법 확인일 뿐이며 로컬 서버·브라우저·API 통과 판정이 아니다. 실제 실행 결과가 나오기 전에는 위 절차를 완료했다고 쓰지 않는다.
+`node --check student/extension.mjs` 성공은 학생 파일 문법 확인일 뿐이며 로컬 서버·브라우저·API 통과 판정이 아니다. 실제 실행 결과가 나오기 전에는 위 절차를 완료했다고 쓰지 않는다.
 
 ## 4. 같은 최종 커밋의 13~21단계 누적 재현 기록
 
@@ -155,7 +160,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -No
 | 새 폴더가 이미 존재 | 덮어쓰지 말고 다른 새 경로를 사용 | 재현 미실행 |
 | Git 없는 ZIP 폴더이고 `.git` 없음 | 기존 폴더 보존, 새 폴더에는 GitHub SHA 지정 ZIP을 받아 압축 해제 | ZIP에는 로컬 Git HEAD가 없으며 GitHub 커밋과 다운로드 출처를 기록 |
 | 새 폴더의 HEAD가 제출 커밋과 다름 | 새 결과를 제출 근거로 합치지 않고 커밋을 다시 고정 | 커밋 불일치 |
-| `node --version` 불일치·`npm run check` 실패 | 환경/오류 확인, 제공 코드 임의 수정 금지 | 미재현·원인 기록 |
+| `node --version` 불일치·`node --check` 실패 | 환경/오류 확인, 제공 코드 임의 수정 금지 | 미재현·원인 기록 |
 | 원본 서버가 포트 `5189` 사용 | 제공 `-Port 5190` 사용, 기존 프로세스는 유지 | 환경 변경 근거 기록 |
 | API `ENGINE_NOT_CONNECTED`, `disconnected` | 현재 호스트 연결 상태 확인; 운영 연결 성공 주장 금지 | 연결 없음 |
 | 권한 준비 중, `unknown`, 계약 오류 | 정확한 오류와 다시 확인할 순서만 기록 | 확인 불가 |
@@ -167,8 +172,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -No
 
 ## 7. 단계 제출 전 학생 확인 (본 과제 범위)
 
-1. 원본을 보존하고 새 폴더에서 **최종 커밋을 일치**시킨다. 그 커밋으로만 표를 채운다.
-2. 학생 문서·코드와 재현 표를 같은 Git 커밋에 저장한다. 제출하는 40자리 커밋은 GitHub 화면 또는 `git rev-parse HEAD` 결과와 맞춘다. 코드를 추가로 변경했다면 다시 커밋하고 새 커밋으로 재현한다.
+1. 원본을 보존하고 새 폴더에서 **동일한 제출용 SHA의 원문**을 내려받는다. Git 사용자는 `git rev-parse HEAD` 일치를 확인하고, Git 없는 ZIP 사용자는 GitHub에서 다운로드한 SHA만 기록하며 로컬 Git HEAD 일치를 검증했다고 주장하지 않는다.
+2. 학생 문서·코드와 재현 표가 GitHub의 같은 커밋에 있는지 확인한다. Git이 없다면 GitHub 화면에서 40자리 SHA를 확인한다. Git 사용자는 `git rev-parse HEAD`와 대조한다. 코드를 추가로 변경했다면 다시 커밋하고 새 커밋으로 재현한다.
 3. 21·22단계는 워크벤치의 13~20단계용 「포털 제출 준비」가 아니라 **ALEPH 단계 화면에 저장소 주소와 40자리 커밋을 직접 입력**한다. 비공개 저장소를 공개로 바꿀 필요가 없다.
 4. 비공개 원문은 같은 단계의 **「비공개 저장소 원문 준비 방법」**에 있는 도구를 프로젝트 **밖에서** 준비하고, 실제 안내에 표시된 `student-source-cli.mjs` 명령에서 `--commit`을 제출할 **40자리 커밋**으로 지정한다. 구체적인 압축 파일·도구 경로는 실제 받은 안내와 대조한 뒤에만 사용한다. 도구는 원문을 묶을 뿐 학생 앱을 실행하지 않는다.
 5. 생성된 JSON을 같은 단계의 **「비공개 저장소 원문 묶음」**에서 선택하고 저장소·커밋·단계를 재확인한 후 직접 제출한다. **원문 전달 완료와 AI 검토 통과는 다르며**, 원문만 실패하면 기존 접수를 유지해 「원문만 다시 보내기」를 사용한다.
@@ -195,4 +200,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -No
 
 **해석:** 이 표는 서버 실행과 제공 엔드포인트의 **미연결 상태 복구 전 경계**를 실제로 관측한 결과다. 13~21단계 운영 시스템 연동, Windows 네이티브 자격, 사용자의 원본 데이터 보존, 브라우저 실제 DOM·접근성, 실제 유료 AI 추론, OSV 실조회, 19단계 실집행과 효과, ALEPH 공식 판정은 **미확인 또는 미완료**다.
 
-**커밋 정합성 주의:** 위 관측은 이 문단을 문서에 추가하기 **직전**의 `040ff787b9f212c20d9e681fa2ab7844041bc1cb`에서 수행했다. 이 기록을 저장한 뒤 새 문서 커밋이 생기므로, **최종 제출할 새 40자리 커밋**도 별도 복제·HEAD 일치 및 같은 기초 검사를 다시 수행해야 한다. 이전 관측을 새로운 커밋에서 직접 실행한 결과로 바꿔 적지 않는다. 이 변경은 학생 문서만 추가하며 런타임 소스는 바꾸지 않는다.
+**과거 검증 증거(0.2.14; 현재 버전 0.2.21과 구분) · 커밋 정합성 주의:** 위 관측은 이 문단을 문서에 추가하기 **직전**의 `040ff787b9f212c20d9e681fa2ab7844041bc1cb`에서 수행했다. 이 기록을 저장한 뒤 새 문서 커밋이 생기므로, **최종 제출할 새 40자리 커밋**도 별도 복제·HEAD 일치 및 같은 기초 검사를 다시 수행해야 한다. 이전 관측을 새로운 커밋에서 직접 실행한 결과로 바꿔 적지 않는다. 이 변경은 학생 문서만 추가하며 런타임 소스는 바꾸지 않는다.
