@@ -48,8 +48,14 @@
 **현재 학생 PC의 실제 프로젝트 폴더**에서 새 PowerShell 창을 연다. 원본 폴더를 이동·삭제·초기화·덮어쓰기 하지 않는다. **Git이 설치되고 `.git`이 있는 경우에만** 아래 Git 상태 조회를 수행한다. Git 없는 ZIP 폴더에서는 `Get-Location`, `Test-Path .git`만 확인한다.
 
 ```powershell
+# Git이 없어도 실행 가능한 확인
 Get-Location
 Test-Path -LiteralPath .git
+```
+
+Git이 이미 설치되고 `.git` 폴더가 있는 경우에만 추가로 다음을 확인한다.
+
+```powershell
 git status --short
 git rev-parse HEAD
 ```
