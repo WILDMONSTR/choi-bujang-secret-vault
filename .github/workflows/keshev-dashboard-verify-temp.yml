@@ -1,4 +1,5 @@
 name: One-time student dashboard functional verification
+# Retest: include explicit historical-only label for failed current reads
 on:
   push:
     branches:
